@@ -1,4 +1,4 @@
--- Guda Bank Frame
+-- Bank Frame
 -- Bank viewing UI
 
 local addon = Guda
@@ -106,11 +106,15 @@ function BankFrame:Update()
         if bankIsOpen then
             -- Bank is actually open - use live data (interactive mode)
             bankData = addon.Modules.BankScanner:ScanBank()
+            -- Use current character's name for the title
+            local playerName = addon.Modules.DB:GetPlayerFullName()
+            getglobal("Guda_BankFrame_Title"):SetText("Bank - " .. playerName)
         else
             -- Bank is closed - use saved data (read-only mode)
-            bankData = addon.Modules.DB:GetCharacterBank(addon.Modules.DB:GetPlayerFullName())
+            local playerName = addon.Modules.DB:GetPlayerFullName()
+            bankData = addon.Modules.DB:GetCharacterBank(playerName)
+            getglobal("Guda_BankFrame_Title"):SetText("Bank - " .. playerName)
         end
-        getglobal("Guda_BankFrame_Title"):SetText("Guda Bank")
     end
 
     self:DisplayItems(bankData, isOtherChar, charName)
