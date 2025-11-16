@@ -1205,10 +1205,142 @@ function BagFrame:UpdateLockState()
     end
 end
 
+-- Hook bag container buttons to open Guda Bag View
+local function HookBagContainers()
+    -- Hook the main bag container buttons (bags 1-4)
+    for i = 1, 4 do
+        local buttonName = "CharacterBag"..i.."Slot"
+        local button = getglobal(buttonName)
+        
+        if button then
+            local originalOnClick = button:GetScript("OnClick")
+            button:SetScript("OnClick", function(self, button)
+                if button == "LeftButton" then
+                    -- Open Guda Bag View instead of default bag
+                    BagFrame:Toggle()
+                else
+                    -- Allow right-click and other buttons to work normally
+                    if originalOnClick then
+                        originalOnClick(self, button)
+                    end
+                end
+            end)
+        end
+    end
+    
+    -- Also hook the backpack button
+    local backpackButton = getglobal("MainMenuBarBackpackButton")
+    if backpackButton then
+        local originalOnClick = backpackButton:GetScript("OnClick")
+        backpackButton:SetScript("OnClick", function(self, button)
+            if button == "LeftButton" then
+                -- Open Guda Bag View instead of default bag
+                BagFrame:Toggle()
+            else
+                -- Allow right-click and other buttons to work normally
+                if originalOnClick then
+                    originalOnClick(self, button)
+                end
+            end
+        end)
+    end
+    
+    -- Hook keyring button if it exists
+    local keyringButton = getglobal("KeyRingButton")
+    if keyringButton then
+        local originalOnClick = keyringButton:GetScript("OnClick")
+        keyringButton:SetScript("OnClick", function(self, button)
+            if button == "LeftButton" then
+                -- Toggle keyring in Guda Bag View
+                Guda_BagFrame_ToggleKeyring()
+                BagFrame:Toggle() -- Also open the bag frame
+            else
+                -- Allow right-click and other buttons to work normally
+                if originalOnClick then
+                    originalOnClick(self, button)
+                end
+            end
+        end)
+    end
+end
+
+-- Alternative approach: Completely replace the bag open functions
+local function ReplaceBagOpenFunctions()
+    -- Store original functions
+    local originalOpenBag = OpenBag
+    local originalToggleBag = ToggleBag
+    
+    -- Override OpenBag
+    function OpenBag(bagId)
+        if bagId and bagId >= 0 and bagId <= 4 then
+            -- For regular bags, open Guda Bag View
+            BagFrame:Toggle()
+        else
+            -- For other containers, use original function
+            if originalOpenBag then
+                originalOpenBag(bagId)
+            end
+        end
+    end
+    
+    -- Override ToggleBag
+    function ToggleBag(bagId)
+        if bagId and bagId >= 0 and bagId <= 4 then
+            -- For regular bags, toggle Guda Bag View
+            BagFrame:Toggle()
+        else
+            -- For other containers, use original function
+            if originalToggleBag then
+                originalToggleBag(bagId)
+            end
+        end
+    end
+end
+
+-- Update your existing HookDefaultBags function to be more comprehensive
+local function HookDefaultBags()
+    -- Override ToggleBackpack
+    local originalToggleBackpack = ToggleBackpack
+    function ToggleBackpack()
+        BagFrame:Toggle()
+    end
+
+    -- Override OpenAllBags
+    local originalOpenAllBags = OpenAllBags
+    function OpenAllBags()
+        Guda_BagFrame:Show()
+    end
+
+    -- Override CloseAllBags
+    local originalCloseAllBags = CloseAllBags
+    function CloseAllBags()
+        Guda_BagFrame:Hide()
+    end
+    
+    -- Use the container hook approach
+    HookBagContainers()
+    
+    -- OR use the function replacement approach (comment out one)
+    ReplaceBagOpenFunctions()
+end
+
+-- Also add this to your initialization to ensure it runs after UI is loaded
+local function DelayedHook()
+    -- Wait a bit for the UI to load completely
+    local frame = CreateFrame("Frame")
+    frame:SetScript("OnUpdate", function()
+        frame:SetScript("OnUpdate", nil)
+        HookBagContainers()
+    end)
+end
+
 -- Initialize
 function BagFrame:Initialize()
     -- Hook default bag functions
     HookDefaultBags()
+    
+    -- Delayed hook for bag containers (runs after UI loads)
+    DelayedHook()
 
     -- Update on bag changes
     addon.Modules.Events:OnBagUpdate(function()
