@@ -27,16 +27,30 @@
             <Color r="0" g="0" b="0" a="0.9"/>
         </Backdrop>
 
-        <!-- Keep a (currently unused) top-level layer block for future use -->
         <Layers>
-            <Layer level="BACKGROUND"/>
+            <!-- Title at top -->
+            <Layer level="ARTWORK">
+                <FontString name="$parent_Title" inherits="GameFontNormalLarge">
+                    <Anchors>
+                        <Anchor point="TOP">
+                            <Offset>
+                                <AbsDimension x="0" y="-12"/>
+                            </Offset>
+                        </Anchor>
+                    </Anchors>
+                </FontString>
+            </Layer>
         </Layers>
 
         <Frames>
             <!-- Close Button -->
             <Button name="$parent_CloseButton" inherits="UIPanelCloseButton">
                 <Anchors>
-                    <Anchor point="TOPRIGHT" x="-5" y="-5"/>
+                    <Anchor point="TOPRIGHT">
+                        <Offset>
+                            <AbsDimension x="-10" y="-10"/>
+                        </Offset>
+                    </Anchor>
                 </Anchors>
                 <Scripts>
                     <OnClick>
@@ -45,13 +59,17 @@
                 </Scripts>
             </Button>
 
-            <!-- Toolbar Container (top row) -->
+            <!-- Toolbar Container (moved to footer) -->
             <Frame name="$parent_Toolbar" enableMouse="true">
                 <Size>
-                    <AbsDimension x="400" y="30"/>
+                    <AbsDimension x="200" y="30"/>
                 </Size>
                 <Anchors>
-                    <Anchor point="TOP" x="0" y="-10"/>
+                    <Anchor point="BOTTOMLEFT">
+                        <Offset>
+                            <AbsDimension x="20" y="20"/>
+                        </Offset>
+                    </Anchor>
                 </Anchors>
                 <Scripts>
                     <OnMouseDown>
@@ -63,33 +81,46 @@
                     </OnMouseDown>
                 </Scripts>
 
-                <!-- Title centered in toolbar -->
-                <Layers>
-                    <Layer level="ARTWORK">
-                        <FontString name="$parent_Title" inherits="GameFontNormalLarge">
-                            <Anchors>
-                                <Anchor point="CENTER" x="0" y="0"/>
-                            </Anchors>
-                        </FontString>
-                    </Layer>
-                </Layers>
-
                 <Frames>
-                    <!-- Sort Button -->
+                    <!-- Sort Button (icon-based) -->
                     <Button name="$parent_SortButton">
                         <Size>
                             <AbsDimension x="24" y="24"/>
                         </Size>
                         <Anchors>
-                            <Anchor point="LEFT" x="10" y="0"/>
+                            <Anchor point="LEFT">
+                                <Offset>
+                                    <AbsDimension x="0" y="0"/>
+                                </Offset>
+                            </Anchor>
                         </Anchors>
-                        <NormalTexture file="Interface\\Icons\\INV_Misc_Note_01"/>
+                        <Layers>
+                            <Layer level="ARTWORK">
+                                <Texture name="$parent_Icon">
+                                    <Size>
+                                        <AbsDimension x="20" y="20"/>
+                                    </Size>
+                                    <Anchors>
+                                        <Anchor point="CENTER"/>
+                                    </Anchors>
+                                    <Color r="0.8" g="0.8" b="0.8"/>
+                                </Texture>
+                            </Layer>
+                        </Layers>
                         <Scripts>
+                            <OnLoad>
+                                -- Placeholder: Set texture file path here
+                                local icon = getglobal(this:GetName().."_Icon")
+                                if icon then
+                                    icon:SetTexture("Interface\\Icons\\INV_Misc_Note_01")
+                                    icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+                                end
+                            </OnLoad>
                             <OnClick>
                                 Guda_BagFrame_Sort()
                             </OnClick>
                             <OnEnter>
-                                GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+                                GameTooltip:SetOwner(this, "ANCHOR_TOP")
                                 GameTooltip:SetText("Sort Bags")
                                 GameTooltip:Show()
                             </OnEnter>
@@ -99,21 +130,44 @@
                         </Scripts>
                     </Button>
 
-                    <!-- Characters Button -->
+                    <!-- Characters Button (icon-based) -->
                     <Button name="$parent_CharsButton">
                         <Size>
                             <AbsDimension x="24" y="24"/>
                         </Size>
                         <Anchors>
-                            <Anchor point="LEFT" relativePoint="RIGHT" relativeTo="$parent_SortButton" x="5" y="0"/>
+                            <Anchor point="LEFT" relativePoint="RIGHT" relativeTo="$parent_SortButton">
+                                <Offset>
+                                    <AbsDimension x="4" y="0"/>
+                                </Offset>
+                            </Anchor>
                         </Anchors>
-                        <NormalTexture file="Interface\\Icons\\INV_Misc_GroupNeedMore"/>
+                        <Layers>
+                            <Layer level="ARTWORK">
+                                <Texture name="$parent_Icon">
+                                    <Size>
+                                        <AbsDimension x="20" y="20"/>
+                                    </Size>
+                                    <Anchors>
+                                        <Anchor point="CENTER"/>
+                                    </Anchors>
+                                    <Color r="0.8" g="0.8" b="0.8"/>
+                                </Texture>
+                            </Layer>
+                        </Layers>
                         <Scripts>
+                            <OnLoad>
+                                local icon = getglobal(this:GetName().."_Icon")
+                                if icon then
+                                    icon:SetTexture("Interface\\Icons\\INV_Misc_GroupNeedMore")
+                                    icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+                                end
+                            </OnLoad>
                             <OnClick>
                                 Guda_CharacterSelector:Toggle()
                             </OnClick>
                             <OnEnter>
-                                GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+                                GameTooltip:SetOwner(this, "ANCHOR_TOP")
                                 GameTooltip:SetText("View Other Characters")
                                 GameTooltip:Show()
                             </OnEnter>
@@ -123,21 +177,44 @@
                         </Scripts>
                     </Button>
 
-                    <!-- Bank Button -->
+                    <!-- Bank Button (icon-based) -->
                     <Button name="$parent_BankButton">
                         <Size>
                             <AbsDimension x="24" y="24"/>
                         </Size>
                         <Anchors>
-                            <Anchor point="LEFT" relativePoint="RIGHT" relativeTo="$parent_CharsButton" x="5" y="0"/>
+                            <Anchor point="LEFT" relativePoint="RIGHT" relativeTo="$parent_CharsButton">
+                                <Offset>
+                                    <AbsDimension x="4" y="0"/>
+                                </Offset>
+                            </Anchor>
                         </Anchors>
-                        <NormalTexture file="Interface\\Icons\\INV_Misc_Bag_09"/>
+                        <Layers>
+                            <Layer level="ARTWORK">
+                                <Texture name="$parent_Icon">
+                                    <Size>
+                                        <AbsDimension x="20" y="20"/>
+                                    </Size>
+                                    <Anchors>
+                                        <Anchor point="CENTER"/>
+                                    </Anchors>
+                                    <Color r="0.8" g="0.8" b="0.8"/>
+                                </Texture>
+                            </Layer>
+                        </Layers>
                         <Scripts>
+                            <OnLoad>
+                                local icon = getglobal(this:GetName().."_Icon")
+                                if icon then
+                                    icon:SetTexture("Interface\\Icons\\INV_Misc_Bag_09")
+                                    icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+                                end
+                            </OnLoad>
                             <OnClick>
                                 Guda_BankFrame:Toggle()
                             </OnClick>
                             <OnEnter>
-                                GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+                                GameTooltip:SetOwner(this, "ANCHOR_TOP")
                                 GameTooltip:SetText("View Bank")
                                 GameTooltip:Show()
                             </OnEnter>
@@ -147,21 +224,44 @@
                         </Scripts>
                     </Button>
 
-                    <!-- Settings Button -->
+                    <!-- Settings Button (icon-based) -->
                     <Button name="$parent_SettingsButton">
                         <Size>
                             <AbsDimension x="24" y="24"/>
                         </Size>
                         <Anchors>
-                            <Anchor point="LEFT" relativePoint="RIGHT" relativeTo="$parent_BankButton" x="5" y="0"/>
+                            <Anchor point="LEFT" relativePoint="RIGHT" relativeTo="$parent_BankButton">
+                                <Offset>
+                                    <AbsDimension x="4" y="0"/>
+                                </Offset>
+                            </Anchor>
                         </Anchors>
-                        <NormalTexture file="Interface\\Icons\\Trade_Engineering"/>
+                        <Layers>
+                            <Layer level="ARTWORK">
+                                <Texture name="$parent_Icon">
+                                    <Size>
+                                        <AbsDimension x="20" y="20"/>
+                                    </Size>
+                                    <Anchors>
+                                        <Anchor point="CENTER"/>
+                                    </Anchors>
+                                    <Color r="0.8" g="0.8" b="0.8"/>
+                                </Texture>
+                            </Layer>
+                        </Layers>
                         <Scripts>
+                            <OnLoad>
+                                local icon = getglobal(this:GetName().."_Icon")
+                                if icon then
+                                    icon:SetTexture("Interface\\Icons\\Trade_Engineering")
+                                    icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+                                end
+                            </OnLoad>
                             <OnClick>
                                 Guda_OpenSettings()
                             </OnClick>
                             <OnEnter>
-                                GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+                                GameTooltip:SetOwner(this, "ANCHOR_TOP")
                                 GameTooltip:SetText("Settings")
                                 GameTooltip:Show()
                             </OnEnter>
@@ -173,13 +273,17 @@
                 </Frames>
             </Frame>
 
-            <!-- Search Bar (second row) -->
+            <!-- Search Bar (now below title) -->
             <Frame name="$parent_SearchBar">
                 <Size>
                     <AbsDimension x="400" y="30"/>
                 </Size>
                 <Anchors>
-                    <Anchor point="TOP" relativePoint="BOTTOM" relativeTo="$parent_Toolbar" x="0" y="-5"/>
+                    <Anchor point="TOP">
+                        <Offset>
+                            <AbsDimension x="0" y="-40"/>
+                        </Offset>
+                    </Anchor>
                 </Anchors>
 
                 <Frames>
@@ -189,8 +293,16 @@
                             <AbsDimension x="0" y="20"/>
                         </Size>
                         <Anchors>
-                            <Anchor point="LEFT" x="10" y="0"/>
-                            <Anchor point="RIGHT" x="-10" y="0"/>
+                            <Anchor point="LEFT">
+                                <Offset>
+                                    <AbsDimension x="15" y="0"/>
+                                </Offset>
+                            </Anchor>
+                            <Anchor point="RIGHT">
+                                <Offset>
+                                    <AbsDimension x="-10" y="0"/>
+                                </Offset>
+                            </Anchor>
                         </Anchors>
                         <Scripts>
                             <OnEditFocusGained>
@@ -228,13 +340,17 @@
                 </Frames>
             </Frame>
 
-            <!-- Money Display Frame -->
+            <!-- Money Display Frame (moved to bottom right) -->
             <Frame name="$parent_MoneyFrame" enableMouse="true">
                 <Size>
-                    <AbsDimension x="300" y="30"/>
+                    <AbsDimension x="150" y="30"/>
                 </Size>
                 <Anchors>
-                    <Anchor point="BOTTOM" x="0" y="10"/>
+                    <Anchor point="BOTTOMRIGHT">
+                        <Offset>
+                            <AbsDimension x="-10" y="10"/>
+                        </Offset>
+                    </Anchor>
                 </Anchors>
                 <Scripts>
                     <OnMouseDown>

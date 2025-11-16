@@ -3,7 +3,7 @@
     <!-- Settings Popup Frame -->
     <Frame name="Guda_SettingsPopup" toplevel="true" movable="true" enableMouse="true" hidden="true" parent="UIParent" frameStrata="DIALOG">
         <Size>
-            <AbsDimension x="320" y="380"/>
+            <AbsDimension x="320" y="420"/>
         </Size>
 
         <Anchors>
@@ -32,7 +32,11 @@
             <Layer level="ARTWORK">
                 <FontString name="$parent_Title" inherits="GameFontNormalLarge">
                     <Anchors>
-                        <Anchor point="TOP" x="0" y="-25"/>
+                        <Anchor point="TOP">
+                            <Offset>
+                                <AbsDimension x="0" y="-18"/>
+                            </Offset>
+                        </Anchor>
                     </Anchors>
                     <Color r="1" g="0.82" b="0"/>
                 </FontString>
@@ -43,7 +47,11 @@
             <!-- Close Button -->
             <Button name="$parent_CloseButton" inherits="UIPanelCloseButton">
                 <Anchors>
-                    <Anchor point="TOPRIGHT" x="-5" y="-50"/>
+                    <Anchor point="TOPRIGHT">
+                        <Offset>
+                            <AbsDimension x="-10" y="-10"/>
+                        </Offset>
+                    </Anchor>
                 </Anchors>
                 <Scripts>
                     <OnClick>
@@ -140,10 +148,32 @@
                 </Scripts>
             </Slider>
 
+            <!-- Icon Spacing Slider -->
+            <Slider name="$parent_IconSpacingSlider" inherits="OptionsSliderTemplate">
+                <Size>
+                    <AbsDimension x="270" y="17"/>
+                </Size>
+                <Anchors>
+                    <Anchor point="TOP" relativePoint="BOTTOM" relativeTo="$parent_IconFontSizeSlider">
+                        <Offset>
+                            <AbsDimension x="0" y="-40"/>
+                        </Offset>
+                    </Anchor>
+                </Anchors>
+                <Scripts>
+                    <OnLoad>
+                        Guda_SettingsPopup_IconSpacingSlider_OnLoad(this)
+                    </OnLoad>
+                    <OnValueChanged>
+                        Guda_SettingsPopup_IconSpacingSlider_OnValueChanged(this)
+                    </OnValueChanged>
+                </Scripts>
+            </Slider>
+
             <!-- Lock Bags Checkbox -->
             <CheckButton name="$parent_LockBagsCheckbox" inherits="OptionsCheckButtonTemplate">
                 <Anchors>
-                    <Anchor point="TOP" relativePoint="BOTTOM" relativeTo="$parent_IconFontSizeSlider">
+                    <Anchor point="TOP" relativePoint="BOTTOM" relativeTo="$parent_IconSpacingSlider">
                         <Offset>
                             <AbsDimension x="-120" y="-30"/>
                         </Offset>

@@ -31,7 +31,11 @@
             <Layer level="OVERLAY">
                 <FontString name="$parent_Count" inherits="NumberFontNormal" justifyH="RIGHT">
                     <Anchors>
-                        <Anchor point="BOTTOMRIGHT" x="-2" y="2"/>
+                        <Anchor point="BOTTOMRIGHT">
+                            <Offset>
+                                <AbsDimension x="-8" y="8"/>
+                            </Offset>
+                        </Anchor>
                     </Anchors>
                 </FontString>
             </Layer>

@@ -100,7 +100,7 @@ function BagFrame:Update()
     local isOtherChar = false
     local charName = ""
 
-    local titleFont = getglobal("Guda_BagFrame_Toolbar_Title")
+    local titleFont = getglobal("Guda_BagFrame_Title")
     local displayName
 
     if currentViewChar then
@@ -138,7 +138,7 @@ function BagFrame:DisplayItems(bagData, isOtherChar, charName)
     local row = 0
     local col = 0
     local buttonSize = addon.Modules.DB:GetSetting("iconSize") or addon.Constants.BUTTON_SIZE
-    local spacing = addon.Constants.BUTTON_SPACING
+    local spacing = addon.Modules.DB:GetSetting("iconSpacing") or addon.Constants.BUTTON_SPACING
     local perRow = addon.Modules.DB:GetSetting("bagColumns") or 10
     local itemContainer = getglobal("Guda_BagFrame_ItemContainer")
 
@@ -188,7 +188,7 @@ end
 -- Resize frame based on number of rows and columns
 function BagFrame:ResizeFrame(currentRow, currentCol, columns)
     local buttonSize = addon.Modules.DB:GetSetting("iconSize") or addon.Constants.BUTTON_SIZE
-    local spacing = addon.Constants.BUTTON_SPACING
+    local spacing = addon.Modules.DB:GetSetting("iconSpacing") or addon.Constants.BUTTON_SPACING
 
     -- Calculate actual number of rows used
     local totalRows = currentRow + 1
@@ -202,7 +202,7 @@ function BagFrame:ResizeFrame(currentRow, currentCol, columns)
     local containerWidth = (columns * (buttonSize + spacing)) + 20
     local containerHeight = (totalRows * (buttonSize + spacing)) + 20
     local frameWidth = containerWidth + 30
-    local frameHeight = containerHeight + 160
+    local frameHeight = containerHeight + 100  -- Title (40) + search (30) + footer (30)
 
     -- Minimum sizes
     if containerWidth < 200 then
@@ -212,8 +212,8 @@ function BagFrame:ResizeFrame(currentRow, currentCol, columns)
     if containerHeight < 150 then
         containerHeight = 150
     end
-    if frameHeight < 350 then
-        frameHeight = 350
+    if frameHeight < 250 then
+        frameHeight = 250
     end
 
     -- Maximum sizes

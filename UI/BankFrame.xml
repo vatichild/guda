@@ -31,7 +31,11 @@
             <Layer level="ARTWORK">
                 <FontString name="$parent_Title" inherits="GameFontNormalLarge">
                     <Anchors>
-                        <Anchor point="TOP" x="0" y="-15"/>
+                        <Anchor point="TOP">
+                            <Offset>
+                                <AbsDimension x="0" y="-18"/>
+                            </Offset>
+                        </Anchor>
                     </Anchors>
                 </FontString>
             </Layer>
@@ -41,7 +45,11 @@
             <!-- Close Button -->
             <Button name="$parent_CloseButton" inherits="UIPanelCloseButton">
                 <Anchors>
-                    <Anchor point="TOPRIGHT" x="-5" y="-5"/>
+                    <Anchor point="TOPRIGHT">
+                        <Offset>
+                            <AbsDimension x="-10" y="-10"/>
+                        </Offset>
+                    </Anchor>
                 </Anchors>
                 <Scripts>
                     <OnClick>
@@ -80,7 +88,11 @@
                     <AbsDimension x="200" y="20"/>
                 </Size>
                 <Anchors>
-                    <Anchor point="TOP" x="0" y="-45"/>
+                    <Anchor point="TOP">
+                        <Offset>
+                            <AbsDimension x="0" y="-48"/>
+                        </Offset>
+                    </Anchor>
                 </Anchors>
                 <Scripts>
                     <OnTextChanged>

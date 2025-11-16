@@ -129,9 +129,10 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
             normalBorder:SetTexture("")
         end
 
-        -- Hide empty slot background for filled slots
+        -- Show bag pattern background behind items as well
         if emptySlotBg then
-            emptySlotBg:Hide()
+            emptySlotBg:Show()
+            emptySlotBg:SetAlpha(0.3)  -- More subtle for filled slots
         end
 
         -- Search filtering (pfUI style - ONLY use alpha, no other effects)
@@ -203,10 +204,12 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
 
     if iconTexture then
         if self.hasItem then
-            -- pfUI style: anchor to fill the button with small insets
+            -- Make icon 3px smaller than slot for nice inset effect
+            local iconDisplaySize = iconSize - 15
             iconTexture:ClearAllPoints()
-            iconTexture:SetPoint("TOPLEFT", self, "TOPLEFT", 1, -1)
-            iconTexture:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", -1, 1)
+            iconTexture:SetPoint("CENTER", self, "CENTER", 0, 0)
+            iconTexture:SetWidth(iconDisplaySize)
+            iconTexture:SetHeight(iconDisplaySize)
             -- Crop icon edges slightly (pfUI uses .08 to .92)
             iconTexture:SetTexCoord(0.08, 0.92, 0.08, 0.92)
             iconTexture:Show()

@@ -33,6 +33,7 @@ function Guda_SettingsPopup_OnShow(self)
     local bankColumns = Guda.Modules.DB:GetSetting("bankColumns") or 15
     local iconSize = Guda.Modules.DB:GetSetting("iconSize") or addon.Constants.BUTTON_SIZE
     local iconFontSize = Guda.Modules.DB:GetSetting("iconFontSize") or 12
+    local iconSpacing = Guda.Modules.DB:GetSetting("iconSpacing") or 4
     local lockBags = Guda.Modules.DB:GetSetting("lockBags")
     if lockBags == nil then
         lockBags = false
@@ -43,6 +44,7 @@ function Guda_SettingsPopup_OnShow(self)
     local bankSlider = getglobal("Guda_SettingsPopup_BankColumnsSlider")
     local iconSizeSlider = getglobal("Guda_SettingsPopup_IconSizeSlider")
     local iconFontSizeSlider = getglobal("Guda_SettingsPopup_IconFontSizeSlider")
+    local iconSpacingSlider = getglobal("Guda_SettingsPopup_IconSpacingSlider")
     local lockCheckbox = getglobal("Guda_SettingsPopup_LockBagsCheckbox")
 
     if bagSlider then
@@ -59,6 +61,10 @@ function Guda_SettingsPopup_OnShow(self)
 
     if iconFontSizeSlider then
         iconFontSizeSlider:SetValue(iconFontSize)
+    end
+
+    if iconSpacingSlider then
+        iconSpacingSlider:SetValue(iconSpacing)
     end
 
     if lockCheckbox then
@@ -228,6 +234,49 @@ function Guda_SettingsPopup_IconFontSizeSlider_OnValueChanged(self)
         Guda.Modules.BagFrame:Update()
     end
 
+    local bankFrame = getglobal("Guda_BankFrame")
+    if bankFrame and bankFrame:IsShown() then
+        Guda.Modules.BankFrame:Update()
+    end
+end
+
+-- Icon Spacing Slider OnLoad
+function Guda_SettingsPopup_IconSpacingSlider_OnLoad(self)
+    getglobal(self:GetName().."Low"):SetText("-5px")
+    getglobal(self:GetName().."High"):SetText("10px")
+
+    local text = getglobal(self:GetName().."Text")
+    text:SetText("Icon spacing")
+
+    -- Increase font size
+    local font, _, flags = text:GetFont()
+    if font then
+        text:SetFont(font, 12, flags)
+    end
+
+    self:SetMinMaxValues(-5, 10)
+    self:SetValueStep(1)
+
+    local currentValue = Guda.Modules.DB:GetSetting("iconSpacing") or 4
+    self:SetValue(currentValue)
+end
+
+-- Icon Spacing Slider OnValueChanged
+function Guda_SettingsPopup_IconSpacingSlider_OnValueChanged(self)
+    local value = math.floor(self:GetValue() + 0.5)
+    local displayValue = value >= 0 and value .. "px" or value .. "px"
+    getglobal(self:GetName().."Text"):SetText("Icon spacing: " .. displayValue)
+
+    -- Save setting
+    Guda.Modules.DB:SetSetting("iconSpacing", value)
+
+    -- Update bag frame
+    local bagFrame = getglobal("Guda_BagFrame")
+    if bagFrame and bagFrame:IsShown() then
+        Guda.Modules.BagFrame:Update()
+    end
+
+    -- Update bank frame
     local bankFrame = getglobal("Guda_BankFrame")
     if bankFrame and bankFrame:IsShown() then
         Guda.Modules.BankFrame:Update()
