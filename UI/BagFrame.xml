@@ -232,12 +232,12 @@
                     <OnLoad>
                         local icon = getglobal(this:GetName().."_Icon")
                         if icon then
-                            icon:SetTexture("Interface\\Icons\\INV_Misc_Bag_09")
+                            icon:SetTexture("Interface\\Icons\\INV_Misc_Bag_08")
                             icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
                         end
                     </OnLoad>
                     <OnClick>
-                        Guda_BankFrame:Toggle()
+                        Guda_BagFrame_ToggleBankDropdown(this)
                     </OnClick>
                     <OnEnter>
                         GameTooltip:SetOwner(this, "ANCHOR_TOP")

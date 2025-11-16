@@ -789,6 +789,141 @@ local function HideCharacterDropdown()
     end
 end
 
+-- Bank dropdown management
+local bankDropdown = nil
+
+-- Toggle bank dropdown
+function Guda_BagFrame_ToggleBankDropdown(button)
+    if bankDropdown and bankDropdown:IsShown() then
+        bankDropdown:Hide()
+        return
+    end
+
+    if not bankDropdown then
+        -- Create dropdown frame
+        bankDropdown = CreateFrame("Frame", "Guda_BankDropdown", UIParent)
+        bankDropdown:SetFrameStrata("DIALOG")
+        bankDropdown:SetWidth(200)
+        bankDropdown:SetBackdrop({
+            bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+            edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+            tile = true,
+            tileSize = 16,
+            edgeSize = 16,
+            insets = { left = 4, right = 4, top = 4, bottom = 4 }
+        })
+        bankDropdown:SetBackdropColor(0, 0, 0, 0.95)
+        bankDropdown:EnableMouse(true)
+        bankDropdown:Hide()
+
+        bankDropdown.buttons = {}
+    end
+
+    -- Position dropdown below the button
+    bankDropdown:ClearAllPoints()
+    bankDropdown:SetPoint("TOPLEFT", button, "BOTTOMLEFT", 0, -2)
+
+    -- Clear existing buttons
+    for _, btn in ipairs(bankDropdown.buttons) do
+        btn:Hide()
+    end
+    bankDropdown.buttons = {}
+
+    -- Get all characters
+    local chars = addon.Modules.DB:GetAllCharacters(true)
+
+    local yOffset = -8
+
+    -- Add character buttons
+    for _, char in ipairs(chars) do
+        -- Capture variables in local scope for closure
+        local charFullName = char.fullName
+        local charName = char.name
+        local charMoney = char.money or 0
+        local charClassToken = char.classToken
+
+        local charButton = CreateFrame("Button", nil, bankDropdown)
+        charButton:SetWidth(188)
+        charButton:SetHeight(20)
+        charButton:SetPoint("TOP", bankDropdown, "TOP", 0, yOffset)
+
+        -- Button background on hover
+        local charBg = charButton:CreateTexture(nil, "BACKGROUND")
+        charBg:SetAllPoints()
+        charBg:SetTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
+        charBg:SetBlendMode("ADD")
+        charBg:SetAlpha(0)
+
+        -- Get class color
+        local classColor = charClassToken and RAID_CLASS_COLORS[charClassToken]
+        local r, g, b = 1, 1, 1
+        if classColor then
+            r, g, b = classColor.r, classColor.g, classColor.b
+        end
+
+        -- Button text
+        local charText = charButton:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+        charText:SetPoint("LEFT", charButton, "LEFT", 8, 0)
+        charText:SetText(charName)
+        charText:SetTextColor(r, g, b)
+
+        -- Money text
+        local moneyText = charButton:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+        moneyText:SetPoint("RIGHT", charButton, "RIGHT", -8, 0)
+        moneyText:SetText(addon.Modules.Utils:FormatMoney(charMoney))
+        moneyText:SetTextColor(0.7, 0.7, 0.7)
+
+        -- Button scripts
+        charButton:SetScript("OnEnter", function()
+            charBg:SetAlpha(0.3)
+        end)
+        charButton:SetScript("OnLeave", function()
+            charBg:SetAlpha(0)
+        end)
+        charButton:SetScript("OnClick", function()
+            if charFullName then
+                -- Show bank for this character
+                Guda_BagFrame_ShowCharacterBank(charFullName, charName)
+                bankDropdown:Hide()
+            else
+                addon:Print("Error: Character fullName is nil")
+            end
+        end)
+
+        table.insert(bankDropdown.buttons, charButton)
+        yOffset = yOffset - 20
+    end
+
+    -- Set dropdown height based on content
+    bankDropdown:SetHeight(math.abs(yOffset) + 8)
+
+    -- Show dropdown
+    bankDropdown:Show()
+end
+
+-- Show character's bank
+function Guda_BagFrame_ShowCharacterBank(fullName, displayName)
+    -- Use the existing BankFrame module
+    if not addon.Modules.BankFrame then
+        addon:Print("Bank frame module not available")
+        return
+    end
+
+    -- Position bank frame at center of screen
+    if Guda_BankFrame then
+        Guda_BankFrame:ClearAllPoints()
+        Guda_BankFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+    end
+
+    -- Show the character's bank
+    addon.Modules.BankFrame:ShowCharacter(fullName)
+
+    -- Make sure frame is shown
+    if Guda_BankFrame then
+        Guda_BankFrame:Show()
+    end
+end
+
 -- Search changed handler
 function Guda_BagFrame_OnSearchChanged(self)
     local text = self:GetText()

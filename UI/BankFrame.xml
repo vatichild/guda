@@ -3,37 +3,38 @@
     <!-- Bank Frame -->
     <Frame name="Guda_BankFrame" toplevel="true" movable="true" enableMouse="true" hidden="true" parent="UIParent">
         <Size>
-            <AbsDimension x="400" y="500"/>
+            <AbsDimension x="420" y="600"/>
         </Size>
 
         <Anchors>
-            <Anchor point="LEFT" relativePoint="LEFT" relativeTo="UIParent">
+            <Anchor point="CENTER" relativePoint="CENTER" relativeTo="UIParent">
                 <Offset>
-                    <AbsDimension x="50" y="0"/>
+                    <AbsDimension x="0" y="0"/>
                 </Offset>
             </Anchor>
         </Anchors>
 
-        <Backdrop bgFile="Interface\DialogFrame\UI-DialogBox-Background" edgeFile="Interface\DialogFrame\UI-DialogBox-Border" tile="true">
+        <Backdrop bgFile="Interface\Tooltips\UI-Tooltip-Background" edgeFile="Interface\DialogFrame\UI-DialogBox-Border" tile="true">
             <BackgroundInsets>
                 <AbsInset left="11" right="12" top="12" bottom="11"/>
             </BackgroundInsets>
             <TileSize>
-                <AbsValue val="32"/>
+                <AbsValue val="16"/>
             </TileSize>
             <EdgeSize>
                 <AbsValue val="32"/>
             </EdgeSize>
+            <Color r="0" g="0" b="0" a="0.9"/>
         </Backdrop>
 
         <Layers>
-            <!-- Title -->
+            <!-- Title at top -->
             <Layer level="ARTWORK">
                 <FontString name="$parent_Title" inherits="GameFontNormalLarge">
                     <Anchors>
                         <Anchor point="TOP">
                             <Offset>
-                                <AbsDimension x="0" y="-18"/>
+                                <AbsDimension x="0" y="-12"/>
                             </Offset>
                         </Anchor>
                     </Anchors>
@@ -58,21 +59,44 @@
                 </Scripts>
             </Button>
 
-            <!-- Settings Button -->
+            <!-- Settings Button (header right, next to close) -->
             <Button name="$parent_SettingsButton">
                 <Size>
                     <AbsDimension x="24" y="24"/>
                 </Size>
                 <Anchors>
-                    <Anchor point="TOPRIGHT" relativePoint="TOPLEFT" relativeTo="$parent_CloseButton" x="-5" y="0"/>
+                    <Anchor point="TOPRIGHT" relativePoint="TOPLEFT" relativeTo="$parent_CloseButton">
+                        <Offset>
+                            <AbsDimension x="0" y="-5"/>
+                        </Offset>
+                    </Anchor>
                 </Anchors>
-                <NormalTexture file="Interface\Icons\Trade_Engineering"/>
+                <Layers>
+                    <Layer level="ARTWORK">
+                        <Texture name="$parent_Icon">
+                            <Size>
+                                <AbsDimension x="20" y="20"/>
+                            </Size>
+                            <Anchors>
+                                <Anchor point="CENTER"/>
+                            </Anchors>
+                            <Color r="0.8" g="0.8" b="0.8"/>
+                        </Texture>
+                    </Layer>
+                </Layers>
                 <Scripts>
+                    <OnLoad>
+                        local icon = getglobal(this:GetName().."_Icon")
+                        if icon then
+                            icon:SetTexture("Interface\\Icons\\Trade_Engineering")
+                            icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+                        end
+                    </OnLoad>
                     <OnClick>
                         Guda_OpenSettings()
                     </OnClick>
                     <OnEnter>
-                        GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+                        GameTooltip:SetOwner(this, "ANCHOR_TOP")
                         GameTooltip:SetText("Settings")
                         GameTooltip:Show()
                     </OnEnter>
@@ -82,51 +106,91 @@
                 </Scripts>
             </Button>
 
-            <!-- Search Box -->
-            <EditBox name="$parent_SearchBox" autoFocus="false" inherits="InputBoxTemplate">
+            <!-- Search Bar (below title) -->
+            <Frame name="$parent_SearchBar">
                 <Size>
-                    <AbsDimension x="200" y="20"/>
+                    <AbsDimension x="400" y="30"/>
                 </Size>
                 <Anchors>
                     <Anchor point="TOP">
                         <Offset>
-                            <AbsDimension x="0" y="-48"/>
+                            <AbsDimension x="0" y="-40"/>
                         </Offset>
                     </Anchor>
                 </Anchors>
-                <Scripts>
-                    <OnTextChanged>
-                        Guda_BankFrame_OnSearchChanged(this)
-                    </OnTextChanged>
-                    <OnEscapePressed>
-                        this:ClearFocus()
-                    </OnEscapePressed>
-                </Scripts>
-            </EditBox>
 
-            <!-- Sort Button -->
-            <Button name="$parent_SortButton" inherits="UIPanelButtonTemplate" text="Sort Bank">
-                <Size>
-                    <AbsDimension x="100" y="22"/>
-                </Size>
-                <Anchors>
-                    <Anchor point="BOTTOM" x="0" y="10"/>
-                </Anchors>
-                <Scripts>
-                    <OnClick>
-                        Guda_BankFrame_Sort()
-                    </OnClick>
-                </Scripts>
-            </Button>
+                <Frames>
+                    <!-- Full-width Search Box -->
+                    <EditBox name="$parent_SearchBox" autoFocus="false" inherits="InputBoxTemplate">
+                        <Size>
+                            <AbsDimension x="0" y="20"/>
+                        </Size>
+                        <Anchors>
+                            <Anchor point="LEFT">
+                                <Offset>
+                                    <AbsDimension x="16" y="0"/>
+                                </Offset>
+                            </Anchor>
+                            <Anchor point="RIGHT">
+                                <Offset>
+                                    <AbsDimension x="-10" y="0"/>
+                                </Offset>
+                            </Anchor>
+                        </Anchors>
+                        <Scripts>
+                            <OnEditFocusGained>
+                                if this:GetText() == "Search bank..." then
+                                    this:SetText("")
+                                    this:SetTextColor(1, 1, 1, 1)
+                                end
+                            </OnEditFocusGained>
+                            <OnEditFocusLost>
+                                if this:GetText() == "" then
+                                    this:SetText("Search bank...")
+                                    this:SetTextColor(0.5, 0.5, 0.5, 1)
+                                    Guda_BankFrame_OnSearchChanged(this)
+                                end
+                            </OnEditFocusLost>
+                            <OnTextChanged>
+                                Guda_BankFrame_OnSearchChanged(this)
+                            </OnTextChanged>
+                            <OnEscapePressed>
+                                this:SetText("Search bank...")
+                                this:SetTextColor(0.5, 0.5, 0.5, 1)
+                                this:ClearFocus()
+                                Guda_BankFrame_OnSearchChanged(this)
+                            </OnEscapePressed>
+                        </Scripts>
+                    </EditBox>
+                </Frames>
+            </Frame>
 
             <!-- Container for item buttons -->
-            <Frame name="$parent_ItemContainer">
+            <Frame name="$parent_ItemContainer" enableMouse="true">
                 <Size>
-                    <AbsDimension x="370" y="420"/>
+                    <AbsDimension x="400" y="480"/>
                 </Size>
                 <Anchors>
-                    <Anchor point="TOP" x="0" y="-75"/>
+                    <Anchor point="TOP" relativePoint="BOTTOM" relativeTo="$parent_SearchBar" x="0" y="-5"/>
                 </Anchors>
+                <Backdrop bgFile="Interface\Tooltips\UI-Tooltip-Background" tile="true">
+                    <BackgroundInsets>
+                        <AbsInset left="0" right="0" top="0" bottom="0"/>
+                    </BackgroundInsets>
+                    <TileSize>
+                        <AbsValue val="16"/>
+                    </TileSize>
+                    <Color r="0" g="0" b="0" a="0.5"/>
+                </Backdrop>
+                <Scripts>
+                    <OnMouseDown>
+                        -- Clear search focus when clicking in item area
+                        local searchBox = getglobal("Guda_BankFrame_SearchBar_SearchBox")
+                        if searchBox then
+                            searchBox:ClearFocus()
+                        end
+                    </OnMouseDown>
+                </Scripts>
             </Frame>
         </Frames>
 
@@ -141,6 +205,12 @@
                 Guda_BankFrame_OnHide(this)
             </OnHide>
             <OnMouseDown>
+                -- Clear search box focus when clicking on bank frame
+                local searchBox = getglobal("Guda_BankFrame_SearchBar_SearchBox")
+                if searchBox then
+                    searchBox:ClearFocus()
+                end
+
                 if (arg1 == "LeftButton") then
                     this:StartMoving()
                 end

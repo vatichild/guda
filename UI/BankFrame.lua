@@ -11,8 +11,13 @@ local searchText = ""
 
 -- OnLoad
 function Guda_BankFrame_OnLoad(self)
-    getglobal(self:GetName().."_Title"):SetText("Guda Bank")
-    getglobal(self:GetName().."_SearchBox"):SetText("Search...")
+    -- Set up search box placeholder
+    local searchBox = getglobal(self:GetName().."_SearchBar_SearchBox")
+    if searchBox then
+        searchBox:SetText("Search bank...")
+        searchBox:SetTextColor(0.5, 0.5, 0.5, 1)
+    end
+
     addon:Debug("Bank frame loaded")
 end
 
@@ -23,7 +28,18 @@ end
 
 -- OnHide
 function Guda_BankFrame_OnHide(self)
-    Guda_ReleaseAllButtons()
+    -- Only release buttons that belong to this frame
+    local itemContainer = getglobal("Guda_BankFrame_ItemContainer")
+    if itemContainer then
+        -- Hide only the buttons that are children of this container
+        local children = { itemContainer:GetChildren() }
+        for _, child in ipairs(children) do
+            if child.hasItem ~= nil then -- It's an item button
+                child:Hide()
+                child:ClearAllPoints()
+            end
+        end
+    end
 end
 
 -- Toggle visibility
@@ -53,7 +69,17 @@ function BankFrame:Update()
         return
     end
 
-    Guda_ReleaseAllButtons()
+    -- Only release buttons that belong to this frame
+    local itemContainer = getglobal("Guda_BankFrame_ItemContainer")
+    if itemContainer then
+        local children = { itemContainer:GetChildren() }
+        for _, child in ipairs(children) do
+            if child.hasItem ~= nil then -- It's an item button
+                child:Hide()
+                child:ClearAllPoints()
+            end
+        end
+    end
 
     local bankData
     local isOtherChar = false
@@ -85,30 +111,48 @@ function BankFrame:DisplayItems(bankData, isOtherChar, charName)
     local col = 0
     local buttonSize = addon.Modules.DB:GetSetting("iconSize") or addon.Constants.BUTTON_SIZE
     local spacing = addon.Modules.DB:GetSetting("iconSpacing") or addon.Constants.BUTTON_SPACING
-    local perRow = addon.Modules.DB:GetSetting("bankColumns") or 15
+    local perRow = addon.Modules.DB:GetSetting("bankColumns") or 10
     local itemContainer = getglobal("Guda_BankFrame_ItemContainer")
 
     for _, bagID in ipairs(addon.Constants.BANK_BAGS) do
         local bag = bankData[bagID]
 
-        if bag and bag.slots then
-            for slot, itemData in pairs(bag.slots) do
-                if self:PassesSearchFilter(itemData) then
-                    local button = Guda_GetItemButton(itemContainer)
+        -- Get slot count for this bag
+        local numSlots
+        if isOtherChar and bag and bag.numSlots then
+            -- Use stored slot count for other characters
+            numSlots = bag.numSlots
+        else
+            -- Use current character's bag slot count
+            numSlots = addon.Modules.Utils:GetBagSlotCount(bagID)
+        end
 
-                    local xPos = x + (col * (buttonSize + spacing))
-                    local yPos = y - (row * (buttonSize + spacing))
+        -- Only show bags that have slots
+        if numSlots and numSlots > 0 then
+            -- Iterate through ALL slots (1 to numSlots) to show empty slots too
+            for slot = 1, numSlots do
+                local itemData = bag and bag.slots and bag.slots[slot] or nil
 
-                    button:ClearAllPoints()
-                    button:SetPoint("TOPLEFT", itemContainer, "TOPLEFT", xPos, yPos)
+                -- Check if item matches search filter
+                local matchesFilter = self:PassesSearchFilter(itemData)
 
-                    Guda_ItemButton_SetItem(button, bagID, slot, itemData, true, isOtherChar and charName or nil)
+                local button = Guda_GetItemButton(itemContainer)
 
-                    col = col + 1
-                    if col >= perRow then
-                        col = 0
-                        row = row + 1
-                    end
+                -- Position button
+                local xPos = x + (col * (buttonSize + spacing))
+                local yPos = y - (row * (buttonSize + spacing))
+
+                button:ClearAllPoints()
+                button:SetPoint("TOPLEFT", itemContainer, "TOPLEFT", xPos, yPos)
+
+                -- Set item data with filter match info
+                Guda_ItemButton_SetItem(button, bagID, slot, itemData, true, isOtherChar and charName or nil, matchesFilter)
+
+                -- Advance position
+                col = col + 1
+                if col >= perRow then
+                    col = 0
+                    row = row + 1
                 end
             end
         end
