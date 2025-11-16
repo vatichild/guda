@@ -60,6 +60,53 @@
                 </Scripts>
             </Button>
 
+            <!-- Sort Button (header right, next to settings) -->
+            <Button name="$parent_SortButton">
+                <Size>
+                    <AbsDimension x="24" y="24"/>
+                </Size>
+                <Anchors>
+                    <Anchor point="TOPRIGHT" relativePoint="TOPLEFT" relativeTo="$parent_CloseButton">
+                        <Offset>
+                            <AbsDimension x="-28" y="-5"/>
+                        </Offset>
+                    </Anchor>
+                </Anchors>
+                <Layers>
+                    <Layer level="ARTWORK">
+                        <Texture name="$parent_Icon">
+                            <Size>
+                                <AbsDimension x="20" y="20"/>
+                            </Size>
+                            <Anchors>
+                                <Anchor point="CENTER"/>
+                            </Anchors>
+                            <Color r="0.8" g="0.8" b="0.8"/>
+                        </Texture>
+                    </Layer>
+                </Layers>
+                <Scripts>
+                    <OnLoad>
+                        local icon = getglobal(this:GetName().."_Icon")
+                        if icon then
+                            icon:SetTexture("Interface\\Icons\\INV_Misc_Note_01")
+                            icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+                        end
+                    </OnLoad>
+                    <OnClick>
+                        Guda_BankFrame_Sort()
+                    </OnClick>
+                    <OnEnter>
+                        GameTooltip:SetOwner(this, "ANCHOR_TOP")
+                        GameTooltip:SetText("Sort Bank")
+                        GameTooltip:Show()
+                    </OnEnter>
+                    <OnLeave>
+                        GameTooltip:Hide()
+                    </OnLeave>
+                </Scripts>
+            </Button>
+
             <!-- Settings Button (header right, next to close) -->
             <Button name="$parent_SettingsButton">
                 <Size>
@@ -115,7 +162,7 @@
                 <Anchors>
                     <Anchor point="TOPLEFT">
                         <Offset>
-                            <AbsDimension x="18" y="-15"/>
+                            <AbsDimension x="28" y="-15"/>
                         </Offset>
                     </Anchor>
                 </Anchors>
@@ -221,7 +268,7 @@
                 <Anchors>
                     <Anchor point="BOTTOMLEFT">
                         <Offset>
-                            <AbsDimension x="10" y="5"/>
+                            <AbsDimension x="15" y="5"/>
                         </Offset>
                     </Anchor>
                 </Anchors>
