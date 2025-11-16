@@ -619,6 +619,9 @@ function Guda_BagFrame_ToggleCharacterDropdown(button)
     separator:SetTexture(1, 1, 1, 0.2)
     yOffset = yOffset - 4
 
+    -- Get current player's full name for comparison
+    local currentPlayerFullName = addon.Modules.DB:GetPlayerFullName()
+
     -- Add character buttons
     for _, char in ipairs(chars) do
         -- Capture variables in local scope for closure
@@ -626,6 +629,7 @@ function Guda_BagFrame_ToggleCharacterDropdown(button)
         local charName = char.name
         local charMoney = char.money or 0
         local charClassToken = char.classToken
+        local isCurrentChar = (charFullName == currentPlayerFullName)
 
         local charButton = CreateFrame("Button", nil, characterDropdown)
         charButton:SetWidth(188)
@@ -667,7 +671,13 @@ function Guda_BagFrame_ToggleCharacterDropdown(button)
         end)
         charButton:SetScript("OnClick", function()
             if charFullName then
-                addon.Modules.BagFrame:ShowCharacter(charFullName)
+                if isCurrentChar then
+                    -- Clicking current character - show current live view
+                    addon.Modules.BagFrame:ShowCurrentCharacter()
+                else
+                    -- Clicking different character - show their stored bags
+                    addon.Modules.BagFrame:ShowCharacter(charFullName)
+                end
                 characterDropdown:Hide()
             else
                 addon:Print("Error: Character fullName is nil")
