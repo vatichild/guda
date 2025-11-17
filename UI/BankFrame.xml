@@ -4,7 +4,7 @@
     <!-- Bank Frame -->
     <Frame name="Guda_BankFrame" toplevel="true" movable="true" enableMouse="true" hidden="true" parent="UIParent">
         <Size>
-            <AbsDimension x="420" y="600"/>
+            <AbsDimension x="420" y="540"/>
         </Size>
 
         <Anchors>
@@ -536,7 +536,7 @@
                 </Anchors>
                 <Backdrop bgFile="Interface\Tooltips\UI-Tooltip-Background" tile="true">
                     <BackgroundInsets>
-                        <AbsInset left="0" right="0" top="0" bottom="0"/>
+                        <AbsInset left="0" right="0" top="0" bottom="10"/>
                     </BackgroundInsets>
                     <TileSize>
                         <AbsValue val="16"/>
