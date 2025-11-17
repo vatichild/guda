@@ -136,30 +136,33 @@ function Tooltip:Initialize()
     -- Hook SetBagItem
     local oldSetBagItem = GameTooltip.SetBagItem
     function GameTooltip:SetBagItem(bag, slot)
-        oldSetBagItem(self, bag, slot)
+        local ret = oldSetBagItem(self, bag, slot)
         local link = GetContainerItemLink(bag, slot)
         if link then
             Tooltip:AddInventoryInfo(self, link)
         end
+        return ret
     end
 
     -- Hook SetHyperlink for chat links
     local oldSetHyperlink = GameTooltip.SetHyperlink
     function GameTooltip:SetHyperlink(link)
-        oldSetHyperlink(self, link)
+        local ret = oldSetHyperlink(self, link)
         if link and strfind(link, "item:") then
             Tooltip:AddInventoryInfo(self, link)
         end
+        return ret
     end
 
     -- Hook SetInventoryItem for character paperdoll
     local oldSetInventoryItem = GameTooltip.SetInventoryItem
     function GameTooltip:SetInventoryItem(unit, slot)
-        oldSetInventoryItem(self, unit, slot)
+        local ret = oldSetInventoryItem(self, unit, slot)
         local link = GetInventoryItemLink(unit, slot)
         if link then
             Tooltip:AddInventoryInfo(self, link)
         end
+        return ret
     end
 
     -- Also hook ItemRefTooltip for chat links
