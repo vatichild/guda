@@ -10,6 +10,7 @@ local currentViewChar = nil -- nil = current character
 local searchText = ""
 local itemButtons = {}
 local showKeyring = false -- Toggle for keyring display
+local hiddenBags = {} -- Track which bags are hidden (bagID -> true/false)
 
 -- Global click catcher for clearing search focus
 local clickCatcher = nil
@@ -187,14 +188,17 @@ function BagFrame:DisplayItems(bagData, isOtherChar, charName)
     local perRow = addon.Modules.DB:GetSetting("bagColumns") or 10
     local itemContainer = getglobal("Guda_BagFrame_ItemContainer")
 
-    -- Build bag list - include keyring if toggled on
+    -- Build bag list - include keyring if toggled on, skip hidden bags
     local bagsToShow = {}
     for _, bagID in ipairs(addon.Constants.BAGS) do
-        table.insert(bagsToShow, bagID)
+        -- Skip bags that are hidden
+        if not hiddenBags[bagID] then
+            table.insert(bagsToShow, bagID)
+        end
     end
 
-    -- Add keyring (-2) at the end if toggled on
-    if showKeyring then
+    -- Add keyring (-2) at the end if toggled on and not hidden
+    if showKeyring and not hiddenBags[-2] then
         table.insert(bagsToShow, -2) -- Insert at end
     end
 
@@ -1355,18 +1359,20 @@ function Guda_BagSlot_OnLoad(button, bagID)
     end
 
     -- Set up the button with proper ID
-    -- For bags 1-4, we need to get the inventory slot ID
     if bagID == 0 then
-        -- Backpack (bag 0) - set a special texture
+        -- Backpack (bag 0)
         button.bagID = 0
         button.hasItem = 1
         SetItemButtonTexture(button, "Interface\\Buttons\\Button-Backpack-Up")
     else
-        -- Bags 1-4: Get inventory slot ID (19, 20, 21, 22)
+        -- Bags 1-4
         local invSlot = ContainerIDToInventoryID(bagID)
         button:SetID(invSlot)
         button.bagID = bagID
 
+        -- REGISTER FOR DRAG - This is crucial for Classic
+        button:RegisterForDrag("LeftButton")
+        
         -- Register for updates
         button:RegisterEvent("BAG_UPDATE")
         button:RegisterEvent("ITEM_LOCK_CHANGED")
@@ -1378,12 +1384,38 @@ function Guda_BagSlot_OnLoad(button, bagID)
     Guda_BagSlot_Update(button, bagID)
 end
 
+function Guda_BagSlot_OnDragStart(frame, bagID)
+    if bagID == 0 then return end
+    
+    -- Check if we should start dragging (only if there's an item)
+    local invSlot = ContainerIDToInventoryID(bagID)
+    local texture = GetInventoryItemTexture("player", invSlot)
+    
+    if texture then
+        frame:SetAlpha(0.6)
+        -- Immediate pickup for Classic
+        PickupInventoryItem(invSlot)
+    end
+    -- If no texture (empty slot), do nothing - drag won't start
+end
+
+function Guda_BagSlot_OnDragStop(frame, bagID)
+    frame:SetAlpha(1.0)
+end
+
 -- Update bag slot button texture
 function Guda_BagSlot_Update(button, bagID)
+    local isHidden = hiddenBags[bagID]
+
     if bagID == 0 then
         -- Backpack always has the same texture
         SetItemButtonTexture(button, "Interface\\Buttons\\Button-Backpack-Up")
-        SetItemButtonTextureVertexColor(button, 1.0, 1.0, 1.0)
+        -- Dim if hidden
+        if isHidden then
+            SetItemButtonTextureVertexColor(button, 0.4, 0.4, 0.4)
+        else
+            SetItemButtonTextureVertexColor(button, 1.0, 1.0, 1.0)
+        end
         return
     end
 
@@ -1394,7 +1426,12 @@ function Guda_BagSlot_Update(button, bagID)
     if texture then
         -- Bag is equipped
         SetItemButtonTexture(button, texture)
-        SetItemButtonTextureVertexColor(button, 1.0, 1.0, 1.0)
+        -- Dim if hidden
+        if isHidden then
+            SetItemButtonTextureVertexColor(button, 0.4, 0.4, 0.4)
+        else
+            SetItemButtonTextureVertexColor(button, 1.0, 1.0, 1.0)
+        end
     else
         -- No bag in this slot
         SetItemButtonTexture(button, "Interface\\PaperDoll\\UI-PaperDoll-Slot-Bag")
@@ -1424,22 +1461,31 @@ end
 
 -- OnClick handler
 function Guda_BagSlot_OnClick(button, bagID)
-    if bagID == 0 then
-        -- Clicking backpack - do nothing special (it's always there)
+    -- Shift-click: Pick up/equip bag (original behavior)
+    if IsShiftKeyDown() then
+        if bagID == 0 then
+            return -- Can't pick up backpack
+        end
+
+        local invSlot = ContainerIDToInventoryID(bagID)
+        if CursorHasItem() then
+            PickupInventoryItem(invSlot)
+        else
+            PickupInventoryItem(invSlot)
+        end
         return
     end
 
-    -- Get the inventory slot for this bag
-    local invSlot = ContainerIDToInventoryID(bagID)
+    -- Regular click: Toggle bag visibility
+    hiddenBags[bagID] = not hiddenBags[bagID]
 
-    -- Check if cursor has an item
-    if CursorHasItem() then
-        -- Try to place item in this bag slot
-        PickupInventoryItem(invSlot)
-    else
-        -- Pick up the bag from this slot
-        PickupInventoryItem(invSlot)
-    end
+    -- Update bag slot visual (dim/undim)
+    Guda_BagSlot_Update(button, bagID)
+
+    -- Refresh the bag display
+    BagFrame:Update()
+
+    addon:Debug(string.format("Bag %d visibility toggled: %s", bagID, hiddenBags[bagID] and "hidden" or "visible"))
 end
 
 -- OnEnter handler for tooltip

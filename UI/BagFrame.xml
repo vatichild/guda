@@ -274,7 +274,7 @@
 
                 <Frames>
                     <!-- Bag Slot 1 -->
-                    <Button name="$parent_BagSlot1" inherits="ItemButtonTemplate">
+                    <Button name="$parent_BagSlot1" inherits="ItemButtonTemplate" movable="true">
                         <Size>
                             <AbsDimension x="24" y="24"/>
                         </Size>
@@ -287,6 +287,7 @@
                         </Anchors>
                         <Scripts>
                             <OnLoad>
+                                this:RegisterForDrag("LeftButton")
                                 Guda_BagSlot_OnLoad(this, 1)
                             </OnLoad>
                             <OnClick>
@@ -296,6 +297,12 @@
                                 Guda_BagSlot_OnEnter(this, 1)
                                 Guda_BagFrame_HighlightBagSlots(1)
                             </OnEnter>
+                            <OnDragStart>
+                                Guda_BagSlot_OnDragStart(this, 1)
+                            </OnDragStart>
+                            <OnDragStop>
+                                Guda_BagSlot_OnDragStop(this, 1)
+                            </OnDragStop>
                             <OnLeave>
                                 GameTooltip:Hide()
                                 Guda_BagFrame_ClearHighlightedSlots()
@@ -307,7 +314,7 @@
                     </Button>
 
                     <!-- Bag Slot 2 -->
-                    <Button name="$parent_BagSlot2" inherits="ItemButtonTemplate">
+                    <Button name="$parent_BagSlot2" inherits="ItemButtonTemplate" movable="true">
                         <Size>
                             <AbsDimension x="24" y="24"/>
                         </Size>
@@ -320,6 +327,7 @@
                         </Anchors>
                         <Scripts>
                             <OnLoad>
+                                this:RegisterForDrag("LeftButton")
                                 Guda_BagSlot_OnLoad(this, 2)
                             </OnLoad>
                             <OnClick>
@@ -329,6 +337,12 @@
                                 Guda_BagSlot_OnEnter(this, 2)
                                 Guda_BagFrame_HighlightBagSlots(2)
                             </OnEnter>
+                            <OnDragStart>
+                                Guda_BagSlot_OnDragStart(this, 2)
+                            </OnDragStart>
+                            <OnDragStop>
+                                Guda_BagSlot_OnDragStop(this, 2)
+                            </OnDragStop>
                             <OnLeave>
                                 GameTooltip:Hide()
                                 Guda_BagFrame_ClearHighlightedSlots()
@@ -340,7 +354,7 @@
                     </Button>
 
                     <!-- Bag Slot 3 -->
-                    <Button name="$parent_BagSlot3" inherits="ItemButtonTemplate">
+                    <Button name="$parent_BagSlot3" inherits="ItemButtonTemplate" movable="true">
                         <Size>
                             <AbsDimension x="24" y="24"/>
                         </Size>
@@ -353,6 +367,7 @@
                         </Anchors>
                         <Scripts>
                             <OnLoad>
+                                this:RegisterForDrag("LeftButton")
                                 Guda_BagSlot_OnLoad(this, 3)
                             </OnLoad>
                             <OnClick>
@@ -362,6 +377,12 @@
                                 Guda_BagSlot_OnEnter(this, 3)
                                 Guda_BagFrame_HighlightBagSlots(3)
                             </OnEnter>
+                            <OnDragStart>
+                                Guda_BagSlot_OnDragStart(this, 3)
+                            </OnDragStart>
+                            <OnDragStop>
+                                Guda_BagSlot_OnDragStop(this, 3)
+                            </OnDragStop>
                             <OnLeave>
                                 GameTooltip:Hide()
                                 Guda_BagFrame_ClearHighlightedSlots()
@@ -373,7 +394,7 @@
                     </Button>
 
                     <!-- Bag Slot 4 -->
-                    <Button name="$parent_BagSlot4" inherits="ItemButtonTemplate">
+                    <Button name="$parent_BagSlot4" inherits="ItemButtonTemplate" movable="true">
                         <Size>
                             <AbsDimension x="24" y="24"/>
                         </Size>
@@ -386,6 +407,7 @@
                         </Anchors>
                         <Scripts>
                             <OnLoad>
+                                this:RegisterForDrag("LeftButton")
                                 Guda_BagSlot_OnLoad(this, 4)
                             </OnLoad>
                             <OnClick>
@@ -395,6 +417,12 @@
                                 Guda_BagSlot_OnEnter(this, 4)
                                 Guda_BagFrame_HighlightBagSlots(4)
                             </OnEnter>
+                            <OnDragStart>
+                                Guda_BagSlot_OnDragStart(this, 4)
+                            </OnDragStart>
+                            <OnDragStop>
+                                Guda_BagSlot_OnDragStop(this, 4)
+                            </OnDragStop>
                             <OnLeave>
                                 GameTooltip:Hide()
                                 Guda_BagFrame_ClearHighlightedSlots()
