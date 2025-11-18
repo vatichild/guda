@@ -202,9 +202,6 @@ function BagFrame:DisplayItems(bagData, isOtherChar, charName)
         end
     end
 
-    -- Debug output
-    addon:Print("Regular bags: " .. table.getn(regularBags) .. ", Ammo/Quiver bags: " .. table.getn(ammoQuiverBags))
-
     -- Build display order: regular bags -> ammo/quiver bags -> keyring
     local bagsToShow = {}
     for _, bagID in ipairs(regularBags) do
@@ -213,10 +210,8 @@ function BagFrame:DisplayItems(bagData, isOtherChar, charName)
 
     -- Add ammo/quiver bags with spacing marker
     if table.getn(ammoQuiverBags) > 0 then
-        addon:Print("Adding " .. table.getn(ammoQuiverBags) .. " ammo/quiver bags with spacing")
         for i, bagID in ipairs(ammoQuiverBags) do
             table.insert(bagsToShow, {bagID = bagID, needsSpacing = (i == 1)})
-            addon:Print("  Ammo/Quiver bag " .. bagID .. " - needsSpacing: " .. tostring(i == 1))
         end
     end
 
@@ -236,8 +231,8 @@ function BagFrame:DisplayItems(bagData, isOtherChar, charName)
                 col = 0
                 row = row + 1
             end
-            -- Add extra spacing (1 row)
-            row = row + 1
+            -- Add extra spacing (0.5 row for tighter spacing)
+            row = row + 0.5
         end
 
         -- Get slot count for this bag

@@ -192,7 +192,6 @@ function Utils:IsAmmoQuiverBag(bagID)
     tooltip:SetInventoryItem("player", invSlot)
 
     -- Scan tooltip lines for "Quiver" or "Ammo Pouch"
-    -- In vanilla, the item type appears on the right side of line 2 or 3
     for i = 1, tooltip:NumLines() do
         local line = getglobal("GudaBagScanTooltipTextLeft" .. i)
         if line then
@@ -200,7 +199,6 @@ function Utils:IsAmmoQuiverBag(bagID)
             if text then
                 -- Check if the line contains "Quiver" or "Ammo Pouch"
                 if string.find(text, "Quiver") or string.find(text, "Ammo Pouch") then
-                    addon:Print("Bag " .. bagID .. " detected as Quiver/Ammo: " .. text)
                     return true
                 end
             end
