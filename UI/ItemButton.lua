@@ -339,6 +339,13 @@ function Guda_ItemButton_OnReceiveDrag(self)
     PickupContainerItem(self.bagID, self.slotID)
 end
 
+-- Stack split callback (called by StackSplitFrame)
+local function ItemButton_SplitStack(self, split)
+    if self.bagID and self.slotID then
+        SplitContainerItem(self.bagID, self.slotID, split)
+    end
+end
+
 -- OnClick handler
 function Guda_ItemButton_OnClick(self, button)
     -- Don't allow interaction with other characters' items or in read-only mode
@@ -346,11 +353,24 @@ function Guda_ItemButton_OnClick(self, button)
         return
     end
 
+    -- Set the split callback
+    self.SplitStack = ItemButton_SplitStack
+
     -- Handle modified clicks first
     if IsShiftKeyDown() then
-        -- Shift+Click: Link in chat
-        if self.hasItem and self.itemData and self.itemData.link then
-            if ChatFrameEditBox:IsVisible() then
+        if button == "LeftButton" and self.hasItem then
+            -- Shift+Left Click on stackable item: Show split stack dialog
+            if self.itemData and self.itemData.count and self.itemData.count > 1 then
+                -- Get the actual stack count from the container
+                local _, count = GetContainerItemInfo(self.bagID, self.slotID)
+                if count and count > 1 then
+                    -- Open the stack split frame (positioned to the left)
+                    OpenStackSplitFrame(count, self, "BOTTOMRIGHT", "TOPRIGHT")
+                    return
+                end
+            end
+            -- If not stackable or only 1 item, link to chat
+            if self.itemData and self.itemData.link and ChatFrameEditBox:IsVisible() then
                 ChatFrameEditBox:Insert(self.itemData.link)
             end
         end
