@@ -89,8 +89,8 @@
                     <OnLoad>
                         local icon = getglobal(this:GetName().."_Icon")
                         if icon then
-                            icon:SetTexture("Interface\\Icons\\Trade_Engineering")
-                            icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+                            icon:SetTexture("Interface\\AddOns\\Guda\\Assets\\Cog")
+                            icon:SetTexCoord(0, 1, 0, 1)
                         end
                     </OnLoad>
                     <OnClick>
@@ -136,8 +136,9 @@
                     <OnLoad>
                         local icon = getglobal(this:GetName().."_Icon")
                         if icon then
-                            icon:SetTexture("Interface\\Icons\\INV_Misc_Note_01")
-                            icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+                            -- BagShui approach: no file extension, WoW finds .blp automatically
+                            icon:SetTexture("Interface\\AddOns\\Guda\\Assets\\Sorting")
+                            icon:SetTexCoord(0, 1, 0, 1)
                         end
                     </OnLoad>
                     <OnClick>
@@ -232,8 +233,8 @@
                     <OnLoad>
                         local icon = getglobal(this:GetName().."_Icon")
                         if icon then
-                            icon:SetTexture("Interface\\Icons\\INV_Misc_Bag_13")
-                            icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+                            icon:SetTexture("Interface\\AddOns\\Guda\\Assets\\Chest")
+                            icon:SetTexCoord(0, 1, 0, 1)
                         end
                     </OnLoad>
                     <OnClick>

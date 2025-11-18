@@ -568,22 +568,22 @@ function BankFrame:CreateGudaButtonOnBlizzardUI()
 
     -- Create the button next to close button
     local gudaButton = CreateFrame("Button", "BankFrame_GudaButton", blizzardBankFrame)
-    gudaButton:SetWidth(15)
-    gudaButton:SetHeight(15)
+    gudaButton:SetWidth(20)
+    gudaButton:SetHeight(20)
     
     -- Position next to close button (to the left of it)
     local closeButton = getglobal("BankFrameCloseButton")
     if closeButton then
         gudaButton:SetPoint("RIGHT", closeButton, "LEFT", -2, 0)
     else
-        gudaButton:SetPoint("TOPRIGHT", blizzardBankFrame, "TOPRIGHT", -61, -17)
+        gudaButton:SetPoint("TOPRIGHT", blizzardBankFrame, "TOPRIGHT", -61, -14)
     end
 
     -- Create button texture
     local texture = gudaButton:CreateTexture(nil, "ARTWORK")
     texture:SetAllPoints(gudaButton)
-    texture:SetTexture("Interface\\Icons\\INV_Misc_Bag_08")
-    texture:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    texture:SetTexture("Interface\\AddOns\\Guda\\Assets\\Chest")
+    texture:SetTexCoord(0, 1, 0, 1)
 
     -- Create highlight texture
     local highlight = gudaButton:CreateTexture(nil, "HIGHLIGHT")
