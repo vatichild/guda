@@ -7,7 +7,6 @@ addon.Modules.Tooltip = Tooltip
 -- Helper function to get item ID from link (Lua 5.0 compatible)
 local function GetItemIDFromLink(link)
 	if not link then return nil end
-	-- Use strfind instead of string.match
 	local _, _, itemID = strfind(link, "item:(%d+):?")
 	return itemID and tonumber(itemID) or nil
 end
@@ -62,7 +61,7 @@ local function CountItemsForCharacter(itemID, characterData)
 		end
 	end
 
-	return bagCount, bankCount, equippedCount  -- FIXED: Now returns all three counts
+	return bagCount, bankCount, equippedCount
 end
 
 -- Get class color
@@ -75,19 +74,16 @@ end
 
 -- Add inventory info to tooltip
 -- Add inventory info to tooltip
+-- Add inventory info to tooltip
 function Tooltip:AddInventoryInfo(tooltip, link)
 	if not Guda_DB or not Guda_DB.characters then
-		addon:Debug("No Guda_DB or characters found")
 		return
 	end
 
 	local itemID = GetItemIDFromLink(link)
 	if not itemID then
-		addon:Debug("Could not get item ID from link: " .. tostring(link))
 		return
 	end
-
-	addon:Debug("Processing item ID: " .. itemID)
 
 	local totalBags = 0
 	local totalBank = 0
@@ -99,7 +95,6 @@ function Tooltip:AddInventoryInfo(tooltip, link)
 	for charName, charData in pairs(Guda_DB.characters) do
 		local bagCount, bankCount, equippedCount = CountItemsForCharacter(itemID, charData)
 
-		-- Check if this character has any of this item
 		if bagCount > 0 or bankCount > 0 or equippedCount > 0 then
 			hasAnyItems = true
 			totalBags = totalBags + bagCount
@@ -112,58 +107,56 @@ function Tooltip:AddInventoryInfo(tooltip, link)
 				bankCount = bankCount,
 				equippedCount = equippedCount
 			})
-			addon:Debug("Found " .. (bagCount + bankCount + equippedCount) .. " items on " .. charName .. " (Bags: " .. bagCount .. ", Bank: " .. bankCount .. ", Equipped: " .. equippedCount .. ")")
 		end
 	end
 
 	local totalCount = totalBags + totalBank + totalEquipped
 
-	-- Only add to tooltip if we found items on any character
 	if hasAnyItems then
-		addon:Debug("Adding inventory info - Total: " .. totalCount)
-
 		tooltip:AddLine(" ")
-		tooltip:AddLine("Inventory", 0.7, 0.7, 0.7)
 
-		-- Simplified total line - just show total count without breakdown
-		tooltip:AddDoubleLine("Total: " .. totalCount, "(Bags: " .. totalBags .. " | Bank: " .. totalBank .. ")", 1, 1, 1, 0.7, 0.7, 0.7)
+		-- Inventory label in exact bag frame title color (from your XML: |cFF00FF96)
+		tooltip:AddLine("|cFFFFD200Inventory|r")  -- Exact bag frame title color
 
-		-- Sort characters by name
+		-- Total line with cyan label and white count
+		local totalText = "|cFF00FFFFTotal|r: |cFFFFFFFF" .. totalCount .. "|r"  -- Cyan label, white count
+		local breakdownText = "(|cFF00FFFFBags|r: |cFFFFFFFF" .. totalBags .. "|r | |cFF00FFFFBank|r: |cFFFFFFFF" .. totalBank .. "|r)"  -- Cyan labels, white counts
+
+		tooltip:AddDoubleLine(totalText, breakdownText, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0)
+
 		table.sort(characterCounts, function(a, b)
 			return a.name < b.name
 		end)
 
-		-- Add character lines with bag, bank, and equipped breakdown
 		for _, charInfo in ipairs(characterCounts) do
 			local r, g, b = GetClassColor(charInfo.classToken)
 			local countText = ""
 
-			-- Build count text showing all locations where items are found
 			local parts = {}
 			if charInfo.bagCount > 0 then
-				table.insert(parts, "Bags: " .. charInfo.bagCount)
+				table.insert(parts, "|cFF00FFFFBags|r: |cFFFFFFFF" .. charInfo.bagCount .. "|r")
 			end
 			if charInfo.bankCount > 0 then
-				table.insert(parts, "Bank: " .. charInfo.bankCount)
+				table.insert(parts, "|cFF00FFFFBank|r: |cFFFFFFFF" .. charInfo.bankCount .. "|r")
 			end
 			if charInfo.equippedCount > 0 then
-				table.insert(parts, "Equipped: " .. charInfo.equippedCount)
+				table.insert(parts, "|cFF00FFFFEquipped|r: |cFFFFFFFF" .. charInfo.equippedCount .. "|r")
 			end
 
 			if getn(parts) > 0 then
 				countText = table.concat(parts, " | ")
-			else
-				countText = "None"
 			end
 
-			tooltip:AddDoubleLine(charInfo.name, countText, r, g, b, 0.7, 0.7, 0.7)
+			tooltip:AddDoubleLine(charInfo.name, countText, r, g, b, 1.0, 1.0, 1.0)
 		end
 
+		-- Add small gap between inventory data and vendor sell price
+		tooltip:AddLine(" ")
+
 		tooltip:Show()
-	else
-		addon:Debug("No items found for ID: " .. itemID .. " on any character")
 	end
 end
+
 function Tooltip:Initialize()
 	addon:Print("Initializing tooltip module...")
 
@@ -256,89 +249,6 @@ function Tooltip:Initialize()
 		end)
 	end
 
-	-- Hook SetQuestLogItem for quest log items
-	local oldSetQuestLogItem = GameTooltip.SetQuestLogItem
-	function GameTooltip:SetQuestLogItem(itemType, index)
-		return WithDeferredMoney(self, function()
-			local ret = oldSetQuestLogItem(self, itemType, index)
-			local link = GetQuestLogItemLink(itemType, index)
-			if link then
-				Tooltip:AddInventoryInfo(self, link)
-			end
-			return ret
-		end)
-	end
-
-	-- Hook SetTradeSkillItem for tradeskill windows
-	local oldSetTradeSkillItem = GameTooltip.SetTradeSkillItem
-	function GameTooltip:SetTradeSkillItem(skillIndex, reagentIndex)
-		return WithDeferredMoney(self, function()
-			local ret = oldSetTradeSkillItem(self, skillIndex, reagentIndex)
-			local link
-			if reagentIndex then
-				link = GetTradeSkillReagentItemLink(skillIndex, reagentIndex)
-			else
-				link = GetTradeSkillItemLink(skillIndex)
-			end
-			if link then
-				Tooltip:AddInventoryInfo(self, link)
-			end
-			return ret
-		end)
-	end
-
-	-- Hook SetCraftItem for craft windows
-	local oldSetCraftItem = GameTooltip.SetCraftItem
-	function GameTooltip:SetCraftItem(skillIndex, reagentIndex)
-		return WithDeferredMoney(self, function()
-			local ret = oldSetCraftItem(self, skillIndex, reagentIndex)
-			local link = GetCraftReagentItemLink(skillIndex, reagentIndex)
-			if link then
-				Tooltip:AddInventoryInfo(self, link)
-			end
-			return ret
-		end)
-	end
-
-	-- Hook SetAuctionItem for auction house
-	local oldSetAuctionItem = GameTooltip.SetAuctionItem
-	function GameTooltip:SetAuctionItem(type, index)
-		return WithDeferredMoney(self, function()
-			local ret = oldSetAuctionItem(self, type, index)
-			local link = GetAuctionItemLink(type, index)
-			if link then
-				Tooltip:AddInventoryInfo(self, link)
-			end
-			return ret
-		end)
-	end
-
-	-- Hook SetInboxItem for mail
-	local oldSetInboxItem = GameTooltip.SetInboxItem
-	function GameTooltip:SetInboxItem(index)
-		return WithDeferredMoney(self, function()
-			local ret = oldSetInboxItem(self, index)
-			local link = GetInboxItemLink(index)
-			if link then
-				Tooltip:AddInventoryInfo(self, link)
-			end
-			return ret
-		end)
-	end
-
-	-- Hook SetSendMailItem for sending mail
-	local oldSetSendMailItem = GameTooltip.SetSendMailItem
-	function GameTooltip:SetSendMailItem(index)
-		return WithDeferredMoney(self, function()
-			local ret = oldSetSendMailItem(self, index)
-			local link = GetSendMailItemLink(index)
-			if link then
-				Tooltip:AddInventoryInfo(self, link)
-			end
-			return ret
-		end)
-	end
-
 	-- Hook SetMerchantItem for vendor items
 	local oldSetMerchantItem = GameTooltip.SetMerchantItem
 	function GameTooltip:SetMerchantItem(index)
@@ -352,38 +262,12 @@ function Tooltip:Initialize()
 		end)
 	end
 
-	-- Hook SetBuybackItem for buyback items
-	local oldSetBuybackItem = GameTooltip.SetBuybackItem
-	function GameTooltip:SetBuybackItem(index)
+	-- Hook SetAuctionItem for auction house
+	local oldSetAuctionItem = GameTooltip.SetAuctionItem
+	function GameTooltip:SetAuctionItem(type, index)
 		return WithDeferredMoney(self, function()
-			local ret = oldSetBuybackItem(self, index)
-			local link = GetBuybackItemLink(index)
-			if link then
-				Tooltip:AddInventoryInfo(self, link)
-			end
-			return ret
-		end)
-	end
-
-	-- Hook SetTradePlayerItem for trade window (player side)
-	local oldSetTradePlayerItem = GameTooltip.SetTradePlayerItem
-	function GameTooltip:SetTradePlayerItem(index)
-		return WithDeferredMoney(self, function()
-			local ret = oldSetTradePlayerItem(self, index)
-			local link = GetTradePlayerItemLink(index)
-			if link then
-				Tooltip:AddInventoryInfo(self, link)
-			end
-			return ret
-		end)
-	end
-
-	-- Hook SetTradeTargetItem for trade window (target side)
-	local oldSetTradeTargetItem = GameTooltip.SetTradeTargetItem
-	function GameTooltip:SetTradeTargetItem(index)
-		return WithDeferredMoney(self, function()
-			local ret = oldSetTradeTargetItem(self, index)
-			local link = GetTradeTargetItemLink(index)
+			local ret = oldSetAuctionItem(self, type, index)
+			local link = GetAuctionItemLink(type, index)
 			if link then
 				Tooltip:AddInventoryInfo(self, link)
 			end
@@ -419,5 +303,5 @@ function Tooltip:Initialize()
 		end
 	end)
 
-	addon:Print("Tooltip item-count integration enabled")
+	addon:Print("Tooltip integration enabled - Inventory displays above vendor price")
 end
