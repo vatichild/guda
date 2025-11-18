@@ -257,6 +257,18 @@ end
 
 -- OnEnter handler (show tooltip)
 function Guda_ItemButton_OnEnter(self)
+    -- Highlight the corresponding bag button in the footer (works for empty and filled slots)
+    if not self.otherChar and self.bagID then
+        if self.isBank then
+            -- Bank item - highlight bank bag button
+            Guda_BankFrame_HighlightBagButton(self.bagID)
+        else
+            -- Regular bag item - highlight bag button
+            Guda_BagFrame_HighlightBagButton(self.bagID)
+        end
+    end
+
+    -- Early return for empty slots (no tooltip needed)
     if not self.hasItem or not self.itemData then
         return
     end
@@ -292,6 +304,15 @@ end
 function Guda_ItemButton_OnLeave(self)
     GameTooltip:Hide()
     ResetCursor()
+
+    -- Clear bag button highlighting
+    if not self.otherChar then
+        if self.isBank then
+            Guda_BankFrame_ClearBagButtonHighlight()
+        else
+            Guda_BagFrame_ClearBagButtonHighlight()
+        end
+    end
 end
 
 -- OnDragStart handler

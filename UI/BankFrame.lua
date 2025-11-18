@@ -1051,6 +1051,43 @@ function Guda_BankFrame_ClearHighlightedSlots()
     end
 end
 
+-- Highlight a specific bank bag button in the toolbar
+function Guda_BankFrame_HighlightBagButton(bagID)
+    if not bagID then return end
+
+    local buttonName
+    if bagID == -1 then
+        -- Main bank container
+        buttonName = "Guda_BankFrame_Toolbar_BankBagMain"
+    else
+        -- Bank bags are bagID 5-10
+        buttonName = "Guda_BankFrame_Toolbar_BankBag" .. bagID
+    end
+
+    local button = getglobal(buttonName)
+    if button then
+        button:LockHighlight()
+    end
+end
+
+-- Clear bank bag button highlighting
+function Guda_BankFrame_ClearBagButtonHighlight()
+    -- Clear highlight from main bank button
+    local mainButton = getglobal("Guda_BankFrame_Toolbar_BankBagMain")
+    if mainButton then
+        mainButton:UnlockHighlight()
+    end
+
+    -- Clear highlight from bank bag buttons (5-10)
+    for bagID = 5, 10 do
+        local buttonName = "Guda_BankFrame_Toolbar_BankBag" .. bagID
+        local button = getglobal(buttonName)
+        if button then
+            button:UnlockHighlight()
+        end
+    end
+end
+
 -- Drag handlers for bank bag slots
 function Guda_BankBagSlot_OnDragStart(button, bagID)
     if not bagID or bagID == -1 then return end
