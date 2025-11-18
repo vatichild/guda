@@ -16,6 +16,7 @@ end
 local function CountItemsForCharacter(itemID, characterData)
 	local bagCount = 0
 	local bankCount = 0
+	local equippedCount = 0
 
 	-- Count bags
 	if characterData.bags then
@@ -49,7 +50,19 @@ local function CountItemsForCharacter(itemID, characterData)
 		end
 	end
 
-	return bagCount, bankCount
+	-- Count equipped items from EquipmentScanner data
+	if characterData.equipped then
+		for slotName, itemData in pairs(characterData.equipped) do
+			if itemData and itemData.link then
+				local slotItemID = GetItemIDFromLink(itemData.link)
+				if slotItemID == itemID then
+					equippedCount = equippedCount + 1
+				end
+			end
+		end
+	end
+
+	return bagCount, bankCount, equippedCount  -- FIXED: Now returns all three counts
 end
 
 -- Get class color
@@ -60,6 +73,7 @@ local function GetClassColor(classToken)
 	return 1.0, 1.0, 1.0
 end
 
+-- Add inventory info to tooltip
 -- Add inventory info to tooltip
 function Tooltip:AddInventoryInfo(tooltip, link)
 	if not Guda_DB or not Guda_DB.characters then
@@ -77,53 +91,79 @@ function Tooltip:AddInventoryInfo(tooltip, link)
 
 	local totalBags = 0
 	local totalBank = 0
+	local totalEquipped = 0
 	local characterCounts = {}
+	local hasAnyItems = false
 
 	-- Count items across all characters
 	for charName, charData in pairs(Guda_DB.characters) do
-		local bagCount, bankCount = CountItemsForCharacter(itemID, charData)
-		totalBags = totalBags + bagCount
-		totalBank = totalBank + bankCount
-		table.insert(characterCounts, {
-			name = charData.name or charName,
-			classToken = charData.classToken,
-			bagCount = bagCount,
-			bankCount = bankCount
-		})
-		addon:Debug("Found " .. (bagCount + bankCount) .. " items on " .. charName .. " (Bags: " .. bagCount .. ", Bank: " .. bankCount .. ")")
-	end
+		local bagCount, bankCount, equippedCount = CountItemsForCharacter(itemID, charData)
 
-	local totalCount = totalBags + totalBank
-
-	-- ALWAYS add to tooltip, even if 0 items
-	addon:Debug("Adding inventory info - Total: " .. totalCount)
-
-	tooltip:AddLine(" ")
-	tooltip:AddLine("Inventory", 0.7, 0.7, 0.7)
-	tooltip:AddDoubleLine("Total: " .. totalCount, "(Bags: " .. totalBags .. " | Bank: " .. totalBank .. ")", 1, 1, 1, 0.7, 0.7, 0.7)
-
-	-- Sort characters by name
-	table.sort(characterCounts, function(a, b)
-		return a.name < b.name
-	end)
-
-	-- Add character lines with bag and bank breakdown
-	for _, charInfo in ipairs(characterCounts) do
-		local r, g, b = GetClassColor(charInfo.classToken)
-		local countText = ""
-		if charInfo.bagCount > 0 and charInfo.bankCount > 0 then
-			countText = "Bags: " .. charInfo.bagCount .. " | Bank: " .. charInfo.bankCount
-		elseif charInfo.bagCount > 0 then
-			countText = "Bags: " .. charInfo.bagCount
-		else
-			countText = "Bank: " .. charInfo.bankCount
+		-- Check if this character has any of this item
+		if bagCount > 0 or bankCount > 0 or equippedCount > 0 then
+			hasAnyItems = true
+			totalBags = totalBags + bagCount
+			totalBank = totalBank + bankCount
+			totalEquipped = totalEquipped + equippedCount
+			table.insert(characterCounts, {
+				name = charData.name or charName,
+				classToken = charData.classToken,
+				bagCount = bagCount,
+				bankCount = bankCount,
+				equippedCount = equippedCount
+			})
+			addon:Debug("Found " .. (bagCount + bankCount + equippedCount) .. " items on " .. charName .. " (Bags: " .. bagCount .. ", Bank: " .. bankCount .. ", Equipped: " .. equippedCount .. ")")
 		end
-		tooltip:AddDoubleLine(charInfo.name, countText, r, g, b, 0.7, 0.7, 0.7)
 	end
 
-	tooltip:Show()
-end
+	local totalCount = totalBags + totalBank + totalEquipped
 
+	-- Only add to tooltip if we found items on any character
+	if hasAnyItems then
+		addon:Debug("Adding inventory info - Total: " .. totalCount)
+
+		tooltip:AddLine(" ")
+		tooltip:AddLine("Inventory", 0.7, 0.7, 0.7)
+
+		-- Simplified total line - just show total count without breakdown
+		tooltip:AddDoubleLine("Total: " .. totalCount, "(Bags: " .. totalBags .. " | Bank: " .. totalBank .. ")", 1, 1, 1, 0.7, 0.7, 0.7)
+
+		-- Sort characters by name
+		table.sort(characterCounts, function(a, b)
+			return a.name < b.name
+		end)
+
+		-- Add character lines with bag, bank, and equipped breakdown
+		for _, charInfo in ipairs(characterCounts) do
+			local r, g, b = GetClassColor(charInfo.classToken)
+			local countText = ""
+
+			-- Build count text showing all locations where items are found
+			local parts = {}
+			if charInfo.bagCount > 0 then
+				table.insert(parts, "Bags: " .. charInfo.bagCount)
+			end
+			if charInfo.bankCount > 0 then
+				table.insert(parts, "Bank: " .. charInfo.bankCount)
+			end
+			if charInfo.equippedCount > 0 then
+				table.insert(parts, "Equipped: " .. charInfo.equippedCount)
+			end
+
+			if getn(parts) > 0 then
+				countText = table.concat(parts, " | ")
+			else
+				countText = "None"
+			end
+
+			tooltip:AddDoubleLine(charInfo.name, countText, r, g, b, 0.7, 0.7, 0.7)
+		end
+
+		tooltip:Show()
+	else
+		addon:Debug("No items found for ID: " .. itemID .. " on any character")
+	end
+end
 function Tooltip:Initialize()
 	addon:Print("Initializing tooltip module...")
 

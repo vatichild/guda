@@ -15,6 +15,7 @@ Core\Tooltip.lua
 Data\BagScanner.lua
 Data\BankScanner.lua
 Data\MoneyTracker.lua
+Data\EquipmentScanner.lua
 
 Sorting\SortEngine.lua
 

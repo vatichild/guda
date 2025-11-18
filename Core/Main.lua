@@ -37,6 +37,7 @@ function Main:Initialize()
         addon.Modules.BagScanner:Initialize()
         addon.Modules.BankScanner:Initialize()
         addon.Modules.MoneyTracker:Initialize()
+		addon.Modules.EquipmentScanner:Initialize()
 
         -- Initialize UI
         addon.Modules.BagFrame:Initialize()
