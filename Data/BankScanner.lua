@@ -26,10 +26,19 @@ end
 
 -- Scan a single bank bag
 function BankScanner:ScanBankBag(bagID)
+    -- Determine bag type
+    local bagType = "regular"
+    if addon.Modules.Utils:IsSoulBag(bagID) then
+        bagType = "soul"
+    elseif addon.Modules.Utils:IsAmmoQuiverBag(bagID) then
+        bagType = "ammo"
+    end
+
     local bag = {
         slots = {},
         numSlots = addon.Modules.Utils:GetBagSlotCount(bagID),
         freeSlots = 0,
+        bagType = bagType,
     }
 
     if not addon.Modules.Utils:IsBagValid(bagID) then

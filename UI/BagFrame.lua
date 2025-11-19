@@ -198,9 +198,25 @@ function BagFrame:DisplayItems(bagData, isOtherChar, charName)
     for _, bagID in ipairs(addon.Constants.BAGS) do
         -- Skip hidden bags
         if not hiddenBags[bagID] then
-            if addon.Modules.Utils:IsSoulBag(bagID) then
+            local bagType
+            if isOtherChar then
+                -- For other characters, use saved bag type
+                local bag = bagData[bagID]
+                bagType = bag and bag.bagType or "regular"
+            else
+                -- For current character, detect bag type in real-time
+                if addon.Modules.Utils:IsSoulBag(bagID) then
+                    bagType = "soul"
+                elseif addon.Modules.Utils:IsAmmoQuiverBag(bagID) then
+                    bagType = "ammo"
+                else
+                    bagType = "regular"
+                end
+            end
+
+            if bagType == "soul" then
                 table.insert(soulBags, bagID)
-            elseif addon.Modules.Utils:IsAmmoQuiverBag(bagID) then
+            elseif bagType == "ammo" then
                 table.insert(ammoQuiverBags, bagID)
             else
                 table.insert(regularBags, bagID)
