@@ -46,6 +46,33 @@ end
 
 -- Get item info with caching
 local itemCache = {}
+
+local function DebugGetItemInfo(itemID, itemName)
+	if not itemID then
+		addon:Print("NO ITEM ID for: " .. tostring(itemName))
+		return
+	end
+
+
+	local itemName, itemLink, itemRarity, itemLevel, itemCategory, itemType, itemStackCount,
+	itemSubType, itemTexture, itemEquipLoc, itemSellPrice = GetItemInfo(itemID)
+	addon:Print("=== GetItemInfo DEBUG ===")
+	addon:Print(string.format("Input ItemID: %d", itemID))
+	addon:Print(string.format("Input Name: %s", tostring(itemName)))
+	addon:Print("--- Return Values ---")
+	addon:Print(string.format("1. itemName: '%s'", tostring(itemName)))
+	addon:Print(string.format("2. itemLink: '%s'", tostring(itemLink)))
+	addon:Print(string.format("3. itemRarity: %s", itemRarity or 0))
+	addon:Print(string.format("4. itemLevel: %s", itemLevel or 0))
+	addon:Print(string.format("5. itemMinLevel: %s", itemMinLevel or 0))
+	addon:Print(string.format("6. itemType: '%s'", tostring(itemType)))
+	addon:Print(string.format("7. itemSubType: '%s'", tostring(itemSubType)))
+	addon:Print(string.format("8. itemStackCount: %s", itemStackCount or 0))
+	addon:Print(string.format("9. itemEquipLoc: '%s'", tostring(itemEquipLoc)))
+	addon:Print(string.format("10. itemTexture: '%s'", tostring(itemTexture)))
+	addon:Print(string.format("11. itemSellPrice: %s", itemSellPrice or 0))
+	addon:Print("=====================")
+end
 function Utils:GetItemInfo(itemLink)
     if not itemLink then return nil end
 
@@ -53,11 +80,16 @@ function Utils:GetItemInfo(itemLink)
         return unpack(itemCache[itemLink])
     end
 
-    local name, link, quality, iLevel, reqLevel, class, subclass, maxStack, equipSlot, texture = GetItemInfo(itemLink)
+    -- Extract itemID from itemLink
+    local _, _, itemID = string.find(itemLink, "item:(%d+)")
+    if not itemID then return nil end
 
-    if name then
-        itemCache[itemLink] = {name, link, quality, iLevel, reqLevel, class, subclass, maxStack, equipSlot, texture}
-        return name, link, quality, iLevel, reqLevel, class, subclass, maxStack, equipSlot, texture
+    -- Turtle WoW GetItemInfo signature:
+    -- itemName, itemLink, itemRarity, itemLevel, itemCategory, itemType, itemStackCount, itemSubType, itemTexture, itemEquipLoc, itemSellPrice
+    local itemName, retLink, itemRarity, itemLevel, itemCategory, itemType, itemStackCount, itemSubType, itemTexture, itemEquipLoc, itemSellPrice = GetItemInfo(tonumber(itemID))
+    if itemName then
+        itemCache[itemLink] = {itemName, retLink, itemRarity, itemLevel, itemCategory, itemType, itemStackCount, itemSubType, itemTexture, itemEquipLoc, itemSellPrice}
+        return itemName, retLink, itemRarity, itemLevel, itemCategory, itemType, itemStackCount, itemSubType, itemTexture, itemEquipLoc, itemSellPrice
     end
 
     return nil
@@ -227,25 +259,30 @@ function Utils:GetSpecializedBagType(bagID)
         return nil
     end
 
-    -- Use GetItemInfo to get subclass (more reliable than tooltip scanning)
-    local name, _, quality, iLevel, reqLevel, class, subclass = GetItemInfo(link)
+    -- Extract itemID from link
+    local _, _, itemID = string.find(link, "item:(%d+)")
+    if not itemID then
+        return nil
+    end
 
-    if subclass then
-        -- Check for exact subclass matches
-        local subclassLower = string.lower(subclass)
+    -- Use GetItemInfo to get subType (Turtle WoW signature)
+    local itemName, _, itemRarity, itemLevel, itemCategory, itemType, itemStackCount, itemSubType = GetItemInfo(tonumber(itemID))
+    if itemType then
+        -- Check for exact subtype matches
+        local typeLower = string.lower(itemType)
 
         -- Soul Bag / Soul Pouch
-        if string.find(subclassLower, "soul bag") or string.find(subclassLower, "soul pouch") then
+        if string.find(typeLower, "soul bag") or string.find(typeLower, "soul pouch") then
             return "soul"
         end
 
         -- Quiver
-        if string.find(subclassLower, "quiver") then
+        if string.find(typeLower, "quiver") then
             return "quiver"
         end
 
         -- Ammo Pouch
-        if string.find(subclassLower, "ammo pouch") then
+        if string.find(typeLower, "ammo pouch") then
             return "ammo"
         end
     end
@@ -285,72 +322,45 @@ local function ExtractHyperlink(itemLink)
 end
 
 -- Check if item is Arrow or Bullet (for Quiver routing)
-function Utils:IsArrowOrBullet(itemLink)
-    if not itemLink then return false end
-
-    local hyperlink = ExtractHyperlink(itemLink)
-    if not hyperlink then return false end
-
-    -- Use tooltip scanning
-    local tooltip = GetScanTooltip()
-    tooltip:ClearLines()
-    tooltip:SetHyperlink(hyperlink)
-
-    for i = 1, tooltip:NumLines() do
-        local line = getglobal("GudaBagScanTooltipTextLeft" .. i)
-        if line then
-            local text = line:GetText()
-            if text then
-                if string.find(text, "Arrow") or string.find(text, "Bullet") then
-                    return true
-                end
-            end
-        end
-    end
-
-    return false
+function Utils:IsArrowOrBullet(itemType)
+	if not itemType then return false end
+	-- Exact matching only
+	return itemType == "Arrow" or itemType == "Bullet"
 end
 
--- Check if item is Ammo (any type)
-function Utils:IsAmmo(itemLink)
-    if not itemLink then return false end
-
-    local hyperlink = ExtractHyperlink(itemLink)
-    if not hyperlink then return false end
-
-    -- Use tooltip scanning
-    local tooltip = GetScanTooltip()
-    tooltip:ClearLines()
-    tooltip:SetHyperlink(hyperlink)
-
-    for i = 1, tooltip:NumLines() do
-        local line = getglobal("GudaBagScanTooltipTextLeft" .. i)
-        if line then
-            local text = line:GetText()
-            if text then
-                -- Check for ammo keywords
-                if string.find(text, "Arrow") or
-                   string.find(text, "Bullet") or
-                   string.find(text, "Ammo") or
-                   string.find(text, "Projectile") then
-                    return true
-                end
-            end
-        end
-    end
-
-    return false
+-- Check if item is Ammo (any type - for Ammo Pouch)
+function Utils:IsAmmo(itemType)
+	if not itemType then return false end
+	return itemType == "Arrow" or itemType == "Bullet"
 end
 
 -- Get preferred container type for an item
 -- Returns: "soul", "quiver", "ammo", or nil
 function Utils:GetItemPreferredContainer(itemLink)
-    if self:IsSoulShard(itemLink) then
-        return "soul"
-    elseif self:IsArrowOrBullet(itemLink) then
-        return "quiver"
-    elseif self:IsAmmo(itemLink) then
-        return "ammo"
-    end
-    return nil
+	if not itemLink then return nil end
+
+	-- Check for soul shards first
+	if self:IsSoulShard(itemLink) then
+		return "soul"
+	end
+
+	-- Extract itemID and get item info
+	local _, _, itemID = string.find(itemLink, "item:(%d+)")
+	if not itemID then return nil end
+
+	local itemName, _, itemRarity, itemLevel, itemCategory, itemType, itemStackCount, itemSubType = GetItemInfo(tonumber(itemID))
+	if not itemType then return nil end
+
+	-- Only route PROJECTILE category items that are specifically arrows or bullets
+	if itemCategory == "Projectile" then
+		if itemType == "Arrow" then
+			addon:Print("-> Routing to QUIVER (Projectile - Arrow)")
+			return "quiver"
+		elseif itemType == "Bullet" then
+			addon:Print("-> Routing to AMMO (Projectile - Bullet)")
+			return "ammo"
+		end
+	end
+
+	return nil
 end

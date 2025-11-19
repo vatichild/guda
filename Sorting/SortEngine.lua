@@ -598,28 +598,52 @@ end
 -- Main Sort Functions
 --===========================================================================
 
+--===========================================================================
+-- Main Sort Functions
+--===========================================================================
+
 function SortEngine:SortBags()
 	local bagIDs = addon.Constants.BAGS
 
 	-- Phase 1: Detect specialized bags
 	local containers = DetectSpecializedBags(bagIDs)
 
-	-- Phase 2: Route specialized items to their preferred bags
+	-- Phase 2: Route specialized items to their bags
 	local routeCount = RouteSpecializedItems(bagIDs, containers)
 
-	-- Phase 3: Consolidate stacks in all bags
+	-- Phase 3: Consolidate stacks in ALL bags (including specialized)
 	local consolidateCount = ConsolidateStacks(bagIDs)
 
-	-- Phase 4: Sort all bags together (ensures all equippable gear is grouped)
-	local items = CollectItems(bagIDs)
-	local sortMoves = 0
-	if table.getn(items) > 0 then
-		items = SortItems(items)
-		local targetPositions = BuildTargetPositions(bagIDs, table.getn(items))
-		sortMoves = ApplySort(bagIDs, items, targetPositions)
+	-- Phase 4: Sort items WITHIN each specialized bag (soul, quiver, ammo)
+	local specializedMoves = 0
+	for _, bagType in ipairs({"soul", "quiver", "ammo"}) do
+		local specialBags = containers[bagType]
+		for _, bagID in ipairs(specialBags) do
+		-- Sort items within this single specialized bag
+			local items = CollectItems({bagID})
+			if table.getn(items) > 0 then
+				items = SortItems(items)
+				local targetPositions = BuildTargetPositions({bagID}, table.getn(items))
+				local moveCount = ApplySort({bagID}, items, targetPositions)
+				specializedMoves = specializedMoves + moveCount
+			end
+		end
 	end
 
-	return routeCount + consolidateCount + sortMoves
+	-- Phase 5: Categorical sort regular bags TOGETHER
+	local regularMoves = 0
+	local regularBagIDs = containers.regular
+	if table.getn(regularBagIDs) > 0 then
+		local items = CollectItems(regularBagIDs)
+		if table.getn(items) > 0 then
+			items = SortItems(items)
+			local targetPositions = BuildTargetPositions(regularBagIDs, table.getn(items))
+			regularMoves = ApplySort(regularBagIDs, items, targetPositions)
+		end
+	end
+
+	-- Return total moves made
+	return routeCount + consolidateCount + specializedMoves + regularMoves
 end
 
 function SortEngine:SortBank()
@@ -639,14 +663,33 @@ function SortEngine:SortBank()
 	-- Phase 3: Consolidate stacks
 	local consolidateCount = ConsolidateStacks(bagIDs)
 
-	-- Phase 4: Sort all bags together
-	local items = CollectItems(bagIDs)
-	local sortMoves = 0
-	if table.getn(items) > 0 then
-		items = SortItems(items)
-		local targetPositions = BuildTargetPositions(bagIDs, table.getn(items))
-		sortMoves = ApplySort(bagIDs, items, targetPositions)
+	-- Phase 4: Sort items WITHIN each specialized bag
+	local specializedMoves = 0
+	for _, bagType in ipairs({"soul", "quiver", "ammo"}) do
+		local specialBags = containers[bagType]
+		for _, bagID in ipairs(specialBags) do
+			local items = CollectItems({bagID})
+			if table.getn(items) > 0 then
+				items = SortItems(items)
+				local targetPositions = BuildTargetPositions({bagID}, table.getn(items))
+				local moveCount = ApplySort({bagID}, items, targetPositions)
+				specializedMoves = specializedMoves + moveCount
+			end
+		end
 	end
 
-	return routeCount + consolidateCount + sortMoves
+	-- Phase 5: Sort regular bags TOGETHER
+	local regularBagIDs = containers.regular
+	local regularMoves = 0
+	if table.getn(regularBagIDs) > 0 then
+		local items = CollectItems(regularBagIDs)
+		if table.getn(items) > 0 then
+			items = SortItems(items)
+			local targetPositions = BuildTargetPositions(regularBagIDs, table.getn(items))
+			regularMoves = ApplySort(regularBagIDs, items, targetPositions)
+		end
+	end
+
+	-- Return total moves made
+	return routeCount + consolidateCount + specializedMoves + regularMoves
 end

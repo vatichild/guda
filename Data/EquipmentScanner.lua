@@ -36,7 +36,12 @@ function EquipmentScanner:ScanEquippedItems()
 		local itemLink = GetInventoryItemLink("player", slotID)
 
 		if itemLink then
-			local itemName = GetItemInfo(itemLink)
+			-- Extract itemID from link
+			local _, _, itemID = string.find(itemLink, "item:(%d+)")
+			local itemName
+			if itemID then
+				itemName = GetItemInfo(tonumber(itemID))
+			end
 			equipped[slotName] = {
 				link = itemLink,
 				name = itemName,
