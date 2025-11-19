@@ -52,10 +52,7 @@ function Guda_BagFrame_OnLoad(self)
         clickCatcher:Hide()
 
         clickCatcher:SetScript("OnMouseDown", function()
-            local searchBox = getglobal("Guda_BagFrame_SearchBar_SearchBox")
-            if searchBox then
-                searchBox:ClearFocus()
-            end
+            Guda_BagFrame_ClearSearch()
         end)
     end
 
@@ -430,7 +427,6 @@ function BagFrame:PassesSearchFilter(itemData)
 
     -- Debug: print first match found
     if matches and not self.foundFirstMatch then
-        addon:Print("DEBUG: Found match! Item: '" .. itemName .. "' matches search: '" .. searchText .. "'")
         self.foundFirstMatch = true
     end
 
@@ -999,6 +995,25 @@ function Guda_BagFrame_ShowCharacterBank(fullName, displayName)
     end
 end
 
+-- Clear search and restore placeholder
+function Guda_BagFrame_ClearSearch()
+    local searchBox = getglobal("Guda_BagFrame_SearchBar_SearchBox")
+    if searchBox then
+        searchBox:SetText("Search, try ~equipment")
+        searchBox:SetTextColor(0.5, 0.5, 0.5, 1)
+        searchBox:ClearFocus()
+    end
+
+    -- Reset search state
+    searchText = ""
+    BagFrame.foundFirstMatch = false
+    BagFrame.warnedAboutParsing = false
+    BagFrame.warnedAboutNoName = false
+
+    -- Update display
+    BagFrame:Update()
+end
+
 -- Search changed handler
 function Guda_BagFrame_OnSearchChanged(self)
     local text = self:GetText()
@@ -1011,7 +1026,6 @@ function Guda_BagFrame_OnSearchChanged(self)
         BagFrame.foundFirstMatch = false  -- Reset debug flags
         BagFrame.warnedAboutParsing = false
         BagFrame.warnedAboutNoName = false
-        addon:Print("Search text changed to: '" .. (searchText or "empty") .. "'")
         BagFrame:Update()
     end
 end
