@@ -81,6 +81,12 @@ function Guda_BagFrame_OnShow(self)
     if BagFrame.UpdateLockState then
         BagFrame:UpdateLockState()
     end
+
+    -- Apply border visibility setting
+    if BagFrame.UpdateBorderVisibility then
+        BagFrame:UpdateBorderVisibility()
+    end
+
     BagFrame:Update()
 end
 
@@ -1257,6 +1263,43 @@ function BagFrame:UpdateLockState()
                 end
             end)
         end
+    end
+end
+
+-- Update border visibility based on setting
+function BagFrame:UpdateBorderVisibility()
+    if not addon or not addon.Modules or not addon.Modules.DB then return end
+
+    local frame = getglobal("Guda_BagFrame")
+    if not frame then return end
+
+    local hideBorders = addon.Modules.DB:GetSetting("hideBorders")
+    if hideBorders == nil then
+        hideBorders = false
+    end
+
+    if hideBorders then
+        -- Hide decorative borders but add thin white border
+        frame:SetBackdrop({
+            bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+            edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+            tile = true,
+            tileSize = 32,
+            edgeSize = 2,
+            insets = { left = 0, right = 0, top = 0, bottom = 0 }
+        })
+        frame:SetBackdropColor(0, 0, 0, 0.9)
+        frame:SetBackdropBorderColor(1, 1, 1, 1)
+    else
+        frame:SetBackdrop({
+            bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+            edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+            tile = true,
+            tileSize = 32,
+            edgeSize = 32,
+            insets = { left = 11, right = 12, top = 12, bottom = 11 }
+        })
+        frame:SetBackdropColor(0, 0, 0, 0.9)
     end
 end
 

@@ -33,6 +33,12 @@ function Guda_BankFrame_OnShow(self)
         moneyFrame:ClearAllPoints()
         moneyFrame:SetPoint("BOTTOMRIGHT", Guda_BankFrame, "BOTTOMRIGHT", -15, 10)
     end
+
+    -- Apply border visibility setting
+    if BankFrame.UpdateBorderVisibility then
+        BankFrame:UpdateBorderVisibility()
+    end
+
     BankFrame:Update()
 end
 
@@ -734,6 +740,43 @@ function BankFrame:GetBankInvSlotForBagID(bagID)
     -- TurtleWoW (and your environment) expect passing bagID (5..10) with isBank=1
     local invSlot = BankButtonIDToInvSlotID(bagID, 1)
     return invSlot, bankButtonID
+end
+
+-- Update border visibility based on setting
+function BankFrame:UpdateBorderVisibility()
+    if not addon or not addon.Modules or not addon.Modules.DB then return end
+
+    local frame = getglobal("Guda_BankFrame")
+    if not frame then return end
+
+    local hideBorders = addon.Modules.DB:GetSetting("hideBorders")
+    if hideBorders == nil then
+        hideBorders = false
+    end
+
+    if hideBorders then
+        -- Hide decorative borders but add thin white border
+        frame:SetBackdrop({
+            bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+            edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+            tile = true,
+            tileSize = 32,
+            edgeSize = 2,
+            insets = { left = 0, right = 0, top = 0, bottom = 0 }
+        })
+        frame:SetBackdropColor(0, 0, 0, 0.9)
+        frame:SetBackdropBorderColor(1, 1, 1, 1)
+    else
+        frame:SetBackdrop({
+            bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+            edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+            tile = true,
+            tileSize = 32,
+            edgeSize = 32,
+            insets = { left = 11, right = 12, top = 12, bottom = 11 }
+        })
+        frame:SetBackdropColor(0, 0, 0, 0.9)
+    end
 end
 
 -- Initialize

@@ -38,14 +38,19 @@ function Guda_SettingsPopup_OnShow(self)
     if lockBags == nil then
         lockBags = false
     end
+    local hideBorders = Guda.Modules.DB:GetSetting("hideBorders")
+    if hideBorders == nil then
+        hideBorders = false
+    end
 
-    -- Update sliders
+    -- Update sliders and checkboxes
     local bagSlider = getglobal("Guda_SettingsPopup_BagColumnsSlider")
     local bankSlider = getglobal("Guda_SettingsPopup_BankColumnsSlider")
     local iconSizeSlider = getglobal("Guda_SettingsPopup_IconSizeSlider")
     local iconFontSizeSlider = getglobal("Guda_SettingsPopup_IconFontSizeSlider")
     local iconSpacingSlider = getglobal("Guda_SettingsPopup_IconSpacingSlider")
     local lockCheckbox = getglobal("Guda_SettingsPopup_LockBagsCheckbox")
+    local hideBordersCheckbox = getglobal("Guda_SettingsPopup_HideBordersCheckbox")
 
     if bagSlider then
         bagSlider:SetValue(bagColumns)
@@ -69,6 +74,10 @@ function Guda_SettingsPopup_OnShow(self)
 
     if lockCheckbox then
         lockCheckbox:SetChecked(lockBags and 1 or 0)
+    end
+
+    if hideBordersCheckbox then
+        hideBordersCheckbox:SetChecked(hideBorders and 1 or 0)
     end
 end
 
@@ -319,6 +328,95 @@ function Guda_SettingsPopup_LockBagsCheckbox_OnClick(self)
     -- Update bag frame draggability
     if Guda and Guda.Modules and Guda.Modules.BagFrame and Guda.Modules.BagFrame.UpdateLockState then
         Guda.Modules.BagFrame:UpdateLockState()
+    end
+end
+
+-- Hide Borders Checkbox OnLoad
+function Guda_SettingsPopup_HideBordersCheckbox_OnLoad(self)
+    local text = getglobal(self:GetName().."Text")
+    if text then
+        text:SetText("Hide Borders")
+
+        -- Increase font size
+        local font, _, flags = text:GetFont()
+        if font then
+            text:SetFont(font, 13, flags)
+        end
+    end
+
+    local hideBorders = false
+    if Guda and Guda.Modules and Guda.Modules.DB then
+        hideBorders = Guda.Modules.DB:GetSetting("hideBorders")
+        if hideBorders == nil then
+            hideBorders = false
+        end
+    end
+
+    self:SetChecked(hideBorders and 1 or 0)
+end
+
+-- Hide Borders Checkbox OnClick
+function Guda_SettingsPopup_HideBordersCheckbox_OnClick(self)
+    local isChecked = self:GetChecked() == 1
+
+    -- Save setting
+    if Guda and Guda.Modules and Guda.Modules.DB then
+        Guda.Modules.DB:SetSetting("hideBorders", isChecked)
+    end
+
+    -- Update border visibility on both bag and bank frames
+    local bagFrame = getglobal("Guda_BagFrame")
+    if bagFrame then
+        if isChecked then
+            -- Hide decorative borders but add thin white border
+            bagFrame:SetBackdrop({
+                bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+                edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+                tile = true,
+                tileSize = 12,
+                edgeSize = 2,
+                insets = { left = 0, right = 0, top = 0, bottom = 0 }
+            })
+            bagFrame:SetBackdropColor(0, 0, 0, 0.9)
+            bagFrame:SetBackdropBorderColor(1, 1, 1, 1)
+        else
+            bagFrame:SetBackdrop({
+                bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+                edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+                tile = true,
+                tileSize = 32,
+                edgeSize = 32,
+                insets = { left = 11, right = 12, top = 12, bottom = 11 }
+            })
+            bagFrame:SetBackdropColor(0, 0, 0, 0.9)
+        end
+    end
+
+    local bankFrame = getglobal("Guda_BankFrame")
+    if bankFrame then
+        if isChecked then
+            -- Hide decorative borders but add thin white border
+            bankFrame:SetBackdrop({
+                bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+                edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+                tile = true,
+                tileSize = 32,
+                edgeSize = 2,
+                insets = { left = 0, right = 0, top = 0, bottom = 0 }
+            })
+            bankFrame:SetBackdropColor(0, 0, 0, 0.9)
+            bankFrame:SetBackdropBorderColor(1, 1, 1, 1)
+        else
+            bankFrame:SetBackdrop({
+                bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+                edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+                tile = true,
+                tileSize = 32,
+                edgeSize = 32,
+                insets = { left = 11, right = 12, top = 12, bottom = 11 }
+            })
+            bankFrame:SetBackdropColor(0, 0, 0, 0.9)
+        end
     end
 end
 

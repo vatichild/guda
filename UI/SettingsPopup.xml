@@ -188,6 +188,25 @@
                     </OnClick>
                 </Scripts>
             </CheckButton>
+
+            <!-- Hide Borders Checkbox -->
+            <CheckButton name="$parent_HideBordersCheckbox" inherits="OptionsCheckButtonTemplate">
+                <Anchors>
+                    <Anchor point="LEFT" relativePoint="RIGHT" relativeTo="$parent_LockBagsCheckbox">
+                        <Offset>
+                            <AbsDimension x="100" y="0"/>
+                        </Offset>
+                    </Anchor>
+                </Anchors>
+                <Scripts>
+                    <OnLoad>
+                        Guda_SettingsPopup_HideBordersCheckbox_OnLoad(this)
+                    </OnLoad>
+                    <OnClick>
+                        Guda_SettingsPopup_HideBordersCheckbox_OnClick(this)
+                    </OnClick>
+                </Scripts>
+            </CheckButton>
         </Frames>
 
         <Scripts>
