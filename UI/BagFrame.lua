@@ -1771,6 +1771,11 @@ function BagFrame:Initialize()
         end
     end, "BagFrame")
 
+    -- Auto-open bag frame when mail is opened
+    addon.Modules.Events:Register("MAIL_SHOW", function()
+        Guda_BagFrame:Show()
+    end, "BagFrame")
+
     -- Hide character dropdown when clicking on bag frame
     local bagFrame = getglobal("Guda_BagFrame")
     if bagFrame then
