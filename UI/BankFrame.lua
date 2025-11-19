@@ -984,6 +984,17 @@ end
 function Guda_BankBagSlot_OnClick(button, bagID, which)
     local which = which or arg1 -- Vanilla uses global arg1 for mouse button name
 
+    -- Handle main bank container (bagID -1)
+    if bagID == -1 then
+        if which == "RightButton" then
+            -- Toggle visibility for main bank container
+            hiddenBankBags[bagID] = not hiddenBankBags[bagID]
+            Guda_BankBagSlot_Update(button, bagID)
+            BankFrame:Update()
+        end
+        return
+    end
+
     if bagID and bagID ~= -1 then
         local invSlot, bankButtonID = BankFrame:GetBankInvSlotForBagID(bagID)
         if invSlot and bankButtonID then
