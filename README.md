@@ -54,13 +54,6 @@ A comprehensive bag and bank management addon for Turtle WoW (1.12.1).
 3. Click **Bank** button to view your bank (cached)
 4. Click **Sort** to organize your bags
 
-### Viewing Other Characters
-
-1. Type `/guda chars` or click the **Characters** button
-2. Select a character from the list
-3. View their bags and bank contents
-4. Click **Current Character** to return to your bags
-
 ### Sorting
 
 - **Sort Bags**: Click the **Sort** button or `/guda sort`
@@ -146,7 +139,7 @@ Currently all configuration is automatic. Future versions may include:
 ## Credits
 
 Created for Turtle WoW 1.12.1
-Version 1.0.0
+Version 1.0.2
 
 ## Support
 
@@ -154,7 +147,7 @@ For bugs or feature requests, please report them in-game or on the forums.
 
 ## Changelog
 
-### Version 1.0.0
+### Version 1.0.2
 
 - Initial release
 - Bag viewing and sorting
