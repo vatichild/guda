@@ -708,11 +708,17 @@ function Guda_BagFrame_MoneyOnEnter(self)
     GameTooltip:Show()
 end
 
--- Character dropdown management
+-- Dropdown management
 local characterDropdown = nil
+local bankDropdown = nil
 
 -- Toggle character dropdown
 function Guda_BagFrame_ToggleCharacterDropdown(button)
+    -- Hide bank dropdown if it's shown
+    if bankDropdown and bankDropdown:IsShown() then
+        bankDropdown:Hide()
+    end
+
     if characterDropdown and characterDropdown:IsShown() then
         characterDropdown:Hide()
         return
@@ -876,11 +882,13 @@ local function HideCharacterDropdown()
     end
 end
 
--- Bank dropdown management
-local bankDropdown = nil
-
 -- Toggle bank dropdown
 function Guda_BagFrame_ToggleBankDropdown(button)
+    -- Hide character dropdown if it's shown
+    if characterDropdown and characterDropdown:IsShown() then
+        characterDropdown:Hide()
+    end
+
     if bankDropdown and bankDropdown:IsShown() then
         bankDropdown:Hide()
         return
