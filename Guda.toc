@@ -2,7 +2,7 @@
 ## Title: Guda
 ## Notes: All-in-one bag and bank addon for Turtle WoW
 ## Author: Vati
-## Version: 1.0.9
+## Version: 1.1.0
 ## SavedVariables: Guda_DB
 ## SavedVariablesPerCharacter: Guda_CharDB
 
