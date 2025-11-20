@@ -1188,32 +1188,34 @@ end
 
 -- Alternative approach: Completely replace the bag open functions
 local function ReplaceBagOpenFunctions()
-    -- Store original functions
-    local originalOpenBag = OpenBag
-    local originalToggleBag = ToggleBag
-
-    -- Override OpenBag
-    function OpenBag(bagId)
-        if bagId and bagId >= 0 and bagId <= 4 then
-            -- For regular bags, open Guda Bag View
-            BagFrame:Toggle()
-        else
-            -- For other containers, use original function
-            if originalOpenBag then
-                originalOpenBag(bagId)
+    -- Override OpenBag (if it exists)
+    if OpenBag then
+        local originalOpenBag = OpenBag
+        function OpenBag(bagId)
+            if bagId and bagId >= 0 and bagId <= 4 then
+                -- For regular bags, open Guda Bag View
+                BagFrame:Toggle()
+            else
+                -- For other containers, use original function
+                if originalOpenBag then
+                    originalOpenBag(bagId)
+                end
             end
         end
     end
 
-    -- Override ToggleBag
-    function ToggleBag(bagId)
-        if bagId and bagId >= 0 and bagId <= 4 then
-            -- For regular bags, toggle Guda Bag View
-            BagFrame:Toggle()
-        else
-            -- For other containers, use original function
-            if originalToggleBag then
-                originalToggleBag(bagId)
+    -- Override ToggleBag (if it exists)
+    if ToggleBag then
+        local originalToggleBag = ToggleBag
+        function ToggleBag(bagId)
+            if bagId and bagId >= 0 and bagId <= 4 then
+                -- For regular bags, toggle Guda Bag View
+                BagFrame:Toggle()
+            else
+                -- For other containers, use original function
+                if originalToggleBag then
+                    originalToggleBag(bagId)
+                end
             end
         end
     end
@@ -1221,22 +1223,28 @@ end
 
 -- Hook to default bag opening
 local function HookDefaultBags()
-    -- Override ToggleBackpack
-    local originalToggleBackpack = ToggleBackpack
-    function ToggleBackpack()
-        BagFrame:Toggle()
+    -- Override ToggleBackpack (if it exists)
+    if ToggleBackpack then
+        local originalToggleBackpack = ToggleBackpack
+        function ToggleBackpack()
+            BagFrame:Toggle()
+        end
     end
 
-    -- Override OpenAllBags
-    local originalOpenAllBags = OpenAllBags
-    function OpenAllBags()
-        Guda_BagFrame:Show()
+    -- Override OpenAllBags (if it exists)
+    if OpenAllBags then
+        local originalOpenAllBags = OpenAllBags
+        function OpenAllBags()
+            Guda_BagFrame:Show()
+        end
     end
 
-    -- Override CloseAllBags
-    local originalCloseAllBags = CloseAllBags
-    function CloseAllBags()
-        Guda_BagFrame:Hide()
+    -- Override CloseAllBags (if it exists)
+    if CloseAllBags then
+        local originalCloseAllBags = CloseAllBags
+        function CloseAllBags()
+            Guda_BagFrame:Hide()
+        end
     end
 
     -- Hook individual bag opening functions (for bag slot buttons)

@@ -6,6 +6,8 @@
 ## SavedVariables: Guda_DB
 ## SavedVariablesPerCharacter: Guda_CharDB
 
+Localization.lua
+
 Core\Init.lua
 Core\Database.lua
 Core\Events.lua
