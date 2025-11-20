@@ -406,7 +406,7 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
                 self.questIcon:SetHeight(questIconSize)
 
                 self.questIcon:ClearAllPoints()
-                self.questIcon:SetPoint("TOPRIGHT", self, "TOPRIGHT", 2, 2)
+                self.questIcon:SetPoint("TOPRIGHT", self, "TOPRIGHT", 1, 0)
             end
         else
             -- Hide icon for empty slots
