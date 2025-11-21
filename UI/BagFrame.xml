@@ -638,7 +638,8 @@
 
 
             <!-- Container for item buttons -->
-            <Frame name="$parent_ItemContainer" enableMouse="true">
+            <!-- Set enableMouse to false so it does not intercept drag/drop meant for child item buttons -->
+            <Frame name="$parent_ItemContainer" enableMouse="false">
                 <Size>
                     <AbsDimension x="400" y="480"/>
                 </Size>
@@ -654,15 +655,8 @@
                     </TileSize>
                     <Color r="0" g="0" b="0" a="0.5"/>
                 </Backdrop>
-                <Scripts>
-                    <OnMouseDown>
-                        -- Clear search focus when clicking in item area
-                        local searchBox = getglobal("Guda_BagFrame_SearchBar_SearchBox")
-                        if searchBox then
-                            searchBox:ClearFocus()
-                        end
-                    </OnMouseDown>
-                </Scripts>
+                <!-- Note: with enableMouse=false, OnMouseDown/OnReceiveDrag here would not fire; 
+                     child item buttons will handle mouse events directly. -->
             </Frame>
         </Frames>
 

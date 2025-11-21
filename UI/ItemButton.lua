@@ -108,6 +108,20 @@ function Guda_ItemButton_OnLoad(self)
         iconFrame:Hide()
         self.questIcon = iconFrame
     end
+
+    -- Ensure the item button sits above its container backdrop and is mouse-enabled
+    local parent = self:GetParent()
+    if parent and parent.GetFrameLevel then
+        -- Place button above parent backdrop/mouse layer to reliably receive drops
+        local parentLevel = parent:GetFrameLevel()
+        if parentLevel and self:GetFrameLevel() <= parentLevel + 1 then
+            self:SetFrameLevel(parentLevel + 2)
+        end
+    end
+
+    if self.EnableMouse then
+        self:EnableMouse(true)
+    end
 end
 
 -- Set item data
@@ -484,6 +498,11 @@ function Guda_ItemButton_OnDragStart(self, button)
 
     -- Only allow left button drag
     if button == "LeftButton" and self.hasItem then
+        -- Ensure the global click catcher doesn't intercept the drag/drop
+        local cc = getglobal and getglobal("Guda_ClickCatcher")
+        if cc and cc.Hide and cc:IsShown() then
+            cc:Hide()
+        end
         PickupContainerItem(self.bagID, self.slotID)
     end
 end
@@ -497,6 +516,33 @@ function Guda_ItemButton_OnReceiveDrag(self)
 
     -- Place the item being dragged
     PickupContainerItem(self.bagID, self.slotID)
+end
+
+-- Handle mouse-up to emulate Blizzard drop behavior on 1.12 where OnReceiveDrag may not always fire
+function Guda_ItemButton_OnMouseUp(self, button)
+    -- Only handle left-button drops
+    if button ~= "LeftButton" then return end
+
+    -- Don't allow interaction with other characters' items or in read-only mode
+    if self.otherChar or self.isReadOnly then
+        return
+    end
+
+    -- If the cursor is holding an item, drop/swap into this slot
+    if CursorHasItem and CursorHasItem() then
+        PickupContainerItem(self.bagID, self.slotID)
+        return
+    end
+
+    -- Otherwise, normal click behavior is handled by OnClick
+end
+
+-- OnDragStop handler (optional cleanup)
+function Guda_ItemButton_OnDragStop(self)
+    -- Reset cursor to default to avoid lingering special cursors
+    if ResetCursor then
+        ResetCursor()
+    end
 end
 
 -- Stack split callback (called by StackSplitFrame)

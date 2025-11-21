@@ -47,9 +47,15 @@
             <OnClick>
                 Guda_ItemButton_OnClick(this, arg1)
             </OnClick>
+            <OnMouseUp>
+                Guda_ItemButton_OnMouseUp(this, arg1)
+            </OnMouseUp>
             <OnDragStart>
                 Guda_ItemButton_OnDragStart(this, arg1)
             </OnDragStart>
+            <OnDragStop>
+                Guda_ItemButton_OnDragStop(this)
+            </OnDragStop>
             <OnReceiveDrag>
                 Guda_ItemButton_OnReceiveDrag(this)
             </OnReceiveDrag>
