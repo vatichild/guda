@@ -11,6 +11,8 @@ local searchText = ""
 local isReadOnlyMode = false  -- Track if viewing saved bank (read-only) or live bank (interactive)
 local hiddenBankBags = {} -- Track which bank bags are hidden (bagID -> true/false)
 local bankBagParents = {} -- Parent frames per bank bag (same approach as BagFrame)
+-- Global click catcher for clearing bank search focus
+local bankClickCatcher = nil
 
 -- OnLoad
 function Guda_BankFrame_OnLoad(self)
@@ -19,6 +21,21 @@ function Guda_BankFrame_OnLoad(self)
     if searchBox then
         searchBox:SetText("Search bank...")
         searchBox:SetTextColor(0.5, 0.5, 0.5, 1)
+    end
+
+    -- Create invisible full-screen frame to catch clicks outside the bank frame while typing in search
+    if not bankClickCatcher then
+        bankClickCatcher = CreateFrame("Frame", "Guda_BankClickCatcher", UIParent)
+        bankClickCatcher:SetFrameStrata("BACKGROUND")
+        bankClickCatcher:SetAllPoints(UIParent)
+        bankClickCatcher:EnableMouse(true)
+        bankClickCatcher:Hide()
+
+        bankClickCatcher:SetScript("OnMouseDown", function()
+            if Guda_BankFrame_ClearSearch then
+                Guda_BankFrame_ClearSearch()
+            end
+        end)
     end
 
 end
@@ -61,6 +78,10 @@ function Guda_BankFrame_OnHide(self)
                 end
             end
         end
+    end
+    -- Ensure the bank click catcher is hidden when the frame hides
+    if bankClickCatcher and bankClickCatcher.Hide then
+        bankClickCatcher:Hide()
     end
 end
 
@@ -571,6 +592,27 @@ function Guda_BankFrame_OnSearchChanged(self)
     if text ~= searchText then
         searchText = text
         BankFrame:Update()
+    end
+end
+
+-- Clear bank search and restore placeholder
+function Guda_BankFrame_ClearSearch()
+    local searchBox = getglobal("Guda_BankFrame_SearchBar_SearchBox")
+    if searchBox then
+        searchBox:SetText("Search bank...")
+        searchBox:SetTextColor(0.5, 0.5, 0.5, 1)
+        if searchBox.ClearFocus then searchBox:ClearFocus() end
+    end
+
+    -- Reset search state
+    searchText = ""
+
+    -- Update display
+    BankFrame:Update()
+
+    -- Hide click catcher if present
+    if bankClickCatcher and bankClickCatcher.Hide then
+        bankClickCatcher:Hide()
     end
 end
 
