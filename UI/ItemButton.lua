@@ -1,8 +1,6 @@
--- Guda Item Button
--- Handles item button display and interaction
-
+-- Local alias to the addon root table (must be defined before any usages below)
 local addon = Guda
-
+ 
 -- Item button pool
 local buttonPool = {}
 local nextButtonID = 1
@@ -10,6 +8,8 @@ local nextButtonID = 1
 -- Hidden tooltip for scanning quest items
 local scanTooltip = CreateFrame("GameTooltip", "Guda_QuestScanTooltip", nil, "GameTooltipTemplate")
 scanTooltip:SetOwner(WorldFrame, "ANCHOR_NONE")
+
+-- (rollback) no custom drag-source tracking or target resolution; rely on Blizzard handlers
 
 -- Check if an item is a quest item by scanning its tooltip
 local function IsQuestItem(bagID, slotID)
@@ -128,6 +128,10 @@ end
 function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCharName, matchesFilter, isReadOnly)
     self.bagID = bagID
     self.slotID = slotID
+    -- Also set the Blizzard slot ID for compatibility with ContainerFrameItemButtonTemplate behavior
+    if self.SetID and slotID then
+        self:SetID(slotID)
+    end
     self.itemData = itemData
     self.isBank = isBank or false
     self.otherChar = otherCharName
@@ -138,13 +142,35 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
         matchesFilter = true
     end
 
-    local countText = getglobal(self:GetName().."_Count")
+    -- Use Blizzard's default count fontstring (ContainerFrameItemButtonTemplate creates $parentCount)
+    local countText = getglobal(self:GetName().."Count")
     local emptySlotBg = getglobal(self:GetName().."_EmptySlotBg")
 
-    -- Apply icon size setting
-    local iconSize = Guda.Modules.DB:GetSetting("iconSize") or addon.Constants.BUTTON_SIZE
+    -- Apply icon size setting (nil-safe)
+    local iconSize = 37
+    if addon and addon.Modules and addon.Modules.DB and addon.Modules.DB.GetSetting then
+        iconSize = addon.Modules.DB:GetSetting("iconSize") or iconSize
+    elseif Guda and Guda.Modules and Guda.Modules.DB and Guda.Modules.DB.GetSetting then
+        iconSize = Guda.Modules.DB:GetSetting("iconSize") or iconSize
+    end
+    if addon and addon.Constants and addon.Constants.BUTTON_SIZE then
+        iconSize = iconSize or addon.Constants.BUTTON_SIZE
+    end
     self:SetWidth(iconSize)
     self:SetHeight(iconSize)
+
+    -- Rollback behavior: drive visuals from cached itemData (DB) only
+    if itemData and itemData.texture then
+        self.hasItem = true
+        if SetItemButtonTexture then SetItemButtonTexture(self, itemData.texture) end
+        if SetItemButtonCount then SetItemButtonCount(self, itemData.count or 1) end
+        if emptySlotBg then emptySlotBg:Hide() end
+    else
+        self.hasItem = false
+        if SetItemButtonTexture then SetItemButtonTexture(self, nil) end
+        if SetItemButtonCount then SetItemButtonCount(self, 0) end
+        if emptySlotBg then emptySlotBg:Show() end
+    end
 
     -- Resize empty slot background to match icon size (slightly larger to ensure coverage)
     if emptySlotBg then
@@ -204,7 +230,12 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
     -- Apply icon font size setting to stack count text
     if countText and countText.GetFont then
         local font, _, flags = countText:GetFont()
-        local fontSize = Guda.Modules.DB:GetSetting("iconFontSize") or 12
+        local fontSize = 12
+        if addon and addon.Modules and addon.Modules.DB and addon.Modules.DB.GetSetting then
+            fontSize = addon.Modules.DB:GetSetting("iconFontSize") or fontSize
+        elseif Guda and Guda.Modules and Guda.Modules.DB and Guda.Modules.DB.GetSetting then
+            fontSize = Guda.Modules.DB:GetSetting("iconFontSize") or fontSize
+        end
         countText:SetFont(font, fontSize, flags)
 
         -- Adjust count text position based on icon size for better alignment
@@ -267,9 +298,15 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
                 self.qualityBorder:SetBackdropBorderColor(0.2, 0.8, 1.0, 1)
                 self.qualityBorder:Show()
             elseif itemData.quality and itemData.link then
-                -- Check settings to determine if we should show borders
-                local showEquipmentBorder = addon.Modules.DB:GetSetting("showQualityBorderEquipment")
-                local showOtherBorder = addon.Modules.DB:GetSetting("showQualityBorderOther")
+                -- Check settings to determine if we should show borders (nil-safe)
+                local showEquipmentBorder, showOtherBorder
+                if addon and addon.Modules and addon.Modules.DB and addon.Modules.DB.GetSetting then
+                    showEquipmentBorder = addon.Modules.DB:GetSetting("showQualityBorderEquipment")
+                    showOtherBorder = addon.Modules.DB:GetSetting("showQualityBorderOther")
+                elseif Guda and Guda.Modules and Guda.Modules.DB and Guda.Modules.DB.GetSetting then
+                    showEquipmentBorder = Guda.Modules.DB:GetSetting("showQualityBorderEquipment")
+                    showOtherBorder = Guda.Modules.DB:GetSetting("showQualityBorderOther")
+                end
 
                 -- Default to true if settings not found
                 if showEquipmentBorder == nil then
@@ -279,15 +316,25 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
                     showOtherBorder = true
                 end
 
-                -- Check if item is equipment
-                local isEquipment = addon.Modules.Utils:IsEquipment(itemData.link)
+                -- Check if item is equipment (nil-safe)
+                local isEquipment = false
+                if addon and addon.Modules and addon.Modules.Utils and addon.Modules.Utils.IsEquipment then
+                    isEquipment = addon.Modules.Utils:IsEquipment(itemData.link)
+                elseif Guda and Guda.Modules and Guda.Modules.Utils and Guda.Modules.Utils.IsEquipment then
+                    isEquipment = Guda.Modules.Utils:IsEquipment(itemData.link)
+                end
 
                 -- Determine if we should show the border based on item type and settings
                 local shouldShowBorder = (isEquipment and showEquipmentBorder) or (not isEquipment and showOtherBorder)
 
                 if shouldShowBorder then
                     -- Show colored border for all items (Poor, Common, Uncommon, Rare, Epic, etc.)
-                    local r, g, b = addon.Modules.Utils:GetQualityColor(itemData.quality)
+                    local r, g, b = 1, 1, 1
+                    if addon and addon.Modules and addon.Modules.Utils and addon.Modules.Utils.GetQualityColor then
+                        r, g, b = addon.Modules.Utils:GetQualityColor(itemData.quality)
+                    elseif Guda and Guda.Modules and Guda.Modules.Utils and Guda.Modules.Utils.GetQualityColor then
+                        r, g, b = Guda.Modules.Utils:GetQualityColor(itemData.quality)
+                    end
                     self.qualityBorder:SetBackdropBorderColor(r, g, b, 1)
                     self.qualityBorder:Show()
                 else
@@ -519,23 +566,10 @@ function Guda_ItemButton_OnReceiveDrag(self)
 end
 
 -- Handle mouse-up to emulate Blizzard drop behavior on 1.12 where OnReceiveDrag may not always fire
-function Guda_ItemButton_OnMouseUp(self, button)
-    -- Only handle left-button drops
-    if button ~= "LeftButton" then return end
+-- (rollback) no custom OnMouseUp; rely on Blizzard default
 
-    -- Don't allow interaction with other characters' items or in read-only mode
-    if self.otherChar or self.isReadOnly then
-        return
-    end
-
-    -- If the cursor is holding an item, drop/swap into this slot
-    if CursorHasItem and CursorHasItem() then
-        PickupContainerItem(self.bagID, self.slotID)
-        return
-    end
-
-    -- Otherwise, normal click behavior is handled by OnClick
-end
+-- OnMouseDown handler - pick up item when pressing mouse button (classic pattern)
+-- (rollback) no custom OnMouseDown; rely on Blizzard default
 
 -- OnDragStop handler (optional cleanup)
 function Guda_ItemButton_OnDragStop(self)
@@ -555,22 +589,18 @@ end
 -- OnClick handler
 function Guda_ItemButton_OnClick(self, button)
     -- Don't allow interaction with other characters' items or in read-only mode
-    if self.otherChar or self.isReadOnly then
-        return
-    end
+    if self.otherChar or self.isReadOnly then return end
 
     -- Set the split callback
     self.SplitStack = ItemButton_SplitStack
 
-    -- Handle modified clicks first
+    -- Modified clicks
     if IsShiftKeyDown() then
         if button == "LeftButton" and self.hasItem then
             -- Shift+Left Click on stackable item: Show split stack dialog
             if self.itemData and self.itemData.count and self.itemData.count > 1 then
-                -- Get the actual stack count from the container
                 local _, count = GetContainerItemInfo(self.bagID, self.slotID)
                 if count and count > 1 then
-                    -- Open the stack split frame (positioned to the left)
                     OpenStackSplitFrame(count, self, "BOTTOMRIGHT", "TOPRIGHT")
                     return
                 end
@@ -589,10 +619,9 @@ function Guda_ItemButton_OnClick(self, button)
         return
     end
 
-    -- Normal clicks - handle item pickup/placement
     if button == "LeftButton" then
-        -- Pick up or place item
-        PickupContainerItem(self.bagID, self.slotID)
+        -- Left clicks are handled by MouseDown/MouseUp to prevent instant self-drop.
+        return
     elseif button == "RightButton" then
         -- Right click: Use item (only if slot has an item)
         if self.hasItem then

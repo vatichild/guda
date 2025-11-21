@@ -1,7 +1,7 @@
 <Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.blizzard.com/wow/ui/">
 
-    <!-- Item Button Template -->
-    <Button name="Guda_ItemButtonTemplate" virtual="true" inherits="ItemButtonTemplate">
+    <!-- Item Button Template (inherit Blizzard container item button for classic behavior/skins) -->
+    <Button name="Guda_ItemButtonTemplate" virtual="true" inherits="ContainerFrameItemButtonTemplate">
         <Size>
             <AbsDimension x="37" y="37"/>
         </Size>
@@ -16,9 +16,8 @@
                     </Anchors>
                 </Texture>
             </Layer>
-
-
-            <!-- Item count -->
+            
+            <!-- Custom item count (this intentionally co-exists with Blizzard's $parentCount in rollback state) -->
             <Layer level="OVERLAY">
                 <FontString name="$parent_Count" inherits="NumberFontNormal" justifyH="RIGHT">
                     <Anchors>
@@ -34,31 +33,13 @@
 
         <Scripts>
             <OnLoad>
+                -- Our visual setup
                 Guda_ItemButton_OnLoad(this)
-                this:RegisterForDrag("LeftButton")
-                this:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+                -- Ensure Blizzard default container item button behavior is active
+                if ContainerFrameItemButton_OnLoad then
+                ContainerFrameItemButton_OnLoad()
+                end
             </OnLoad>
-            <OnEnter>
-                Guda_ItemButton_OnEnter(this)
-            </OnEnter>
-            <OnLeave>
-                Guda_ItemButton_OnLeave(this)
-            </OnLeave>
-            <OnClick>
-                Guda_ItemButton_OnClick(this, arg1)
-            </OnClick>
-            <OnMouseUp>
-                Guda_ItemButton_OnMouseUp(this, arg1)
-            </OnMouseUp>
-            <OnDragStart>
-                Guda_ItemButton_OnDragStart(this, arg1)
-            </OnDragStart>
-            <OnDragStop>
-                Guda_ItemButton_OnDragStop(this)
-            </OnDragStop>
-            <OnReceiveDrag>
-                Guda_ItemButton_OnReceiveDrag(this)
-            </OnReceiveDrag>
         </Scripts>
     </Button>
 
