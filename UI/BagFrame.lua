@@ -312,7 +312,8 @@ function BagFrame:DisplayItems(bagData, isOtherChar, charName)
 				button:SetPoint("TOPLEFT", itemContainer, "TOPLEFT", xPos, yPos)
 
 				-- Set item data with filter match info
-				Guda_ItemButton_SetItem(button, bagID, slot, itemData, false, isOtherChar and charName or nil, matchesFilter)
+				-- isReadOnly = true when viewing other characters (can't interact with their items)
+				Guda_ItemButton_SetItem(button, bagID, slot, itemData, false, isOtherChar and charName or nil, matchesFilter, isOtherChar)
 
 				table.insert(itemButtons, button)
 

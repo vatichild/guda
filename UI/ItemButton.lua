@@ -119,8 +119,15 @@ function Guda_ItemButton_OnLoad(self)
         end
     end
 
+    -- Enable mouse and register for drag/drop (crucial for Classic/Vanilla WoW)
     if self.EnableMouse then
         self:EnableMouse(true)
+    end
+    if self.RegisterForDrag then
+        self:RegisterForDrag("LeftButton")
+    end
+    if self.RegisterForClicks then
+        self:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     end
 end
 
@@ -136,6 +143,27 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
     self.isBank = isBank or false
     self.otherChar = otherCharName
     self.isReadOnly = isReadOnly or false  -- Track if this is read-only mode
+
+    -- Re-register for drag/drop every time (crucial for button reuse in Classic/Vanilla)
+    if not self.isReadOnly and not self.otherChar then
+        if self.RegisterForDrag then
+            self:RegisterForDrag("LeftButton")
+        end
+        if self.RegisterForClicks then
+            self:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        end
+        if self.EnableMouse then
+            self:EnableMouse(true)
+        end
+    else
+        -- Disable drag for read-only or other character items
+        if self.RegisterForDrag then
+            self:RegisterForDrag()  -- Clear drag registration
+        end
+        if self.EnableMouse then
+            self:EnableMouse(true)  -- Still enable mouse for tooltips
+        end
+    end
 
     -- Default to true if not specified (for non-filtered displays)
     if matchesFilter == nil then
@@ -159,16 +187,53 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
     self:SetWidth(iconSize)
     self:SetHeight(iconSize)
 
-    -- Rollback behavior: drive visuals from cached itemData (DB) only
-    if itemData and itemData.texture then
-        self.hasItem = true
-        if SetItemButtonTexture then SetItemButtonTexture(self, itemData.texture) end
-        if SetItemButtonCount then SetItemButtonCount(self, itemData.count or 1) end
+    -- In live mode (readOnly=false), query real-time game state instead of cached DB
+    -- In read-only mode (readOnly=true), use cached itemData from DB
+    local displayTexture, displayCount
+
+    if not self.isReadOnly then
+        -- LIVE MODE: Always query game state directly, never use cached itemData
+        local liveTexture, liveCount = GetContainerItemInfo(bagID, slotID)
+        if liveTexture then
+            displayTexture = liveTexture
+            displayCount = liveCount
+            self.hasItem = true
+        else
+            -- No item in this slot (even if itemData has cached data)
+            self.hasItem = false
+        end
+    else
+        -- READ-ONLY MODE: Use cached itemData from DB (can't query other characters)
+        if itemData and itemData.texture then
+            displayTexture = itemData.texture
+            displayCount = itemData.count
+            self.hasItem = true
+        else
+            self.hasItem = false
+        end
+    end
+
+    -- Apply the determined texture and count
+    if self.hasItem then
+        if SetItemButtonTexture then SetItemButtonTexture(self, displayTexture) end
+        if SetItemButtonCount then SetItemButtonCount(self, displayCount or 1) end
         if emptySlotBg then emptySlotBg:Hide() end
     else
-        self.hasItem = false
+        -- Fully clear all item button state for empty slots
         if SetItemButtonTexture then SetItemButtonTexture(self, nil) end
         if SetItemButtonCount then SetItemButtonCount(self, 0) end
+        if SetItemButtonDesaturated then SetItemButtonDesaturated(self, false) end
+
+        -- Also clear the icon texture directly
+        local iconTexture = getglobal(self:GetName().."IconTexture")
+        if not iconTexture then
+            iconTexture = getglobal(self:GetName().."Icon") or self.icon or self.Icon
+        end
+        if iconTexture then
+            iconTexture:SetTexture(nil)
+            iconTexture:Hide()
+        end
+
         if emptySlotBg then emptySlotBg:Show() end
     end
 
@@ -249,16 +314,28 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
         end
     end
 
-    if itemData then
-        self.hasItem = true
+    -- Get live metadata if in live mode (quality, link, lock status)
+    local itemQuality, itemLink, isLocked
+    if not self.isReadOnly and bagID and slotID and self.hasItem then
+        -- Query live game state for metadata
+        local _, _, locked, quality = GetContainerItemInfo(bagID, slotID)
+        itemLink = GetContainerItemLink(bagID, slotID)
+        itemQuality = quality
+        isLocked = locked
+    elseif itemData then
+        -- Use cached metadata from database
+        itemQuality = itemData.quality
+        itemLink = itemData.link
+        isLocked = itemData.locked
+    end
 
-        -- Set icon
-        SetItemButtonTexture(self, itemData.texture)
+    if self.hasItem then
+        -- Icon already set above based on mode (live vs cached)
 
         -- Gray out locked items (being traded, mailed, or auctioned) - BagShui style
         -- Don't desaturate items from other characters since they're read-only anyway
         if not self.otherChar and not self.isReadOnly then
-            SetItemButtonDesaturated(self, itemData.locked, 0.5, 0.5, 0.5)
+            SetItemButtonDesaturated(self, isLocked, 0.5, 0.5, 0.5)
         end
 
         -- Hide NormalTexture for filled slots (pfUI style)
@@ -283,9 +360,9 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
             self:SetAlpha(0.25)
         end
 
-        -- Set count
-        if itemData.count and itemData.count > 1 then
-            countText:SetText(itemData.count)
+        -- Set count (use displayCount which was determined above based on mode)
+        if displayCount and displayCount > 1 then
+            countText:SetText(displayCount)
             countText:Show()
         else
             countText:Hide()
@@ -297,7 +374,7 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
                 -- Special border for keyring items (cyan/blue)
                 self.qualityBorder:SetBackdropBorderColor(0.2, 0.8, 1.0, 1)
                 self.qualityBorder:Show()
-            elseif itemData.quality and itemData.link then
+            elseif itemQuality and itemLink then
                 -- Check settings to determine if we should show borders (nil-safe)
                 local showEquipmentBorder, showOtherBorder
                 if addon and addon.Modules and addon.Modules.DB and addon.Modules.DB.GetSetting then
@@ -319,9 +396,9 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
                 -- Check if item is equipment (nil-safe)
                 local isEquipment = false
                 if addon and addon.Modules and addon.Modules.Utils and addon.Modules.Utils.IsEquipment then
-                    isEquipment = addon.Modules.Utils:IsEquipment(itemData.link)
+                    isEquipment = addon.Modules.Utils:IsEquipment(itemLink)
                 elseif Guda and Guda.Modules and Guda.Modules.Utils and Guda.Modules.Utils.IsEquipment then
-                    isEquipment = Guda.Modules.Utils:IsEquipment(itemData.link)
+                    isEquipment = Guda.Modules.Utils:IsEquipment(itemLink)
                 end
 
                 -- Determine if we should show the border based on item type and settings
@@ -331,9 +408,9 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
                     -- Show colored border for all items (Poor, Common, Uncommon, Rare, Epic, etc.)
                     local r, g, b = 1, 1, 1
                     if addon and addon.Modules and addon.Modules.Utils and addon.Modules.Utils.GetQualityColor then
-                        r, g, b = addon.Modules.Utils:GetQualityColor(itemData.quality)
+                        r, g, b = addon.Modules.Utils:GetQualityColor(itemQuality)
                     elseif Guda and Guda.Modules and Guda.Modules.Utils and Guda.Modules.Utils.GetQualityColor then
-                        r, g, b = Guda.Modules.Utils:GetQualityColor(itemData.quality)
+                        r, g, b = Guda.Modules.Utils:GetQualityColor(itemQuality)
                     end
                     self.qualityBorder:SetBackdropBorderColor(r, g, b, 1)
                     self.qualityBorder:Show()
@@ -597,24 +674,28 @@ function Guda_ItemButton_OnClick(self, button)
     -- Modified clicks
     if IsShiftKeyDown() then
         if button == "LeftButton" and self.hasItem then
+            -- Get live count and link
+            local _, count = GetContainerItemInfo(self.bagID, self.slotID)
+            local itemLink = GetContainerItemLink(self.bagID, self.slotID)
+
             -- Shift+Left Click on stackable item: Show split stack dialog
-            if self.itemData and self.itemData.count and self.itemData.count > 1 then
-                local _, count = GetContainerItemInfo(self.bagID, self.slotID)
-                if count and count > 1 then
-                    OpenStackSplitFrame(count, self, "BOTTOMRIGHT", "TOPRIGHT")
-                    return
-                end
+            if count and count > 1 then
+                OpenStackSplitFrame(count, self, "BOTTOMRIGHT", "TOPRIGHT")
+                return
             end
             -- If not stackable or only 1 item, link to chat
-            if self.itemData and self.itemData.link and ChatFrameEditBox:IsVisible() then
-                ChatFrameEditBox:Insert(self.itemData.link)
+            if itemLink and ChatFrameEditBox:IsVisible() then
+                ChatFrameEditBox:Insert(itemLink)
             end
         end
         return
     elseif IsControlKeyDown() then
         -- Ctrl+Click: Dress up (if applicable)
-        if self.hasItem and self.itemData and self.itemData.link then
-            DressUpItemLink(self.itemData.link)
+        if self.hasItem then
+            local itemLink = GetContainerItemLink(self.bagID, self.slotID)
+            if itemLink then
+                DressUpItemLink(itemLink)
+            end
         end
         return
     end
