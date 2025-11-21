@@ -575,7 +575,9 @@ function Guda_ItemButton_OnEnter(self)
 
 	-- For other characters or read-only mode, use cached item link
 	if self.otherChar or self.isReadOnly then
-		if self.itemData and self.itemData.link then
+		if self.bagID == -1 then
+			GameTooltip:SetBagItem(self.bagID, self.slotID)
+		elseif self.itemData and self.itemData.link then
 			GameTooltip:SetHyperlink(self.itemData.link)
 		end
 	-- Special handling for bank main bag when bank might be closed

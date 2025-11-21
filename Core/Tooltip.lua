@@ -301,36 +301,53 @@ function Tooltip:Initialize()
 	-- Hook SetBagItem
 	local oldSetBagItem = GameTooltip.SetBagItem
 	local oldSetInventoryItem = GameTooltip.SetInventoryItem
+	local oldSetHyperlink = GameTooltip.SetHyperlink
 	function GameTooltip:SetBagItem(bag, slot)
 		return WithDeferredMoney(self, function()
-			-- Handle bank main bag (-1) specially using inventory slots
-			if bag == -1 then
-				-- Bank inventory slots are only accessible when bank is open
-				local bankFrame = getglobal("BankFrame")
-				if bankFrame and bankFrame:IsVisible() then
-					-- BankButtonIDToInvSlotID expects 0-based button ID (0-23), slot is 1-based (1-24)
-					local invSlot = BankButtonIDToInvSlotID(slot)
-					if invSlot then
-						-- Use the inventory item method for bank main bag
-						local ret = oldSetInventoryItem(self, "player", invSlot)
-						local link = GetInventoryItemLink("player", invSlot)
-						if link then
-							Tooltip:AddInventoryInfo(self, link)
-						end
-						return ret
+			local bankFrame = getglobal("BankFrame")
+
+			if bag == -1 and bankFrame and bankFrame:IsVisible() then
+				addon:Print('BANK FRAME:')
+				local invSlot = BankButtonIDToInvSlotID(slot)
+				if invSlot then
+					-- Use the inventory item method for bank main bag
+					local ret = oldSetInventoryItem(self, "player", invSlot)
+					local link = GetInventoryItemLink("player", invSlot)
+					if link then
+						Tooltip:AddInventoryInfo(self, link)
 					end
-				else
-					-- Bank is closed - can't access inventory slots, skip tooltip
-					return nil
+					return ret
 				end
 			else
-				-- Regular bags and bank bags (not main bag)
-				local ret = oldSetBagItem(self, bag, slot)
-				local link = GetContainerItemLink(bag, slot)
-				if link then
-					Tooltip:AddInventoryInfo(self, link)
+				-- Bank is closed or readonly mode - try to get cached link
+				if bag == -1 then
+					-- Get cached link from database for main bank bag
+					local playerName = addon.Modules.DB:GetPlayerFullName()
+					local bankData = addon.Modules.DB:GetCharacterBank(playerName)
+					if bankData and bankData[-1] and bankData[-1].slots and bankData[-1].slots[slot] then
+						local itemData = bankData[-1].slots[slot]
+						if itemData.link and string.find(itemData.link, "|H") then
+							-- Extract hyperlink from full colored string: |cFFFFFFFF|Hitem:...|h[Name]|h|r
+							-- SetHyperlink needs just the item:... part
+							local _, _, hyperlink = string.find(itemData.link, "|H(.+)|h")
+							if hyperlink then
+								local ret = oldSetHyperlink(self, hyperlink)
+								Tooltip:AddInventoryInfo(self, itemData.link)
+								return ret
+							end
+						end
+					end
+					-- No cached data found
+					return nil
+				else
+					-- Regular bags and bank bags (not main bag) - use normal SetBagItem
+					local ret = oldSetBagItem(self, bag, slot)
+					local link = GetContainerItemLink(bag, slot)
+					if link then
+						Tooltip:AddInventoryInfo(self, link)
+					end
+					return ret
 				end
-				return ret
 			end
 		end)
 	end
