@@ -104,17 +104,17 @@ function BagScanner:Initialize()
     -- Create event frame for bag updates
     local eventFrame = CreateFrame("Frame")
     self.eventFrame = eventFrame
-    
+
     -- Register bag update events
     eventFrame:RegisterEvent("BAG_UPDATE")
     eventFrame:RegisterEvent("BAG_UPDATE_DELAYED")
-    
+
     eventFrame:SetScript("OnEvent", function()
         if event == "BAG_UPDATE" or event == "BAG_UPDATE_DELAYED" then
             addon:Debug("Bag update detected, saving data...")
             self:SaveToDatabase()
         end
     end)
-    
+
     addon:Debug("Bag scanner initialized with auto-save")
 end

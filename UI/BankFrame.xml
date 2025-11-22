@@ -240,7 +240,7 @@
                     </OnClick>
                     <OnEnter>
                         GameTooltip:SetOwner(this, "ANCHOR_TOP")
-                        GameTooltip:SetText("View Other Characters' Bank")
+                        GameTooltip:SetText("View Bank")
                         GameTooltip:Show()
                     </OnEnter>
                     <OnLeave>
@@ -286,8 +286,14 @@
                                     this:SetText("")
                                     this:SetTextColor(1, 1, 1, 1)
                                 end
+                                -- Show bank click catcher to detect clicks outside bank while typing
+                                local cc = getglobal("Guda_BankClickCatcher")
+                                if cc then cc:Show() end
                             </OnEditFocusGained>
                             <OnEditFocusLost>
+                                -- Hide bank click catcher when focus is lost
+                                local cc = getglobal("Guda_BankClickCatcher")
+                                if cc then cc:Hide() end
                                 if this:GetText() == "" then
                                     this:SetText("Search bank...")
                                     this:SetTextColor(0.5, 0.5, 0.5, 1)
@@ -302,6 +308,8 @@
                                 this:SetTextColor(0.5, 0.5, 0.5, 1)
                                 this:ClearFocus()
                                 Guda_BankFrame_OnSearchChanged(this)
+                                local cc = getglobal("Guda_BankClickCatcher")
+                                if cc then cc:Hide() end
                             </OnEscapePressed>
                         </Scripts>
                     </EditBox>
@@ -595,7 +603,11 @@
                 Guda_BankFrame_OnShow(this)
             </OnShow>
             <OnHide>
-                Guda_BankFrame_OnHide(this)
+                Guda_BankFrame:Hide()
+                -- Close the actual Blizzard bank too
+                if BankFrame and BankFrame:IsShown() then
+                    CloseBankFrame()
+                end
             </OnHide>
             <OnMouseDown>
                 -- Clear search box focus when clicking on bank frame

@@ -1,8 +1,6 @@
--- Guda Item Button
--- Handles item button display and interaction
-
+-- Local alias to the addon root table (must be defined before any usages below)
 local addon = Guda
-
+ 
 -- Item button pool
 local buttonPool = {}
 local nextButtonID = 1
@@ -10,6 +8,8 @@ local nextButtonID = 1
 -- Hidden tooltip for scanning quest items
 local scanTooltip = CreateFrame("GameTooltip", "Guda_QuestScanTooltip", nil, "GameTooltipTemplate")
 scanTooltip:SetOwner(WorldFrame, "ANCHOR_NONE")
+
+-- (rollback) no custom drag-source tracking or target resolution; rely on Blizzard handlers
 
 -- Check if an item is a quest item by scanning its tooltip
 local function IsQuestItem(bagID, slotID)
@@ -108,29 +108,171 @@ function Guda_ItemButton_OnLoad(self)
         iconFrame:Hide()
         self.questIcon = iconFrame
     end
+
+    -- Ensure the item button sits above its container backdrop and is mouse-enabled
+    local parent = self:GetParent()
+    if parent and parent.GetFrameLevel then
+        -- Place button above parent backdrop/mouse layer to reliably receive drops
+        local parentLevel = parent:GetFrameLevel()
+        if parentLevel and self:GetFrameLevel() <= parentLevel + 1 then
+            self:SetFrameLevel(parentLevel + 2)
+        end
+    end
+
+    -- Enable mouse and register for drag/drop (crucial for Classic/Vanilla WoW)
+    if self.EnableMouse then
+        self:EnableMouse(true)
+    end
+    if self.RegisterForDrag then
+        self:RegisterForDrag("LeftButton")
+    end
+    if self.RegisterForClicks then
+        self:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    end
+end
+
+-- Update the Blizzard cooldown overlay on this item button
+function Guda_ItemButton_UpdateCooldown(self)
+    -- Only show cooldowns for live items of the current character
+    if not self or self.isReadOnly or self.otherChar then return end
+
+    local cooldown = getglobal(self:GetName().."Cooldown") or self.cooldown
+    if not cooldown then return end
+
+    if not self.hasItem or not self.bagID or not self.slotID then
+        cooldown:Hide()
+        return
+    end
+
+    local start, duration, enable = GetContainerItemCooldown(self.bagID, self.slotID)
+    if start and duration and duration > 0 and enable == 1 then
+        if CooldownFrame_SetTimer then
+            CooldownFrame_SetTimer(cooldown, start, duration, enable)
+        elseif CooldownFrame_Set then
+            -- Some clients expose CooldownFrame_Set instead
+            CooldownFrame_Set(cooldown, start, duration, enable)
+        else
+            -- Fallback: show the frame if API missing
+            cooldown:Show()
+        end
+    else
+        cooldown:Hide()
+    end
 end
 
 -- Set item data
 function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCharName, matchesFilter, isReadOnly)
     self.bagID = bagID
     self.slotID = slotID
+    -- Also set the Blizzard slot ID for compatibility with ContainerFrameItemButtonTemplate behavior
+    if self.SetID and slotID then
+        self:SetID(slotID)
+    end
     self.itemData = itemData
     self.isBank = isBank or false
     self.otherChar = otherCharName
     self.isReadOnly = isReadOnly or false  -- Track if this is read-only mode
+
+    -- Re-register for drag/drop every time (crucial for button reuse in Classic/Vanilla)
+    if not self.isReadOnly and not self.otherChar then
+        if self.RegisterForDrag then
+            self:RegisterForDrag("LeftButton")
+        end
+        if self.RegisterForClicks then
+            self:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        end
+        if self.EnableMouse then
+            self:EnableMouse(true)
+        end
+    else
+        -- Disable drag for read-only or other character items
+        if self.RegisterForDrag then
+            self:RegisterForDrag()  -- Clear drag registration
+        end
+        if self.EnableMouse then
+            self:EnableMouse(true)  -- Still enable mouse for tooltips
+        end
+    end
 
     -- Default to true if not specified (for non-filtered displays)
     if matchesFilter == nil then
         matchesFilter = true
     end
 
-    local countText = getglobal(self:GetName().."_Count")
+    -- Use Blizzard's default count fontstring (ContainerFrameItemButtonTemplate creates $parentCount)
+    local countText = getglobal(self:GetName().."Count")
     local emptySlotBg = getglobal(self:GetName().."_EmptySlotBg")
 
-    -- Apply icon size setting
-    local iconSize = Guda.Modules.DB:GetSetting("iconSize") or addon.Constants.BUTTON_SIZE
+    -- Apply icon size setting (nil-safe)
+    local iconSize = 37
+    if addon and addon.Modules and addon.Modules.DB and addon.Modules.DB.GetSetting then
+        iconSize = addon.Modules.DB:GetSetting("iconSize") or iconSize
+    elseif Guda and Guda.Modules and Guda.Modules.DB and Guda.Modules.DB.GetSetting then
+        iconSize = Guda.Modules.DB:GetSetting("iconSize") or iconSize
+    end
+    if addon and addon.Constants and addon.Constants.BUTTON_SIZE then
+        iconSize = iconSize or addon.Constants.BUTTON_SIZE
+    end
     self:SetWidth(iconSize)
     self:SetHeight(iconSize)
+
+    -- In live mode (readOnly=false), query real-time game state instead of cached DB
+    -- In read-only mode (readOnly=true), use cached itemData from DB
+    local displayTexture, displayCount
+
+    if not self.isReadOnly then
+        -- LIVE MODE: Always query game state directly, never use cached itemData
+        local liveTexture, liveCount = GetContainerItemInfo(bagID, slotID)
+        if liveTexture then
+            displayTexture = liveTexture
+            displayCount = liveCount
+            self.hasItem = true
+        else
+            -- No item in this slot (even if itemData has cached data)
+            self.hasItem = false
+        end
+    else
+        -- READ-ONLY MODE: Use cached itemData from DB (can't query other characters)
+        if itemData and itemData.texture then
+            displayTexture = itemData.texture
+            displayCount = itemData.count
+            self.hasItem = true
+        else
+            self.hasItem = false
+        end
+    end
+
+    -- Apply the determined texture and count
+    if self.hasItem then
+        if SetItemButtonTexture then SetItemButtonTexture(self, displayTexture) end
+        if SetItemButtonCount then SetItemButtonCount(self, displayCount or 1) end
+        if emptySlotBg then emptySlotBg:Hide() end
+        -- Update cooldown overlay for live items
+        if not self.isReadOnly and Guda_ItemButton_UpdateCooldown then
+            Guda_ItemButton_UpdateCooldown(self)
+        end
+    else
+        -- Fully clear all item button state for empty slots
+        if SetItemButtonTexture then SetItemButtonTexture(self, nil) end
+        if SetItemButtonCount then SetItemButtonCount(self, 0) end
+        if SetItemButtonDesaturated then SetItemButtonDesaturated(self, false) end
+
+        -- Ensure cooldown overlay is hidden for empty slots
+        local cooldown = getglobal(self:GetName().."Cooldown") or self.cooldown
+        if cooldown and cooldown.Hide then cooldown:Hide() end
+
+        -- Also clear the icon texture directly
+        local iconTexture = getglobal(self:GetName().."IconTexture")
+        if not iconTexture then
+            iconTexture = getglobal(self:GetName().."Icon") or self.icon or self.Icon
+        end
+        if iconTexture then
+            iconTexture:SetTexture(nil)
+            iconTexture:Hide()
+        end
+
+        if emptySlotBg then emptySlotBg:Show() end
+    end
 
     -- Resize empty slot background to match icon size (slightly larger to ensure coverage)
     if emptySlotBg then
@@ -190,7 +332,12 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
     -- Apply icon font size setting to stack count text
     if countText and countText.GetFont then
         local font, _, flags = countText:GetFont()
-        local fontSize = Guda.Modules.DB:GetSetting("iconFontSize") or 12
+        local fontSize = 12
+        if addon and addon.Modules and addon.Modules.DB and addon.Modules.DB.GetSetting then
+            fontSize = addon.Modules.DB:GetSetting("iconFontSize") or fontSize
+        elseif Guda and Guda.Modules and Guda.Modules.DB and Guda.Modules.DB.GetSetting then
+            fontSize = Guda.Modules.DB:GetSetting("iconFontSize") or fontSize
+        end
         countText:SetFont(font, fontSize, flags)
 
         -- Adjust count text position based on icon size for better alignment
@@ -204,16 +351,28 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
         end
     end
 
-    if itemData then
-        self.hasItem = true
+    -- Get live metadata if in live mode (quality, link, lock status)
+    local itemQuality, itemLink, isLocked
+    if not self.isReadOnly and bagID and slotID and self.hasItem then
+        -- Query live game state for metadata
+        local _, _, locked, quality = GetContainerItemInfo(bagID, slotID)
+        itemLink = GetContainerItemLink(bagID, slotID)
+        itemQuality = quality
+        isLocked = locked
+    elseif itemData then
+        -- Use cached metadata from database
+        itemQuality = itemData.quality
+        itemLink = itemData.link
+        isLocked = itemData.locked
+    end
 
-        -- Set icon
-        SetItemButtonTexture(self, itemData.texture)
+    if self.hasItem then
+        -- Icon already set above based on mode (live vs cached)
 
         -- Gray out locked items (being traded, mailed, or auctioned) - BagShui style
         -- Don't desaturate items from other characters since they're read-only anyway
         if not self.otherChar and not self.isReadOnly then
-            SetItemButtonDesaturated(self, itemData.locked, 0.5, 0.5, 0.5)
+            SetItemButtonDesaturated(self, isLocked, 0.5, 0.5, 0.5)
         end
 
         -- Hide NormalTexture for filled slots (pfUI style)
@@ -238,9 +397,9 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
             self:SetAlpha(0.25)
         end
 
-        -- Set count
-        if itemData.count and itemData.count > 1 then
-            countText:SetText(itemData.count)
+        -- Set count (use displayCount which was determined above based on mode)
+        if displayCount and displayCount > 1 then
+            countText:SetText(displayCount)
             countText:Show()
         else
             countText:Hide()
@@ -252,10 +411,16 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
                 -- Special border for keyring items (cyan/blue)
                 self.qualityBorder:SetBackdropBorderColor(0.2, 0.8, 1.0, 1)
                 self.qualityBorder:Show()
-            elseif itemData.quality and itemData.link then
-                -- Check settings to determine if we should show borders
-                local showEquipmentBorder = addon.Modules.DB:GetSetting("showQualityBorderEquipment")
-                local showOtherBorder = addon.Modules.DB:GetSetting("showQualityBorderOther")
+            elseif itemQuality and itemLink then
+                -- Check settings to determine if we should show borders (nil-safe)
+                local showEquipmentBorder, showOtherBorder
+                if addon and addon.Modules and addon.Modules.DB and addon.Modules.DB.GetSetting then
+                    showEquipmentBorder = addon.Modules.DB:GetSetting("showQualityBorderEquipment")
+                    showOtherBorder = addon.Modules.DB:GetSetting("showQualityBorderOther")
+                elseif Guda and Guda.Modules and Guda.Modules.DB and Guda.Modules.DB.GetSetting then
+                    showEquipmentBorder = Guda.Modules.DB:GetSetting("showQualityBorderEquipment")
+                    showOtherBorder = Guda.Modules.DB:GetSetting("showQualityBorderOther")
+                end
 
                 -- Default to true if settings not found
                 if showEquipmentBorder == nil then
@@ -265,15 +430,25 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
                     showOtherBorder = true
                 end
 
-                -- Check if item is equipment
-                local isEquipment = addon.Modules.Utils:IsEquipment(itemData.link)
+                -- Check if item is equipment (nil-safe)
+                local isEquipment = false
+                if addon and addon.Modules and addon.Modules.Utils and addon.Modules.Utils.IsEquipment then
+                    isEquipment = addon.Modules.Utils:IsEquipment(itemLink)
+                elseif Guda and Guda.Modules and Guda.Modules.Utils and Guda.Modules.Utils.IsEquipment then
+                    isEquipment = Guda.Modules.Utils:IsEquipment(itemLink)
+                end
 
                 -- Determine if we should show the border based on item type and settings
                 local shouldShowBorder = (isEquipment and showEquipmentBorder) or (not isEquipment and showOtherBorder)
 
                 if shouldShowBorder then
                     -- Show colored border for all items (Poor, Common, Uncommon, Rare, Epic, etc.)
-                    local r, g, b = addon.Modules.Utils:GetQualityColor(itemData.quality)
+                    local r, g, b = 1, 1, 1
+                    if addon and addon.Modules and addon.Modules.Utils and addon.Modules.Utils.GetQualityColor then
+                        r, g, b = addon.Modules.Utils:GetQualityColor(itemQuality)
+                    elseif Guda and Guda.Modules and Guda.Modules.Utils and Guda.Modules.Utils.GetQualityColor then
+                        r, g, b = Guda.Modules.Utils:GetQualityColor(itemQuality)
+                    end
                     self.qualityBorder:SetBackdropBorderColor(r, g, b, 1)
                     self.qualityBorder:Show()
                 else
@@ -417,51 +592,64 @@ end
 
 -- OnEnter handler (show tooltip)
 function Guda_ItemButton_OnEnter(self)
-    -- Highlight the corresponding bag button in the footer (works for empty and filled slots)
-    if not self.otherChar and self.bagID then
-        if self.isBank then
-            -- Bank item - highlight bank bag button
-            Guda_BankFrame_HighlightBagButton(self.bagID)
-        else
-            -- Regular bag item - highlight bag button
-            Guda_BagFrame_HighlightBagButton(self.bagID)
-        end
-    end
+-- Highlight the corresponding bag button in the footer (works for empty and filled slots)
+	if not self.otherChar and self.bagID then
+		if self.isBank then
+		-- Bank item - highlight bank bag button
+			Guda_BankFrame_HighlightBagButton(self.bagID)
+		else
+		-- Regular bag item - highlight bag button
+			Guda_BagFrame_HighlightBagButton(self.bagID)
+		end
+	end
 
-    -- Early return for empty slots (no tooltip needed)
-    if not self.hasItem or not self.itemData then
-        return
-    end
+	-- Early return for empty slots (no tooltip needed)
+	if not self.hasItem or not self.itemData then
+		return
+	end
 
-    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+	GameTooltip:SetOwner(UIParent, "ANCHOR_NONE")
+	-- important position of tooltip
+	GameTooltip:SetPoint("BOTTOMRIGHT", self, "TOPLEFT", 10, 0)
 
-    -- For bank items, use the item link directly since SetBagItem might not work for bank bags
-    if self.isBank and self.itemData.link then
-        -- Extract hyperlink from item link: |cFFFFFFFF|Hitem:1234:0:0:0|h[Name]|h|r -> item:1234:0:0:0
-        local _, _, hyperlink = strfind(self.itemData.link, "|H(.+)|h")
-        if hyperlink then
-            GameTooltip:SetHyperlink(hyperlink)
-        else
-            -- Fallback to SetBagItem
-            GameTooltip:SetBagItem(self.bagID, self.slotID)
-        end
-    else
-        -- For regular bags, use SetBagItem as normal
-        GameTooltip:SetBagItem(self.bagID, self.slotID)
-    end
-
-    GameTooltip:Show()
-
-    -- Handle merchant sell cursor (same approach as BagShui)
-    if MerchantFrame:IsShown() and not self.isBank and not self.otherChar and self.hasItem then
-        ShowContainerSellCursor(self.bagID, self.slotID)
-    else
-        ResetCursor()
-    end
+	if self.otherChar or self.isReadOnly then
+		GameTooltip.GudaViewedCharacter = self.otherChar
+		if self.itemData and self.itemData.link then
+			GameTooltip:SetHyperlink(self.itemData.link)
+		else
+			GameTooltip:Hide()
+			return
+		end
+	-- Special handling for bank main bag when bank might be closed
+	elseif self.isBank and self.bagID == -1 then
+		local bankFrame = getglobal("BankFrame")
+		if bankFrame and bankFrame:IsVisible() then
+			-- Bank is open - use SetBagItem which will trigger inventory slot handling
+			GameTooltip:SetBagItem(self.bagID, self.slotID)
+		elseif self.itemData and self.itemData.link then
+			-- Bank is closed - use cached link
+			GameTooltip:SetHyperlink(self.itemData.link)
+		end
+	else
+		-- For live mode: use SetBagItem for all bags
+		GameTooltip:SetBagItem(self.bagID, self.slotID)
+	end
+	GameTooltip:Show()
+	-- Handle merchant sell cursor (same approach as BagShui)
+	if MerchantFrame:IsShown() and not self.isBank and not self.otherChar and self.hasItem then
+		ShowContainerSellCursor(self.bagID, self.slotID)
+	else
+		ResetCursor()
+	end
 end
+
 
 -- OnLeave handler
 function Guda_ItemButton_OnLeave(self)
+    -- Clear any viewed character hint on the tooltip when leaving
+    if GameTooltip and GameTooltip.GudaViewedCharacter then
+        GameTooltip.GudaViewedCharacter = nil
+    end
     GameTooltip:Hide()
     ResetCursor()
 
@@ -484,6 +672,11 @@ function Guda_ItemButton_OnDragStart(self, button)
 
     -- Only allow left button drag
     if button == "LeftButton" and self.hasItem then
+        -- Ensure the global click catcher doesn't intercept the drag/drop
+        local cc = getglobal and getglobal("Guda_ClickCatcher")
+        if cc and cc.Hide and cc:IsShown() then
+            cc:Hide()
+        end
         PickupContainerItem(self.bagID, self.slotID)
     end
 end
@@ -497,6 +690,30 @@ function Guda_ItemButton_OnReceiveDrag(self)
 
     -- Place the item being dragged
     PickupContainerItem(self.bagID, self.slotID)
+
+    -- Trigger UI update after drop completes (was skipped during drag)
+    if addon and addon.Modules and addon.Modules.BagFrame then
+        addon.Modules.BagFrame:Update()
+    end
+end
+
+-- Handle mouse-up to emulate Blizzard drop behavior on 1.12 where OnReceiveDrag may not always fire
+-- (rollback) no custom OnMouseUp; rely on Blizzard default
+
+-- OnMouseDown handler - pick up item when pressing mouse button (classic pattern)
+-- (rollback) no custom OnMouseDown; rely on Blizzard default
+
+-- OnDragStop handler (optional cleanup)
+function Guda_ItemButton_OnDragStop(self)
+    -- Reset cursor to default to avoid lingering special cursors
+    if ResetCursor then
+        ResetCursor()
+    end
+
+    -- Trigger UI update after drag completes (was skipped during drag)
+    if addon and addon.Modules and addon.Modules.BagFrame then
+        addon.Modules.BagFrame:Update()
+    end
 end
 
 -- Stack split callback (called by StackSplitFrame)
@@ -509,44 +726,43 @@ end
 -- OnClick handler
 function Guda_ItemButton_OnClick(self, button)
     -- Don't allow interaction with other characters' items or in read-only mode
-    if self.otherChar or self.isReadOnly then
-        return
-    end
+    if self.otherChar or self.isReadOnly then return end
 
     -- Set the split callback
     self.SplitStack = ItemButton_SplitStack
 
-    -- Handle modified clicks first
+    -- Modified clicks
     if IsShiftKeyDown() then
         if button == "LeftButton" and self.hasItem then
+            -- Get live count and link
+            local _, count = GetContainerItemInfo(self.bagID, self.slotID)
+            local itemLink = GetContainerItemLink(self.bagID, self.slotID)
+
             -- Shift+Left Click on stackable item: Show split stack dialog
-            if self.itemData and self.itemData.count and self.itemData.count > 1 then
-                -- Get the actual stack count from the container
-                local _, count = GetContainerItemInfo(self.bagID, self.slotID)
-                if count and count > 1 then
-                    -- Open the stack split frame (positioned to the left)
-                    OpenStackSplitFrame(count, self, "BOTTOMRIGHT", "TOPRIGHT")
-                    return
-                end
+            if count and count > 1 then
+                OpenStackSplitFrame(count, self, "BOTTOMRIGHT", "TOPRIGHT")
+                return
             end
             -- If not stackable or only 1 item, link to chat
-            if self.itemData and self.itemData.link and ChatFrameEditBox:IsVisible() then
-                ChatFrameEditBox:Insert(self.itemData.link)
+            if itemLink and ChatFrameEditBox:IsVisible() then
+                ChatFrameEditBox:Insert(itemLink)
             end
         end
         return
     elseif IsControlKeyDown() then
         -- Ctrl+Click: Dress up (if applicable)
-        if self.hasItem and self.itemData and self.itemData.link then
-            DressUpItemLink(self.itemData.link)
+        if self.hasItem then
+            local itemLink = GetContainerItemLink(self.bagID, self.slotID)
+            if itemLink then
+                DressUpItemLink(itemLink)
+            end
         end
         return
     end
 
-    -- Normal clicks - handle item pickup/placement
     if button == "LeftButton" then
-        -- Pick up or place item
-        PickupContainerItem(self.bagID, self.slotID)
+        -- Left clicks are handled by MouseDown/MouseUp to prevent instant self-drop.
+        return
     elseif button == "RightButton" then
         -- Right click: Use item (only if slot has an item)
         if self.hasItem then

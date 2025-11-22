@@ -218,6 +218,8 @@ function Tooltip:AddInventoryInfo(tooltip, link)
 	local totalCount = totalBags + totalBank + totalEquipped
 
 	if hasAnyItems then
+
+		-- Top padding above the Inventory block (~10-12px visually)
 		tooltip:AddLine(" ")
 
 		-- Inventory label in exact bag frame title color
@@ -263,8 +265,8 @@ function Tooltip:AddInventoryInfo(tooltip, link)
 			tooltip:AddDoubleLine(displayName, countText, r, g, b, 1.0, 1.0, 1.0)
 		end
 
-		-- Add small gap between inventory data and vendor sell price
-		tooltip:AddLine(" ")
+		-- Bottom padding below the Inventory block (~10-12px visually)
+		--tooltip:AddLine(" ")
 
 		tooltip:Show()
 	end
@@ -275,6 +277,32 @@ function Tooltip:Initialize()
 
 	-- Helper function to defer vendor money so we can insert our Inventory block above it
 	local Orig_SetTooltipMoney = SetTooltipMoney
+	-- Move the tooltip money frame(s) vertically to fine-tune their position under our custom block
+	local function AdjustMoneyFrames(tooltip, yOffset)
+		if not tooltip or not tooltip.GetName then return end
+		local baseName = tooltip:GetName()
+		if not baseName then return end
+
+		-- Collect potential money frame names used by WoW tooltips
+		local candidates = {}
+		-- Primary money frame
+		tinsert(candidates, baseName .. "MoneyFrame")
+		-- Sometimes multiple money frames are created with numeric suffixes
+		for i = 1, 8 do
+			tinsert(candidates, baseName .. "MoneyFrame" .. i)
+			tinsert(candidates, baseName .. "SmallMoneyFrame" .. i)
+		end
+
+		for i = 1, getn(candidates) do
+			local f = getglobal(candidates[i])
+			if f and f:IsShown() and f.GetPoint then
+				local point, relTo, relPoint, xOfs, yOfs = f:GetPoint(1)
+				if point then
+					f:SetPoint(point, relTo, relPoint, xOfs or 0, (yOfs or 0) + (yOffset or 0))
+				end
+			end
+		end
+	end
 	local function WithDeferredMoney(tooltip, buildFunc)
 		local queue = {}
 		-- Temporarily override global SetTooltipMoney
@@ -295,30 +323,59 @@ function Tooltip:Initialize()
 			local q = queue[i]
 			Orig_SetTooltipMoney(q[1], q[2], q[3], q[4], q[5], q[6], q[7])
 		end
+
+		-- Add ~5px more space below the Inventory block by reducing the upward nudge from 15px to 10px
+		--AdjustMoneyFrames(tooltip, 12)
 		return ret
 	end
 
 	-- Hook SetBagItem
 	local oldSetBagItem = GameTooltip.SetBagItem
+	local oldSetInventoryItem = GameTooltip.SetInventoryItem
 	function GameTooltip:SetBagItem(bag, slot)
 		return WithDeferredMoney(self, function()
-			local ret = oldSetBagItem(self, bag, slot)
-			local link = GetContainerItemLink(bag, slot)
-			if link then
-				Tooltip:AddInventoryInfo(self, link)
+			local bankFrame = getglobal("BankFrame")
+			if bag == -1 and bankFrame and bankFrame:IsVisible() then
+				local invSlot = BankButtonIDToInvSlotID(slot)
+				if invSlot then
+					-- Use the inventory item method for bank main bag
+					local ret = oldSetInventoryItem(self, "player", invSlot)
+					local link = GetInventoryItemLink("player", invSlot)
+					if link then
+						Tooltip:AddInventoryInfo(self, link)
+					end
+					return ret
+				end
+				return nil
+			else
+				local ret = oldSetBagItem(self, bag, slot)
+				local link = GetContainerItemLink(bag, slot)
+				if link then
+					Tooltip:AddInventoryInfo(self, link)
+				end
+				return ret
 			end
-			return ret
 		end)
 	end
 
-	-- Hook SetHyperlink for chat links
-	local oldSetHyperlink = GameTooltip.SetHyperlink
+ 	-- Hook SetHyperlink for hyperlinks from chat and cached links
+ 	local oldSetHyperlink = GameTooltip.SetHyperlink
 	function GameTooltip:SetHyperlink(link)
 		return WithDeferredMoney(self, function()
-			local ret = oldSetHyperlink(self, link)
-			if link and strfind(link, "item:") then
-				Tooltip:AddInventoryInfo(self, link)
+			local _, _, inner = string.find(link or "", "|H(.+)|h")
+			local forwarded = link
+			local itemLinkForCounts = link
+			if inner then
+				forwarded = inner
+				if strfind(inner, "^item:") then
+					itemLinkForCounts = inner
+				end
 			end
+			local ret = oldSetHyperlink(self, forwarded)
+			if itemLinkForCounts and strfind(itemLinkForCounts, "item:") then
+				Tooltip:AddInventoryInfo(self, itemLinkForCounts)
+			end
+
 			return ret
 		end)
 	end

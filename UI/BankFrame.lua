@@ -10,6 +10,9 @@ local currentViewChar = nil
 local searchText = ""
 local isReadOnlyMode = false  -- Track if viewing saved bank (read-only) or live bank (interactive)
 local hiddenBankBags = {} -- Track which bank bags are hidden (bagID -> true/false)
+local bankBagParents = {} -- Parent frames per bank bag (same approach as BagFrame)
+-- Global click catcher for clearing bank search focus
+local bankClickCatcher = nil
 
 -- OnLoad
 function Guda_BankFrame_OnLoad(self)
@@ -18,6 +21,21 @@ function Guda_BankFrame_OnLoad(self)
     if searchBox then
         searchBox:SetText("Search bank...")
         searchBox:SetTextColor(0.5, 0.5, 0.5, 1)
+    end
+
+    -- Create invisible full-screen frame to catch clicks outside the bank frame while typing in search
+    if not bankClickCatcher then
+        bankClickCatcher = CreateFrame("Frame", "Guda_BankClickCatcher", UIParent)
+        bankClickCatcher:SetFrameStrata("BACKGROUND")
+        bankClickCatcher:SetAllPoints(UIParent)
+        bankClickCatcher:EnableMouse(true)
+        bankClickCatcher:Hide()
+
+        bankClickCatcher:SetScript("OnMouseDown", function()
+            if Guda_BankFrame_ClearSearch then
+                Guda_BankFrame_ClearSearch()
+            end
+        end)
     end
 
 end
@@ -47,22 +65,6 @@ function Guda_BankFrame_OnShow(self)
     BankFrame:Update()
 end
 
--- OnHide
-function Guda_BankFrame_OnHide(self)
-    -- Only release buttons that belong to this frame
-    local itemContainer = getglobal("Guda_BankFrame_ItemContainer")
-    if itemContainer then
-        -- Hide only the buttons that are children of this container
-        local children = { itemContainer:GetChildren() }
-        for _, child in ipairs(children) do
-            if child.hasItem ~= nil then -- It's an item button
-                child:Hide()
-                child:ClearAllPoints()
-            end
-        end
-    end
-end
-
 -- Toggle visibility
 function BankFrame:Toggle()
     if Guda_BankFrame:IsShown() then
@@ -86,20 +88,45 @@ function BankFrame:ShowCurrentCharacter()
     self:Update()
 end
 
+-- Update lock states of existing buttons (lightweight, used during drag)
+function BankFrame:UpdateLockStates()
+    for _, bankBagParent in pairs(bankBagParents) do
+        if bankBagParent then
+            local buttons = { bankBagParent:GetChildren() }
+            for _, button in ipairs(buttons) do
+                if button.hasItem ~= nil and button:IsShown() and button.bagID and button.slotID then
+                    -- Get live lock state
+                    local _, _, locked = GetContainerItemInfo(button.bagID, button.slotID)
+                    -- Update desaturation (gray out locked items)
+                    if not button.otherChar and not button.isReadOnly and SetItemButtonDesaturated then
+                        SetItemButtonDesaturated(button, locked, 0.5, 0.5, 0.5)
+                    end
+                end
+            end
+        end
+    end
+end
+
 -- Update display
 function BankFrame:Update()
     if not Guda_BankFrame:IsShown() then
         return
     end
 
-    -- Only release buttons that belong to this frame
-    local itemContainer = getglobal("Guda_BankFrame_ItemContainer")
-    if itemContainer then
-        local children = { itemContainer:GetChildren() }
-        for _, child in ipairs(children) do
-            if child.hasItem ~= nil then -- It's an item button
-                child:Hide()
-                child:ClearAllPoints()
+    -- If cursor is holding an item (mid-drag), only update lock states, don't rebuild UI
+    if CursorHasItem and CursorHasItem() then
+        self:UpdateLockStates()
+        return
+    end
+
+    -- Mark all existing buttons as not in use (we'll mark active ones during display)
+    for _, bankBagParent in pairs(bankBagParents) do
+        if bankBagParent then
+            local buttons = { bankBagParent:GetChildren() }
+            for _, button in ipairs(buttons) do
+                if button.hasItem ~= nil then
+                    button.inUse = false
+                end
             end
         end
     end
@@ -120,7 +147,7 @@ function BankFrame:Update()
         bankData = addon.Modules.DB:GetCharacterBank(currentViewChar)
         isOtherChar = true
         charName = currentViewChar
-        getglobal("Guda_BankFrame_Title"):SetText("Bank - " .. currentViewChar)
+        getglobal("Guda_BankFrame_Title"):SetText(currentViewChar .. "'s Bank")
     else
         -- Viewing current character's bank
         if bankIsOpen then
@@ -128,12 +155,12 @@ function BankFrame:Update()
             bankData = addon.Modules.BankScanner:ScanBank()
             -- Use current character's name for the title
             local playerName = addon.Modules.DB:GetPlayerFullName()
-            getglobal("Guda_BankFrame_Title"):SetText("Bank - " .. playerName)
+            getglobal("Guda_BankFrame_Title"):SetText(playerName .. "'s Bank")
         else
             -- Bank is closed - use saved data (read-only mode)
             local playerName = addon.Modules.DB:GetPlayerFullName()
             bankData = addon.Modules.DB:GetCharacterBank(playerName)
-            getglobal("Guda_BankFrame_Title"):SetText("Bank - " .. playerName)
+            getglobal("Guda_BankFrame_Title"):SetText(playerName .. "'s Bank")
         end
     end
 
@@ -144,6 +171,19 @@ function BankFrame:Update()
 
     -- Update bank slots info
     self:UpdateBankSlotsInfo(bankData, isOtherChar)
+
+    -- Clean up unused buttons AFTER display is complete (prevents drag/drop issues)
+    for _, bankBagParent in pairs(bankBagParents) do
+        if bankBagParent then
+            local buttons = { bankBagParent:GetChildren() }
+            for _, button in ipairs(buttons) do
+                if button.hasItem ~= nil and not button.inUse then
+                    button:Hide()
+                    button:ClearAllPoints()
+                end
+            end
+        end
+    end
 end
 
 -- Display items
@@ -180,12 +220,25 @@ function BankFrame:DisplayItems(bankData, isOtherChar, charName)
                 -- Check if item matches search filter
                 local matchesFilter = self:PassesSearchFilter(itemData)
 
-                local button = Guda_GetItemButton(itemContainer)
+                -- Ensure a per-bag parent frame exists and carries the bag ID
+                local bankBagParent
+                if not bankBagParents[bagID] then
+                    bankBagParents[bagID] = CreateFrame("Frame", "Guda_BankFrame_BankBagParent"..bagID, itemContainer)
+                    bankBagParents[bagID]:SetAllPoints(itemContainer)
+                    if bankBagParents[bagID].SetID then
+                        bankBagParents[bagID]:SetID(bagID)
+                    end
+                end
+                bankBagParent = bankBagParents[bagID]
+
+                local button = Guda_GetItemButton(bankBagParent)
 
                 -- Ensure this is NOT a bag slot button
                 if button.isBagSlot then
                     break
                 end
+
+                button.inUse = true  -- Mark this button as actively in use
 
                 -- Position button
                 local xPos = x + (col * (buttonSize + spacing))
@@ -519,6 +572,27 @@ function Guda_BankFrame_OnSearchChanged(self)
     if text ~= searchText then
         searchText = text
         BankFrame:Update()
+    end
+end
+
+-- Clear bank search and restore placeholder
+function Guda_BankFrame_ClearSearch()
+    local searchBox = getglobal("Guda_BankFrame_SearchBar_SearchBox")
+    if searchBox then
+        searchBox:SetText("Search bank...")
+        searchBox:SetTextColor(0.5, 0.5, 0.5, 1)
+        if searchBox.ClearFocus then searchBox:ClearFocus() end
+    end
+
+    -- Reset search state
+    searchText = ""
+
+    -- Update display
+    BankFrame:Update()
+
+    -- Hide click catcher if present
+    if bankClickCatcher and bankClickCatcher.Hide then
+        bankClickCatcher:Hide()
     end
 end
 
@@ -861,6 +935,12 @@ function BankFrame:Initialize()
                 -- Show current character's bank in interactive mode
                 currentViewChar = nil
 
+                -- Hide BagFrame to prevent button overlap
+                local bagFrame = getglobal("Guda_BagFrame")
+                if bagFrame and bagFrame:IsShown() then
+                    bagFrame:Hide()
+                end
+
                 -- Show and update custom bank frame
                 local customBankFrame = getglobal("Guda_BankFrame")
                 if customBankFrame then
@@ -1170,46 +1250,49 @@ end
 
 -- Highlight all item slots belonging to a specific bank bag by dimming others
 function Guda_BankFrame_HighlightBagSlots(bagID)
-    local itemContainer = getglobal("Guda_BankFrame_ItemContainer")
-    if not itemContainer then
-        return
-    end
+    -- Buttons are parented under per-bag parents, not directly under the item container
+    local highlightCount, dimCount = 0, 0
 
-    local highlightCount = 0
-    local dimCount = 0
-
-    -- Iterate through all children (item buttons)
-    local children = { itemContainer:GetChildren() }
-    for _, button in ipairs(children) do
-        -- Check if this is an item button
-        if button.hasItem ~= nil and button:IsShown() and not button.isBagSlot then
-            if button.bagID == bagID then
-                -- This button belongs to the hovered bag - keep it bright
-                button:SetAlpha(1.0)
-                highlightCount = highlightCount + 1
-            else
-                -- This button belongs to a different bag - dim it
-                button:SetAlpha(0.25)
-                dimCount = dimCount + 1
+    for _, bankBagParent in pairs(bankBagParents) do
+        if bankBagParent then
+            local children = { bankBagParent:GetChildren() }
+            for _, button in ipairs(children) do
+                if button and button:IsShown() and button.hasItem ~= nil and not button.isBagSlot then
+                    if button.bagID == bagID then
+                        button:SetAlpha(1.0)
+                        highlightCount = highlightCount + 1
+                    else
+                        button:SetAlpha(0.25)
+                        dimCount = dimCount + 1
+                    end
+                end
             end
         end
     end
 
-    addon:Debug(string.format("BankFrame HighlightBagSlots: Highlighted %d slots, dimmed %d slots for bagID %d", highlightCount, dimCount, bagID))
+    if addon and addon.Debug then
+        addon:Debug(string.format("BankFrame HighlightBagSlots: Highlighted %d slots, dimmed %d slots for bagID %d", highlightCount, dimCount, bagID))
+    end
 end
 
 -- Clear all highlighting by restoring full opacity to all slots
 function Guda_BankFrame_ClearHighlightedSlots()
-    local itemContainer = getglobal("Guda_BankFrame_ItemContainer")
-    if not itemContainer then return end
+    -- Restore alpha to search-filter state (pfUI style). If no search, full opacity.
+    local searchActive = BankFrame and BankFrame.IsSearchActive and BankFrame:IsSearchActive()
 
-    -- Iterate through all children (item buttons)
-    local children = { itemContainer:GetChildren() }
-    for _, button in ipairs(children) do
-        -- Check if this is an item button
-        if button.hasItem ~= nil and button:IsShown() and not button.isBagSlot then
-            -- Restore full opacity
-            button:SetAlpha(1.0)
+    for _, bankBagParent in pairs(bankBagParents) do
+        if bankBagParent then
+            local children = { bankBagParent:GetChildren() }
+            for _, button in ipairs(children) do
+                if button and button:IsShown() and button.hasItem ~= nil and not button.isBagSlot then
+                    if searchActive and BankFrame and BankFrame.PassesSearchFilter then
+                        local matches = BankFrame:PassesSearchFilter(button.itemData)
+                        button:SetAlpha(matches and 1.0 or 0.25)
+                    else
+                        button:SetAlpha(1.0)
+                    end
+                end
+            end
         end
     end
 end
