@@ -1,41 +1,48 @@
 # Guda
 
-A comprehensive bag and bank management addon for Turtle WoW (1.12.1).
+A comprehensive **bag and bank management addon** for **World of Warcraft 1.12.1**, fully compatible with **Turtle WoW**.
 
-## Features
+Guda provides a modern, unified bag/bank experience with multi-character support, sorting, item tracking, and quality-of-life tools.
+
+---
+
+## 📦 Features
 
 ### 🎒 Bag Management
 
-- **Unified Bag View**: All your bags in one window
-- **Smart Sorting**: Sort by quality, name, or item type
-- **Search Functionality**: Quickly find items with the search box
-- **Quality Borders**: Visual quality indicators on items
+* **Unified Bag View** – All bags displayed in one window
+* **Smart Sorting** – Sort by quality, name, or item type
+* **Search Box** – Quickly find items
+* **Quality Borders** – Items are visually color-coded based on rarity
 
 ### 🏦 Bank Management
 
-- **Bank Viewing**: View your bank from anywhere (cached data)
-- **Bank Sorting**: Organize your bank with one click
-- **Persistent Storage**: Bank contents saved and viewable offline
+* **Remote Bank Viewing** – View cached bank contents from anywhere
+* **One-Click Sorting** – Organize your bank easily
+* **Persistent Storage** – Bank data saved between sessions
 
 ### 👥 Multi-Character Support
 
-- **Cross-Character Viewing**: View any character's bags and bank
-- **Money Tracking**: See total gold across all characters
-- **Character Selector**: Easy switching between characters
-- **Faction Filtering**: Only shows characters of the same faction
-- **Item Counting**: Track total quantities of items across all characters, including:
-    - Bags
-    - Bank
-    - Equipped items
-    - Displayed in tooltips with breakdown
+* **Cross-Character Viewing** – View bags & banks of any character
+* **Money Tracking** – See total gold across all characters
+* **Character Selector** – Switch characters quickly
+* **Faction Filtering** – Shows only characters from the same faction
+* **Global Item Counting** – Item totals across all characters, including:
+
+    * Bags
+    * Banks
+    * Equipped items
+    * Tooltip breakdown per character
 
 ### 💰 Money Display
 
-- **Current Character**: Shows your current gold/silver/copper
-- **Total Money**: Displays combined wealth across all characters
-- **Per-Character**: View each character's money in the selector
+* **Current Character Money**
+* **Total Money Across All Characters**
+* **Per-Character Overview** in the selector
 
-## Slash Commands
+---
+
+## 📝 Slash Commands
 
 ```
 /guda or /gn
@@ -44,121 +51,127 @@ A comprehensive bag and bank management addon for Turtle WoW (1.12.1).
 /guda bank         - Toggle bank view
 /guda sort         - Sort your bags
 /guda sortbank     - Sort your bank (must be at bank)
-/guda save         - Manually save data
 /guda debug        - Toggle debug mode
 /guda cleanup      - Remove characters not seen in 90 days
 /guda help         - Show this help
 ```
 
-## How to Use
+---
+
+## 🚀 How to Use
 
 ### Basic Usage
 
 1. Press **B** or type `/guda` to open your bags
-2. Click **Characters** button to view other characters
-3. Click **Bank** button to view your bank (cached)
+2. Click **Characters** to switch characters
+3. Click **Bank** to view your cached bank
 4. Click **Sort** to organize your bags
 
 ### Sorting
 
-- **Sort Bags**: Click the **Sort** button or `/guda sort`
-- **Sort Bank**: Click **Sort Bank** button (must be at bank) or `/guda sortbank`
-- **Sort Methods**: Quality (default), Name, or Type
-  - Quality: Epic → Rare → Uncommon → Common
-  - Name: Alphabetical
-  - Type: By item class and subclass
+* **Sort Bags**: Press **Sort** or use `/guda sort`
+* **Sort Bank**: Use **Sort Bank** or `/guda sortbank`
+* Sorting modes:
 
-## Features in Detail
+    * **Quality** (Epic → Rare → Uncommon → Common)
+    * **Name** (A → Z)
+    * **Type** (Item class & subclass)
 
-### Bag Scanner
+---
 
-- Automatically scans bags on login and updates
-- Tracks all items with full details (name, quality, count, etc.)
-- Updates in real-time as you loot/move items
+## 🧠 Internal Systems
 
-### Bank Scanner
+### 🔍 Bag Scanner
 
-- Scans bank when you open it
-- Saves bank contents for offline viewing
-- Updates automatically while bank is open
+* Scans all bags at login
+* Updates when looting, moving, or modifying items
+* Stores item details (count, quality, name, link, etc.)
 
-### Money Tracker
+### 🏦 Bank Scanner
 
-- Tracks money changes in real-time
-- Shows current character money
-- Calculates total across all characters
-- Per-character money in character selector
+* Scans on bank open
+* Saves snapshot for offline viewing
+* Updates live while the bank is open
 
-### Data Storage
+### 💰 Money Tracker
 
-- Saves to `Guda_DB` (global)
-- Character settings in `Guda_CharDB`
-- Persistent across sessions
-- Automatic cleanup of old characters (90+ days)
+* Tracks money changes in real time
+* Displays per-character, current character, and total money
 
-## Configuration
+### 🗄️ Data Storage
 
-Currently all configuration is automatic. Future versions may include:
+* **Guda_DB** – Global data:
 
-- Customizable sort methods
-- Buttons per row
-- Filter options
-- Color customization
+    * Bag & bank contents
+    * Character money
+    * Last update timestamps
+* **Guda_CharDB** – Per-character UI settings
 
-## Known Limitations
+---
 
-- **Sort Functionality**: Basic sorting is implemented but actual item moving requires additional complexity to handle:
-  - Soulbound items
-  - Bag type restrictions (soul bags, etc.)
-  - Quest items
-  - Locked items
-- **Bank Access**: Must open bank at least once to cache contents
-- **Same Faction**: Can only view characters of the same faction
+## ⚙️ Configuration
 
-## Technical Details
+Configuration is currently automatic. Future updates may include:
 
-### Saved Variables
+* Custom sort methods
+* Adjustable layout (buttons per row, item size)
+* Item filters
+* Color customization
 
-- `Guda_DB`: Global database (all characters)
-  - Character data (bags, bank, money)
-  - Last update timestamps
-- `Guda_CharDB`: Per-character settings
-  - UI preferences
-  - Sort method
+---
 
-### Auto-Save Schedule
+## ⚠️ Known Limitations
 
-- Every 30 minutes while playing
-- On player logout
-- Manual: `/guda save`
+* **Sorting**:
 
-### Events Monitored
+    * Advanced sorting requires handling bag restrictions (soul bags, profession bags)
+    * Locked and soulbound items need special handling
+* **Bank Access**:
 
-- `BAG_UPDATE`: Bag content changes
-- `BANKFRAME_OPENED`: Bank opened
-- `BANKFRAME_CLOSED`: Bank closed
-- `PLAYER_MONEY`: Money changes
-- `PLAYER_LOGIN`: Character login
-- `PLAYER_LOGOUT`: Character logout
+    * Must open the bank at least once to cache contents
+* **Faction Restriction**:
 
-## Credits
+    * Only shows characters from the same faction
 
-Created for Turtle WoW 1.12.1
-Version 1.0.2
+---
 
-## Support
+## 🖼️ Images
 
-For bugs or feature requests, please report them in-game or on the forums.
+### Guda Settings
 
-## Changelog
+![Guda Settings](https://i.imgur.com/Tfzl6ru.png)
 
-### Version 1.0.2
+### Bag View
 
-- Initial release
-- Bag viewing and sorting
-- Bank viewing and sorting
-- Multi-character support
-- Money tracking
-- Auto-save system
-- Character selector
-- Search functionality
+![Bag View](https://i.imgur.com/cqISq71.png)
+
+### Bank View
+
+![Bank View](https://i.imgur.com/rV1f8Lu.png)
+
+---
+
+## 🐞 Common Issues
+
+### 1. Cannot open bags using **B**
+
+Set the keybinding:
+**Esc → Key Bindings → Guda → Toggle Bags**
+
+![Keybindings Fix](https://i.imgur.com/IJv36Lg.png)
+
+### 2. Issues after updating the addon
+
+Delete outdated saved variables:
+
+```
+WTF/Account/<ACCOUNT_NAME>/SavedVariables/Guda.lua
+WTF/Account/<ACCOUNT_NAME>/SavedVariables/Guda.lua.bak
+```
+
+---
+
+## 📢 Support
+
+For bugs or feature requests, please open an issue or post on the Turtle WoW forums.
+Your feedback helps improve the addon!

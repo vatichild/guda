@@ -169,8 +169,6 @@ local function Guda_ItemButton_UpdateUsableTint(self)
         local alpha = (a or 1.0) * 0.45
         self.unusableOverlay:SetVertexColor(r or 0.9, g or 0.2, b or 0.2, alpha)
         self.unusableOverlay:Show()
-    else
-        if self.unusableOverlay and self.unusableOverlay.Hide then self.unusableOverlay:Hide() end
     end
 end
 
