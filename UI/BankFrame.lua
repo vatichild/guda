@@ -65,26 +65,6 @@ function Guda_BankFrame_OnShow(self)
     BankFrame:Update()
 end
 
--- OnHide
-function Guda_BankFrame_OnHide(self)
-    -- Clean up all buttons when frame is hidden (safe since we're not displaying)
-    for _, bankBagParent in pairs(bankBagParents) do
-        if bankBagParent then
-            local buttons = { bankBagParent:GetChildren() }
-            for _, button in ipairs(buttons) do
-                if button.hasItem ~= nil then
-                    button:Hide()
-                    button:ClearAllPoints()
-                end
-            end
-        end
-    end
-    -- Ensure the bank click catcher is hidden when the frame hides
-    if bankClickCatcher and bankClickCatcher.Hide then
-        bankClickCatcher:Hide()
-    end
-end
-
 -- Toggle visibility
 function BankFrame:Toggle()
     if Guda_BankFrame:IsShown() then
