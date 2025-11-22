@@ -604,15 +604,22 @@ function Guda_ItemButton_OnEnter(self)
 	end
 
 	-- Early return for empty slots (no tooltip needed)
-	if not self.hasItem then
+	if not self.hasItem or not self.itemData then
 		return
 	end
 
-	GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+	GameTooltip:SetOwner(UIParent, "ANCHOR_NONE")
+	-- important position of tooltip
+	GameTooltip:SetPoint("BOTTOMRIGHT", self, "TOPLEFT", 10, 0)
 
-	-- For other characters or read-only mode, use cached item link
 	if self.otherChar or self.isReadOnly then
-		GameTooltip:SetBagItem(self.bagID, self.slotID)
+		GameTooltip.GudaViewedCharacter = self.otherChar
+		if self.itemData and self.itemData.link then
+			GameTooltip:SetHyperlink(self.itemData.link)
+		else
+			GameTooltip:Hide()
+			return
+		end
 	-- Special handling for bank main bag when bank might be closed
 	elseif self.isBank and self.bagID == -1 then
 		local bankFrame = getglobal("BankFrame")
@@ -627,7 +634,6 @@ function Guda_ItemButton_OnEnter(self)
 		-- For live mode: use SetBagItem for all bags
 		GameTooltip:SetBagItem(self.bagID, self.slotID)
 	end
-
 	GameTooltip:Show()
 	-- Handle merchant sell cursor (same approach as BagShui)
 	if MerchantFrame:IsShown() and not self.isBank and not self.otherChar and self.hasItem then
@@ -640,6 +646,10 @@ end
 
 -- OnLeave handler
 function Guda_ItemButton_OnLeave(self)
+    -- Clear any viewed character hint on the tooltip when leaving
+    if GameTooltip and GameTooltip.GudaViewedCharacter then
+        GameTooltip.GudaViewedCharacter = nil
+    end
     GameTooltip:Hide()
     ResetCursor()
 

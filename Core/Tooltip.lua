@@ -331,65 +331,35 @@ function Tooltip:Initialize()
 
 	-- Hook SetBagItem
 	local oldSetBagItem = GameTooltip.SetBagItem
-	local oldSetInventoryItem = GameTooltip.SetInventoryItem
-	local oldSetHyperlink = GameTooltip.SetHyperlink
 	function GameTooltip:SetBagItem(bag, slot)
 		return WithDeferredMoney(self, function()
-			local bankFrame = getglobal("BankFrame")
-
-			if bag == -1 and bankFrame and bankFrame:IsVisible() then
-				local invSlot = BankButtonIDToInvSlotID(slot)
-				if invSlot then
-					-- Use the inventory item method for bank main bag
-					local ret = oldSetInventoryItem(self, "player", invSlot)
-					local link = GetInventoryItemLink("player", invSlot)
-					if link then
-						Tooltip:AddInventoryInfo(self, link)
-					end
-					return ret
-				end
-			else
-				-- Bank is closed or readonly mode - try to get cached link
-				if bag == -1 or (bag >=5 and bag <=10) then
-					-- Get cached link from database for main bank bag
-					local playerName = addon.Modules.DB:GetPlayerFullName()
-					local bankData = addon.Modules.DB:GetCharacterBank(playerName)
-					if bankData and bankData[bag] and bankData[bag].slots and bankData[bag].slots[slot] then
-						local itemData = bankData[bag].slots[slot]
-						if itemData.link and string.find(itemData.link, "|H") then
-							-- Extract hyperlink from full colored string: |cFFFFFFFF|Hitem:...|h[Name]|h|r
-							-- SetHyperlink needs just the item:... part
-							local _, _, hyperlink = string.find(itemData.link, "|H(.+)|h")
-							if hyperlink then
-								local ret = oldSetHyperlink(self, hyperlink)
-								Tooltip:AddInventoryInfo(self, itemData.link)
-								return ret
-							end
-						end
-					end
-					-- No cached data found
-					return nil
-				else
-					-- Regular bags and bank bags (not main bag) - use normal SetBagItem
-					local ret = oldSetBagItem(self, bag, slot)
-					local link = GetContainerItemLink(bag, slot)
-					if link then
-						Tooltip:AddInventoryInfo(self, link)
-					end
-					return ret
-				end
+			local ret = oldSetBagItem(self, bag, slot)
+			local link = GetContainerItemLink(bag, slot)
+			if link then
+				Tooltip:AddInventoryInfo(self, link)
 			end
+			return ret
 		end)
 	end
 
-	-- Hook SetHyperlink for chat links
-	local oldSetHyperlink = GameTooltip.SetHyperlink
+ -- Hook SetHyperlink for hyperlinks from chat and cached links
+ local oldSetHyperlink = GameTooltip.SetHyperlink
 	function GameTooltip:SetHyperlink(link)
 		return WithDeferredMoney(self, function()
-			local ret = oldSetHyperlink(self, link)
-			if link and strfind(link, "item:") then
-				Tooltip:AddInventoryInfo(self, link)
+			local _, _, inner = string.find(link or "", "|H(.+)|h")
+			local forwarded = link
+			local itemLinkForCounts = link
+			if inner then
+				forwarded = inner
+				if strfind(inner, "^item:") then
+					itemLinkForCounts = inner
+				end
 			end
+			local ret = oldSetHyperlink(self, forwarded)
+			if itemLinkForCounts and strfind(itemLinkForCounts, "item:") then
+				Tooltip:AddInventoryInfo(self, itemLinkForCounts)
+			end
+
 			return ret
 		end)
 	end
