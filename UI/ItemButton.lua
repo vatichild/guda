@@ -23,7 +23,7 @@ local function IsQuestItem(bagID, slotID)
 		if line then
 			local text = line:GetText()
 			if text then
-				addon:Print("text:%s", text or '')
+				--addon:Print("text:%s", text or '')
 				-- Check for various quest-related text patterns
 				if string.find(text, "Quest Item") or
 				string.find(text, "Quest Starter") or
