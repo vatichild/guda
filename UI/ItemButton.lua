@@ -1,31 +1,149 @@
 -- Local alias to the addon root table (must be defined before any usages below)
 local addon = Guda
- 
+
 -- Item button pool
 local buttonPool = {}
 local nextButtonID = 1
 
--- Hidden tooltip for scanning quest items
 local scanTooltip = CreateFrame("GameTooltip", "Guda_QuestScanTooltip", nil, "GameTooltipTemplate")
 scanTooltip:SetOwner(WorldFrame, "ANCHOR_NONE")
 
--- (rollback) no custom drag-source tracking or target resolution; rely on Blizzard handlers
-
 -- Check if an item is a quest item by scanning its tooltip
 local function IsQuestItem(bagID, slotID)
+	if not bagID or not slotID then return false end
+
+	scanTooltip:ClearLines()
+	scanTooltip:SetBagItem(bagID, slotID)
+
+	local isQuestItem = false
+
+	-- Check all tooltip lines for quest-related text
+	for i = 1, scanTooltip:NumLines() do
+		local line = getglobal("Guda_QuestScanTooltipTextLeft" .. i)
+		if line then
+			local text = line:GetText()
+			if text then
+				--addon:Print("text:%s", text or '')
+				-- Check for various quest-related text patterns
+				if string.find(text, "Quest Item") or
+				string.find(text, "Quest Starter") or
+				(string.find(text, "Manual") or string.find(text, "Soulbond")) or
+				string.find(text, "This Item Begins a Quest") then
+					isQuestItem = true
+					break
+				end
+			end
+		end
+	end
+
+	-- Also check if the item type is "Quest"
+	if not isQuestItem then
+		local link = GetContainerItemLink(bagID, slotID)
+		if link then
+			local itemName, itemLink, itemRarity, itemLevel, itemMinLevel, itemType = GetItemInfo(link)
+			if itemType == "Quest" then
+				isQuestItem = true
+			end
+		end
+	end
+
+	return isQuestItem
+end
+
+--=====================================================
+-- Unusable item detection (pfUI-inspired implementation)
+-- Adds a red tint overlay to items that your character
+-- cannot use (class/race/skill restrictions), excluding
+-- purely broken durability cases.
+--=====================================================
+local function Guda_GetUnusableColor()
+    if pfUI and C and C.appearance and C.appearance.bags and C.appearance.bags.unusable_color then
+        local cr, cg, cb, ca = strsplit(",", C.appearance.bags.unusable_color)
+        local r = tonumber(cr) or 0.9
+        local g = tonumber(cg) or 0.2
+        local b = tonumber(cb) or 0.2
+        local a = tonumber(ca) or 1.0
+        return r, g, b, a
+    end
+    -- Then Blizzard's RED_FONT_COLOR if present
+    if RED_FONT_COLOR then
+        return RED_FONT_COLOR.r, RED_FONT_COLOR.g, RED_FONT_COLOR.b, 1.0
+    end
+    -- Default pfUI-like
+    return 0.9, 0.2, 0.2, 1.0
+end
+
+-- Build durability match pattern based on the client template
+local durabilityPattern
+if DURABILITY_TEMPLATE then
+    -- e.g. "Durability %d / %d" -> "Durability (.+)"
+    durabilityPattern = string.gsub(DURABILITY_TEMPLATE, "%%[^%s]+", "(.+)")
+end
+
+-- Tiny helper to compare font color to Blizzard's RED_FONT_COLOR
+local function IsRedColor(r, g, b)
+    if not r or not g or not b or not RED_FONT_COLOR then return false end
+    local dr = math.abs(r - RED_FONT_COLOR.r)
+    local dg = math.abs(g - RED_FONT_COLOR.g)
+    local db = math.abs(b - RED_FONT_COLOR.b)
+    return (dr < 0.08 and dg < 0.08 and db < 0.08)
+end
+
+-- Scan tooltip for red text that is NOT a durability line
+local function IsItemUnusable(bagID, slotID, isBank)
     if not bagID or not slotID then return false end
 
+    -- Some clients require SetOwner before every SetBagItem/SetInventoryItem to populate lines
+    if scanTooltip.SetOwner then
+        scanTooltip:SetOwner(UIParent or WorldFrame, "ANCHOR_NONE")
+    end
     scanTooltip:ClearLines()
-    scanTooltip:SetBagItem(bagID, slotID)
 
-    -- Check all tooltip lines for "Quest Item" text
-    for i = 1, scanTooltip:NumLines() do
-        local line = getglobal("Guda_QuestScanTooltipTextLeft" .. i)
-        if line then
-            local text = line:GetText()
-            if text then
-                -- Check for "Quest Item" text (case sensitive to match WoW's tooltip)
-                if string.find(text, "Quest Item") then
+    if isBank and bagID == -1 then
+        -- Bank frame item buttons map slots 1.. to inventory slots 40.. (39 + slot)
+        if scanTooltip.SetInventoryItem then
+            scanTooltip:SetInventoryItem("player", 39 + slotID)
+        else
+            -- Fallback to bag scan if API missing
+            scanTooltip:SetBagItem(bagID, slotID)
+        end
+    else
+        scanTooltip:SetBagItem(bagID, slotID)
+    end
+
+    if scanTooltip.Show then scanTooltip:Show() end
+
+    local num = scanTooltip:NumLines() or 0
+    for i = 1, num do
+        -- Scan LEFT column
+        local left = getglobal("Guda_QuestScanTooltipTextLeft" .. i)
+        if left and left:IsShown() then
+            local text = left:GetText()
+            local r, g, b = left:GetTextColor()
+            -- Be tolerant with red detection in case client colors differ slightly
+            local isRed = IsRedColor(r, g, b) or (r and g and b and r > 0.85 and g < 0.3 and b < 0.3)
+            if text and isRed then
+                -- Ignore red durability (broken) lines
+                if durabilityPattern and string.find(text, durabilityPattern, 1) then
+                    -- skip durability
+                else
+                    if scanTooltip.Hide then scanTooltip:Hide() end
+                    return true
+                end
+            end
+        end
+
+        -- Scan RIGHT column as well (required level etc can appear here on some clients)
+        local right = getglobal("Guda_QuestScanTooltipTextRight" .. i)
+        if right and right:IsShown() then
+            local text = right:GetText()
+            local r, g, b = right:GetTextColor()
+            local isRed = IsRedColor(r, g, b) or (r and g and b and r > 0.85 and g < 0.3 and b < 0.3)
+            if text and isRed then
+                if durabilityPattern and string.find(text, durabilityPattern, 1) then
+                    -- skip durability
+                else
+                    if scanTooltip.Hide then scanTooltip:Hide() end
                     return true
                 end
             end
@@ -34,6 +152,40 @@ local function IsQuestItem(bagID, slotID)
 
     return false
 end
+
+-- Apply/remove red tint on item texture for unusable items
+local function Guda_ItemButton_UpdateUsableTint(self)
+    -- Only evaluate for live (player) items; DB cached items from other chars cannot be scanned
+    if not self or not self.hasItem or not self.bagID or not self.slotID or self.isReadOnly then
+        -- Clear any tint/overlay on non-live/empty slots
+        if self.unusableOverlay and self.unusableOverlay.Hide then self.unusableOverlay:Hide() end
+        if SetItemButtonTextureVertexColor then SetItemButtonTextureVertexColor(self, 1.0, 1.0, 1.0) end
+        return
+    end
+
+    local unusable = IsItemUnusable(self.bagID, self.slotID, self.isBank)
+    -- Ensure overlay exists (created in OnLoad, but be defensive)
+    if not self.unusableOverlay then
+        local icon = getglobal(self:GetName().."IconTexture") or getglobal(self:GetName().."Icon") or self.icon or self.Icon
+        local overlay = (icon and icon:GetParent() or self):CreateTexture(nil, "OVERLAY")
+        overlay:SetAllPoints(icon or self)
+        overlay:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
+        overlay:Hide()
+        self.unusableOverlay = overlay
+    end
+
+    -- Always reset base icon vertex color to white; we drive the red via overlay to avoid external resets
+    if SetItemButtonTextureVertexColor then SetItemButtonTextureVertexColor(self, 1.0, 1.0, 1.0) end
+
+    if unusable then
+        local r, g, b, a = Guda_GetUnusableColor()
+        -- Slightly reduce alpha to avoid over-darkening the icon
+        local alpha = (a or 1.0) * 0.45
+        self.unusableOverlay:SetVertexColor(r or 0.9, g or 0.2, b or 0.2, alpha)
+        self.unusableOverlay:Show()
+    end
+end
+
 
 -- Create or get a button from the pool
 function Guda_GetItemButton(parent)
@@ -251,6 +403,10 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
         if not self.isReadOnly and Guda_ItemButton_UpdateCooldown then
             Guda_ItemButton_UpdateCooldown(self)
         end
+        -- Update unusable red overlay tint
+        if Guda_ItemButton_UpdateUsableTint then
+			Guda_ItemButton_UpdateUsableTint(self)
+        end
     else
         -- Fully clear all item button state for empty slots
         if SetItemButtonTexture then SetItemButtonTexture(self, nil) end
@@ -272,6 +428,11 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
         end
 
         if emptySlotBg then emptySlotBg:Show() end
+
+        -- Ensure any unusable tint is cleared on empty
+        if SetItemButtonTextureVertexColor then
+            SetItemButtonTextureVertexColor(self, 1.0, 1.0, 1.0)
+        end
     end
 
     -- Resize empty slot background to match icon size (slightly larger to ensure coverage)
@@ -375,7 +536,7 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
             SetItemButtonDesaturated(self, isLocked, 0.5, 0.5, 0.5)
         end
 
-        -- Hide NormalTexture for filled slots (pfUI style)
+        -- Hide NormalTexture for filled slots
         self:SetNormalTexture("")
         local normalBorder = getglobal(self:GetName().."NormalTexture")
         if normalBorder then
@@ -388,7 +549,7 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
             emptySlotBg:SetAlpha(0.3)  -- More subtle for filled slots
         end
 
-        -- Search filtering (pfUI style - ONLY use alpha, no other effects)
+        -- Search filtering
         if matchesFilter then
             -- Matching items: full opacity (1.0)
             self:SetAlpha(1.0)
@@ -405,7 +566,7 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
             countText:Hide()
         end
 
-        -- Set quality border (pfUI style using backdrop border)
+        -- Set quality border
         if self.qualityBorder then
             if bagID == -2 then
                 -- Special border for keyring items (cyan/blue)
@@ -498,18 +659,18 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
             emptySlotBg:SetAlpha(0.5)  -- Slightly more visible
         end
 
-        -- Dim empty slots when searching (pfUI style)
+        -- Dim empty slots when searching
         if matchesFilter then
             -- No search active or passes filter: normal opacity
             self:SetAlpha(1.0)
         else
-            -- Search active and doesn't match: very dim (25% like pfUI)
+            -- Search active and doesn't match: very dim
             self:SetAlpha(0.25)
         end
 
         countText:Hide()
 
-        -- Show border for empty keyring slots (pfUI style)
+        -- Show border for empty keyring slots
         if self.qualityBorder then
             if bagID == -2 then
                 self.qualityBorder:SetBackdropBorderColor(0.2, 0.8, 1.0, 0.5) -- Dimmer cyan for empty slots
@@ -530,7 +691,6 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
         self:Show()
     end
 
-    -- Setup icon texture using pfUI's approach (anchor to fill button)
     -- In 1.12.1, ItemButtonTemplate creates an icon named "$parentIconTexture"
     local iconTexture = getglobal(self:GetName().."IconTexture")
     if not iconTexture then
@@ -555,7 +715,7 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
             iconTexture:SetPoint("CENTER", self, "CENTER", -0.5, 0.5)
             iconTexture:SetWidth(iconDisplaySize)
             iconTexture:SetHeight(iconDisplaySize)
-            -- Crop icon edges slightly (pfUI uses .08 to .92)
+            -- Crop icon edges slightly
             iconTexture:SetTexCoord(0.08, 0.92, 0.08, 0.92)
             iconTexture:Show()
 
@@ -660,121 +820,5 @@ function Guda_ItemButton_OnLeave(self)
         else
             Guda_BagFrame_ClearBagButtonHighlight()
         end
-    end
-end
-
--- OnDragStart handler
-function Guda_ItemButton_OnDragStart(self, button)
-    -- Don't allow dragging other characters' items or in read-only mode
-    if self.otherChar or self.isReadOnly then
-        return
-    end
-
-    -- Only allow left button drag
-    if button == "LeftButton" and self.hasItem then
-        -- Ensure the global click catcher doesn't intercept the drag/drop
-        local cc = getglobal and getglobal("Guda_ClickCatcher")
-        if cc and cc.Hide and cc:IsShown() then
-            cc:Hide()
-        end
-        PickupContainerItem(self.bagID, self.slotID)
-    end
-end
-
--- OnReceiveDrag handler
-function Guda_ItemButton_OnReceiveDrag(self)
-    -- Don't allow dragging to other characters' items or in read-only mode
-    if self.otherChar or self.isReadOnly then
-        return
-    end
-
-    -- Place the item being dragged
-    PickupContainerItem(self.bagID, self.slotID)
-
-    -- Trigger UI update after drop completes (was skipped during drag)
-    if addon and addon.Modules and addon.Modules.BagFrame then
-        addon.Modules.BagFrame:Update()
-    end
-end
-
--- Handle mouse-up to emulate Blizzard drop behavior on 1.12 where OnReceiveDrag may not always fire
--- (rollback) no custom OnMouseUp; rely on Blizzard default
-
--- OnMouseDown handler - pick up item when pressing mouse button (classic pattern)
--- (rollback) no custom OnMouseDown; rely on Blizzard default
-
--- OnDragStop handler (optional cleanup)
-function Guda_ItemButton_OnDragStop(self)
-    -- Reset cursor to default to avoid lingering special cursors
-    if ResetCursor then
-        ResetCursor()
-    end
-
-    -- Trigger UI update after drag completes (was skipped during drag)
-    if addon and addon.Modules and addon.Modules.BagFrame then
-        addon.Modules.BagFrame:Update()
-    end
-end
-
--- Stack split callback (called by StackSplitFrame)
-local function ItemButton_SplitStack(self, split)
-    if self.bagID and self.slotID then
-        SplitContainerItem(self.bagID, self.slotID, split)
-    end
-end
-
--- OnClick handler
-function Guda_ItemButton_OnClick(self, button)
-    -- Don't allow interaction with other characters' items or in read-only mode
-    if self.otherChar or self.isReadOnly then return end
-
-    -- Set the split callback
-    self.SplitStack = ItemButton_SplitStack
-
-    -- Modified clicks
-    if IsShiftKeyDown() then
-        if button == "LeftButton" and self.hasItem then
-            -- Get live count and link
-            local _, count = GetContainerItemInfo(self.bagID, self.slotID)
-            local itemLink = GetContainerItemLink(self.bagID, self.slotID)
-
-            -- Shift+Left Click on stackable item: Show split stack dialog
-            if count and count > 1 then
-                OpenStackSplitFrame(count, self, "BOTTOMRIGHT", "TOPRIGHT")
-                return
-            end
-            -- If not stackable or only 1 item, link to chat
-            if itemLink and ChatFrameEditBox:IsVisible() then
-                ChatFrameEditBox:Insert(itemLink)
-            end
-        end
-        return
-    elseif IsControlKeyDown() then
-        -- Ctrl+Click: Dress up (if applicable)
-        if self.hasItem then
-            local itemLink = GetContainerItemLink(self.bagID, self.slotID)
-            if itemLink then
-                DressUpItemLink(itemLink)
-            end
-        end
-        return
-    end
-
-    if button == "LeftButton" then
-        -- Left clicks are handled by MouseDown/MouseUp to prevent instant self-drop.
-        return
-    elseif button == "RightButton" then
-        -- Right click: Use item (only if slot has an item)
-        if self.hasItem then
-            UseContainerItem(self.bagID, self.slotID)
-        end
-    end
-end
-
--- Release all buttons
-function Guda_ReleaseAllButtons()
-    for _, button in pairs(buttonPool) do
-        button:Hide()
-        button:ClearAllPoints()
     end
 end

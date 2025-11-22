@@ -6,24 +6,6 @@ local addon = Guda
 local Main = {}
 addon.Modules.Main = Main
 
--- Manual save function (for slash command)
-function Main:SaveData()
-    addon:Debug("Saving data...")
-
-    -- Save bags
-    addon.Modules.BagScanner:SaveToDatabase()
-
-    -- Save bank (if available)
-    if addon.Modules.BankScanner:IsBankOpen() then
-        addon.Modules.BankScanner:SaveToDatabase()
-    end
-
-    -- Save money
-    addon.Modules.MoneyTracker:Update()
-
-    addon:Debug("Save complete")
-end
-
 -- Initialize addon
 function Main:Initialize()
     -- Wait for PLAYER_LOGIN to ensure saved variables are loaded
@@ -83,11 +65,6 @@ function Main:SetupSlashCommands()
             -- Sort bank
             addon.Modules.SortEngine:SortBank()
 
-        elseif msg == "save" then
-            -- Manual save
-            Main:SaveData()
-            addon:Print("Data saved manually")
-
         elseif msg == "debug" then
             -- Toggle debug
             addon.DEBUG = not addon.DEBUG
@@ -102,10 +79,8 @@ function Main:SetupSlashCommands()
             addon:Print("Commands:")
             addon:Print("/guda - Toggle bags")
             addon:Print("/guda bank - Toggle bank")
-            addon:Print("/guda chars - Select character")
             addon:Print("/guda sort - Sort bags")
             addon:Print("/guda sortbank - Sort bank")
-            addon:Print("/guda save - Manual save")
             addon:Print("/guda debug - Toggle debug mode")
             addon:Print("/guda cleanup - Remove old characters")
 
