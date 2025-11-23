@@ -1161,73 +1161,22 @@ function Guda_BagFrame_ToggleKeyring()
 	BagFrame:Update()
 end
 
--- Sort button handler with auto-repeat and smart pass calculation
 function Guda_BagFrame_Sort()
 	if currentViewChar then
 		addon:Print("Cannot sort another character's bags!")
 		return
 	end
 
-	-- Analyze bags to determine how many passes are needed
-	local analysis = addon.Modules.SortEngine:AnalyzeBags()
+	local success, message = addon.Modules.SortEngine:ExecuteSort(
+		function() return addon.Modules.SortEngine:SortBags() end,
+		function() return addon.Modules.SortEngine:AnalyzeBags() end,
+		function() BagFrame:Update() end,
+		"bags"
+	)
 
-	-- Check if already sorted
-	if analysis.alreadySorted then
+	if not success and message == "already sorted" then
 		addon:Print("Bags are already sorted!")
-		return
 	end
-
-	-- Print analysis results
-	addon:Print("Sorting bags... (%d/%d items need sorting, estimated %d passes)",
-		analysis.itemsOutOfPlace, analysis.totalItems, analysis.passes)
-
-	local passCount = 0
-	local maxPasses = math.max(analysis.passes, 1)  -- Use estimated passes, minimum 1
-	local safetyLimit = maxPasses + 3  -- Add 3 extra passes as safety margin
-
-	local function DoSortPass()
-		passCount = passCount + 1
-
-		-- Perform one sort pass
-		local moveCount = addon.Modules.SortEngine:SortBags()
-
-		-- If items were moved and we haven't hit the limit, do another pass
-		if moveCount > 0 and passCount < safetyLimit then
-		-- Wait for items to settle, then sort again
-			local frame = CreateFrame("Frame")
-			local elapsed = 0
-			frame:SetScript("OnUpdate", function()
-				elapsed = elapsed + arg1
-				if elapsed >= 0.7 then
-					frame:SetScript("OnUpdate", nil)
-					DoSortPass()  -- Recursive call for next pass
-				end
-			end)
-		else
-		-- Sorting complete
-			if passCount >= safetyLimit then
-				addon:Print("Sort complete! (reached safety limit after %d passes)", passCount)
-			elseif passCount <= maxPasses then
-				addon:Print("Sort complete! (%d passes, as predicted)", passCount)
-			else
-				addon:Print("Sort complete! (%d passes, %d more than estimated)", passCount, passCount - maxPasses)
-			end
-
-			-- Final update
-			local frame = CreateFrame("Frame")
-			local elapsed = 0
-			frame:SetScript("OnUpdate", function()
-				elapsed = elapsed + arg1
-				if elapsed >= 0.7 then
-					frame:SetScript("OnUpdate", nil)
-					BagFrame:Update()
-				end
-			end)
-		end
-	end
-
-	-- Start the first pass
-	DoSortPass()
 end
 
 -- Hook bag container buttons to open Guda Bag View

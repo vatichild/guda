@@ -596,73 +596,28 @@ function Guda_BankFrame_ClearSearch()
     end
 end
 
--- Sort button handler with auto-repeat and smart pass calculation
+-- Bank button handler
 function Guda_BankFrame_Sort()
-    if isReadOnlyMode or currentViewChar then
-        addon:Print("Cannot sort in read-only mode!")
-        return
-    end
+	if isReadOnlyMode or currentViewChar then
+		addon:Print("Cannot sort in read-only mode!")
+		return
+	end
 
-    -- Analyze bank to determine how many passes are needed
-    local analysis = addon.Modules.SortEngine:AnalyzeBank()
+	if not addon.Modules.BankScanner:IsBankOpen() then
+		addon:Print("Bank must be open to sort!")
+		return
+	end
 
-    -- Check if already sorted
-    if analysis.alreadySorted then
-        addon:Print("Bank is already sorted!")
-        return
-    end
+	local success, message = addon.Modules.SortEngine:ExecuteSort(
+		function() return addon.Modules.SortEngine:SortBank() end,
+		function() return addon.Modules.SortEngine:AnalyzeBank() end,
+		function() BankFrame:Update() end,
+		"bank"
+	)
 
-    -- Print analysis results
-    addon:Print("Sorting bank... (%d/%d items need sorting, estimated %d passes)",
-        analysis.itemsOutOfPlace, analysis.totalItems, analysis.passes)
-
-    local passCount = 0
-    local maxPasses = math.max(analysis.passes, 1)  -- Use estimated passes, minimum 1
-    local safetyLimit = maxPasses + 3  -- Add 3 extra passes as safety margin
-
-    local function DoSortPass()
-        passCount = passCount + 1
-
-        -- Perform one sort pass
-        local moveCount = addon.Modules.SortEngine:SortBank()
-
-        -- If items were moved and we haven't hit the limit, do another pass
-        if moveCount > 0 and passCount < safetyLimit then
-            -- Wait for items to settle, then sort again
-            local frame = CreateFrame("Frame")
-            local elapsed = 0
-            frame:SetScript("OnUpdate", function()
-                elapsed = elapsed + arg1
-                if elapsed >= 0.7 then
-                    frame:SetScript("OnUpdate", nil)
-                    DoSortPass()  -- Recursive call for next pass
-                end
-            end)
-        else
-            -- Sorting complete
-            if passCount >= safetyLimit then
-                addon:Print("Bank sort complete! (reached safety limit after %d passes)", passCount)
-            elseif passCount <= maxPasses then
-                addon:Print("Bank sort complete! (%d passes, as predicted)", passCount)
-            else
-                addon:Print("Bank sort complete! (%d passes, %d more than estimated)", passCount, passCount - maxPasses)
-            end
-
-            -- Final update
-            local frame = CreateFrame("Frame")
-            local elapsed = 0
-            frame:SetScript("OnUpdate", function()
-                elapsed = elapsed + arg1
-                if elapsed >= 0.7 then
-                    frame:SetScript("OnUpdate", nil)
-                    BankFrame:Update()
-                end
-            end)
-        end
-    end
-
-    -- Start the first pass
-    DoSortPass()
+	if not success and message == "already sorted" then
+		addon:Print("Bank is already sorted!")
+	end
 end
 
 -- Switch to Blizzard bank UI
