@@ -117,22 +117,22 @@ function addon:ApplyBackdrop(frame, backdropType, colorType)
 end
 
 -- Print function with addon prefix
-function addon:Print(msg, a1, a2, a3, a4, a5)
-    local text = string.format(msg, a1, a2, a3, a4, a5)
+function addon:Print(msg, a1, a2, a3, a4, a5, a6, a7)
+    local text = string.format(msg, a1, a2, a3, a4, a5, a6, a7)
     DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF96Guda:|r " .. text)
 end
 
 -- Debug print
-function addon:Debug(msg, a1, a2, a3, a4, a5)
+function addon:Debug(msg, a1, a2, a3, a4, a5, a6, a7)
     if self.DEBUG then
-        local text = string.format(msg, a1, a2, a3, a4, a5)
+        local text = string.format(msg, a1, a2, a3, a4, a5, a6, a7)
         DEFAULT_CHAT_FRAME:AddMessage("|cFFFFFF00[Debug]|r |cFF00FF96Guda:|r " .. text)
     end
 end
 
 -- Error handler
-function addon:Error(msg, a1, a2, a3, a4, a5)
-    local text = string.format(msg, a1, a2, a3, a4, a5)
+function addon:Error(msg, a1, a2, a3, a4, a5, a6, a7)
+    local text = string.format(msg, a1, a2, a3, a4, a5, a6, a7)
     DEFAULT_CHAT_FRAME:AddMessage("|cFFFF0000[Error]|r |cFF00FF96Guda:|r " .. text)
 end
 
