@@ -661,27 +661,27 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
             end
         end
 
-        -- Check for quest items and show golden border + icon (higher priority than quality border)
-        -- Only check for current character's items (not other characters or bank in read-only mode)
-		local isQuest, isQuestStarter = IsQuestItem(bagID, slotID)
+		if not self.otherChar and not self.isReadOnly then
+			local isQuest, isQuestStarter = IsQuestItem(bagID, slotID)
+			-- Update quest icon with the appropriate texture
+			Guda_ItemButton_UpdateQuestIcon(self, isQuest, isQuestStarter)
+			if self.questBorder then
+				if isQuest then
+					self.questBorder:Show()
+				else
+					self.questBorder:Hide()
+				end
+			end
 
-        if self.questBorder then
-            if isQuest then
-                self.questBorder:Show()
-            else
-                self.questBorder:Hide()
-            end
-        end
+			if self.questIcon then
+				if isQuest then
+					self.questIcon:Show()
+				else
+					self.questIcon:Hide()
+				end
+			end
+		end
 
-        if self.questIcon then
-            if isQuest then
-                self.questIcon:Show()
-            else
-                self.questIcon:Hide()
-            end
-        end
-		-- Update quest icon with the appropriate texture
-		Guda_ItemButton_UpdateQuestIcon(self, isQuest, isQuestStarter)
         self:Show()
     else
         self.hasItem = false
