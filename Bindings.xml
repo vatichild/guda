@@ -3,6 +3,21 @@
         Guda.Modules.BagFrame:Toggle()
     </Binding>
     <Binding name="GUDA_TOGGLE_BANK" header="GUDA">
-        Guda.Modules.BankFrame:Toggle()
+        if Guda_BankFrame and Guda_BankFrame:IsShown() then
+            Guda_BankFrame:Hide()
+        else
+            -- Open the same bank view as the "View Bank" dropdown option
+            -- Show current character's saved bank (read-only), centered
+            if Guda and Guda.Modules and Guda.Modules.DB then
+                local fullName = Guda.Modules.DB:GetPlayerFullName()
+                if fullName and Guda_BagFrame_ShowCharacterBank then
+                    Guda_BagFrame_ShowCharacterBank(fullName)
+                elseif Guda and Guda.Modules and Guda.Modules.BankFrame then
+                    -- Fallback: ensure the frame is shown
+                    Guda.Modules.BankFrame:ShowCharacter(fullName)
+                    if Guda_BankFrame then Guda_BankFrame:Show() end
+                end
+            end
+        end
     </Binding>
 </Bindings>
