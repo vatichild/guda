@@ -36,6 +36,21 @@ function Main:Initialize()
         -- Setup slash commands
         Main:SetupSlashCommands()
 
+        -- Mark addon ready for keybind wrappers and process any pending toggles
+        addon._ready = true
+        if addon._pendingToggleBags then
+            addon._pendingToggleBags = false
+            if addon.Modules.BagFrame and addon.Modules.BagFrame.Toggle then
+                addon.Modules.BagFrame:Toggle()
+            end
+        end
+        if addon._pendingToggleBank then
+            addon._pendingToggleBank = false
+            if addon.Modules.BankFrame and addon.Modules.BankFrame.Toggle then
+                addon.Modules.BankFrame:Toggle()
+            end
+        end
+
         addon:Debug("Initialization complete")
         addon:Print("Ready! Type /guda to open bags")
     end, "Main")

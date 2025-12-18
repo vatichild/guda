@@ -96,6 +96,79 @@ addon.Constants = {
 -- Initialize modules storage
 addon.Modules = {}
 
+-- Readiness flags for safe early keybind handling
+addon._ready = false
+addon._pendingToggleBags = false
+addon._pendingToggleBank = false
+addon._deferBagsRegistered = false
+addon._deferBankRegistered = false
+
+-- Global safe wrappers for keybindings (defined early and always available)
+function Guda_ToggleBags()
+    local a = Guda
+    if a and a._ready and a.Modules and a.Modules.BagFrame and a.Modules.BagFrame.Toggle then
+        a.Modules.BagFrame:Toggle()
+        return
+    end
+
+    -- Defer until PLAYER_LOGIN completes addon initialization
+    if a and a.Modules and a.Modules.Events and not a._deferBagsRegistered then
+        a._pendingToggleBags = true
+        a._deferBagsRegistered = true
+        a.Modules.Events:OnPlayerLogin(function()
+            if Guda and Guda._pendingToggleBags then
+                Guda._pendingToggleBags = false
+                if Guda.Modules and Guda.Modules.BagFrame and Guda.Modules.BagFrame.Toggle then
+                    Guda.Modules.BagFrame:Toggle()
+                end
+            end
+        end, "Guda_KeybindDefer_Bags")
+    else
+        -- If Events not yet available, set pending flag; Main will clear it when ready
+        if a then a._pendingToggleBags = true end
+    end
+end
+
+function Guda_ToggleBank()
+    local a = Guda
+    local function doToggleBank()
+        if Guda_BankFrame and Guda_BankFrame:IsShown() then
+            Guda_BankFrame:Hide()
+        else
+            if a and a.Modules and a.Modules.DB then
+                local fullName = a.Modules.DB:GetPlayerFullName()
+                -- WoW 1.12 uses getglobal/setglobal; `_G` is not available (Lua 5.0)
+                local showBankFn = getglobal and getglobal("Guda_BagFrame_ShowCharacterBank") or nil
+                if fullName and showBankFn then
+                    -- Prefer exported helper if available
+                    showBankFn(fullName)
+                elseif a and a.Modules and a.Modules.BankFrame then
+                    a.Modules.BankFrame:ShowCharacter(fullName)
+                    if Guda_BankFrame then Guda_BankFrame:Show() end
+                end
+            end
+        end
+    end
+
+    if a and a._ready then
+        doToggleBank()
+        return
+    end
+
+    if a and a.Modules and a.Modules.Events and not a._deferBankRegistered then
+        a._pendingToggleBank = true
+        a._deferBankRegistered = true
+        a.Modules.Events:OnPlayerLogin(function()
+            if Guda and Guda._pendingToggleBank then
+                Guda._pendingToggleBank = false
+                doToggleBank()
+            end
+        end, "Guda_KeybindDefer_Bank")
+    else
+        if a then a._pendingToggleBank = true end
+    end
+end
+
 -- Helper to apply backdrop with color
 function addon:ApplyBackdrop(frame, backdropType, colorType)
     local backdrop = self.Constants.Backdrops[backdropType]
