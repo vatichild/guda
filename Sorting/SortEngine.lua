@@ -90,6 +90,39 @@ local GEM_PATTERNS = {
 -- UTILITY FUNCTIONS
 --===========================================================================
 
+-- Tooltip for scanning item properties
+local scanTooltip = CreateFrame("GameTooltip", "Guda_SortScanTooltip", nil, "GameTooltipTemplate")
+scanTooltip:SetOwner(WorldFrame, "ANCHOR_NONE")
+
+-- Check if an item is a quest item by scanning its tooltip
+local function IsQuestItemTooltip(bagID, slotID)
+	if not bagID or not slotID then return false end
+
+	scanTooltip:ClearLines()
+	scanTooltip:SetBagItem(bagID, slotID)
+
+	-- Check all tooltip lines for quest-related text
+	for i = 1, scanTooltip:NumLines() do
+		local line = getglobal("Guda_SortScanTooltipTextLeft" .. i)
+		if line then
+			local text = line:GetText()
+			if text then
+				-- Check for quest starter patterns
+				if string.find(text, "Quest Starter") or
+				   string.find(text, "This Item Begins a Quest") or
+				   string.find(text, "Use: Starts a Quest") then
+					return true
+				-- Check for regular quest item patterns
+				elseif string.find(text, "Quest Item") or
+				       string.find(text, "Manual") then
+					return true
+				end
+			end
+		end
+	end
+	return false
+end
+
 -- Extract itemID from item link
 local function GetItemID(link)
 	if not link then return 0 end
@@ -407,6 +440,17 @@ local function AddSortKeys(items)
 					item.equipSlotOrder = EQUIP_SLOT_ORDER[itemSubType] or 999
 				else
 					item.sortedClass = CATEGORY_ORDER[itemCategory] or 99
+					-- Heuristic: Detect items that should be in the Quest category (priority 11)
+					-- but aren't categorized as such by the game (e.g. some "Manual" items)
+					if item.sortedClass ~= 11 then
+						local nameLower = item.itemName and string.lower(item.itemName) or ""
+						if string.find(nameLower, "manual") or string.find(nameLower, "quest") then
+							item.sortedClass = 11
+						elseif IsQuestItemTooltip(item.bagID, item.slot) then
+							-- If name-based heuristic fails, check tooltip
+							item.sortedClass = 11
+						end
+					end
 					item.equipSlotOrder = 999
 				end
 

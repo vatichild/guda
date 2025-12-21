@@ -34,7 +34,7 @@ local function IsQuestItem(bagID, slotID)
 					break
 				-- Check for regular quest item patterns
 				elseif string.find(text, "Quest Item") or
-				(string.find(text, "Manual") or string.find(text, "Soulbond")) then
+				string.find(text, "Manual") then
 					isQuestItem = true
 				-- Don't break, might still find a quest starter pattern
 				end
