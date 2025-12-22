@@ -445,6 +445,42 @@ function Tooltip:Initialize()
 		end)
 	end
 
+	-- Hook SetTradeSkillItem for profession reagents and items
+	local oldSetTradeSkillItem = GameTooltip.SetTradeSkillItem
+	function GameTooltip:SetTradeSkillItem(skillIndex, reagentIndex)
+		return WithDeferredMoney(self, function()
+			local ret = oldSetTradeSkillItem(self, skillIndex, reagentIndex)
+			local link
+			if reagentIndex then
+				link = GetTradeSkillReagentItemLink(skillIndex, reagentIndex)
+			else
+				link = GetTradeSkillItemLink(skillIndex)
+			end
+			if link then
+				Tooltip:AddInventoryInfo(self, link)
+			end
+			return ret
+		end)
+	end
+
+	-- Hook SetCraftItem for professions like Enchanting (Crafts)
+	local oldSetCraftItem = GameTooltip.SetCraftItem
+	function GameTooltip:SetCraftItem(skillIndex, reagentIndex)
+		return WithDeferredMoney(self, function()
+			local ret = oldSetCraftItem(self, skillIndex, reagentIndex)
+			local link
+			if reagentIndex then
+				link = GetCraftReagentItemLink(skillIndex, reagentIndex)
+			else
+				link = GetCraftItemLink(skillIndex)
+			end
+			if link then
+				Tooltip:AddInventoryInfo(self, link)
+			end
+			return ret
+		end)
+	end
+
 	-- Also hook ItemRefTooltip for chat links
 	if ItemRefTooltip then
 		local oldItemRefSetHyperlink = ItemRefTooltip.SetHyperlink
