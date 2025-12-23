@@ -255,7 +255,7 @@ function BankFrame:DisplayItemsByCategory(bankData, isOtherChar, charName)
     -- Group items by category
     local categories = {}
     local categoryList = {
-        "Weapon", "Armor", "Consumable", "Food", "Drink", "Quest", "Trade Goods", "Reagent", "Recipe", "Quiver", "Container", "Soul Bag", "Miscellaneous"
+        "Weapon", "Armor", "Consumable", "Food", "Drink", "Class Items", "Quest", "Trade Goods", "Reagent", "Recipe", "Quiver", "Container", "Soul Bag", "Miscellaneous"
     }
     for _, cat in ipairs(categoryList) do categories[cat] = {} end
 
@@ -291,11 +291,20 @@ function BankFrame:DisplayItemsByCategory(bankData, isOtherChar, charName)
             return
         end
 
-        -- Priority 2: Quest Items
+        -- Priority 2: Class Items (Soul Shards, Arrows, Bullets)
+        if addon.Modules.Utils:IsSoulShard(itemData.link) or 
+           itemData.class == "Projectile" or 
+           itemData.subclass == "Arrow" or 
+           itemData.subclass == "Bullet" then
+            table.insert(categories["Class Items"], {bagID = bagID, slotID = slotID, itemData = itemData})
+            return
+        end
+
+        -- Priority 3: Quest Items
         if (not isOtherChar and addon.Modules.Utils:IsQuestItemTooltip(bagID, slotID)) or itemData.class == "Quest" then
             cat = "Quest"
         
-        -- Priority 3: Food and Drink
+        -- Priority 4: Food and Drink
         elseif itemData.class == "Consumable" then
             cat = "Consumable"
             local sub = itemData.subclass or ""

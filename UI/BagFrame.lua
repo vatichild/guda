@@ -403,7 +403,7 @@ function BagFrame:DisplayItemsByCategory(bagData, isOtherChar, charName)
     -- Group items by category
     local categories = {}
     local categoryList = {
-        "Weapon", "Armor", "Consumable", "Food", "Drink", "Quest", "Trade Goods", "Reagent", "Recipe", "Quiver", "Container", "Soul Bag", "Keyring", "Miscellaneous"
+        "Weapon", "Armor", "Consumable", "Food", "Drink", "Class Items", "Quest", "Trade Goods", "Reagent", "Recipe", "Quiver", "Container", "Soul Bag", "Keyring", "Miscellaneous"
     }
     for _, cat in ipairs(categoryList) do categories[cat] = {} end
     
@@ -438,11 +438,18 @@ function BagFrame:DisplayItemsByCategory(bagData, isOtherChar, charName)
                            itemName == "Blood Scythe" then
                             table.insert(specialItems.Tools, {bagID = bagID, slotID = slotID, itemData = itemData})
                         
-                        -- Priority 2: Quest Items
+                        -- Priority 2: Class Items (Soul Shards, Arrows, Bullets)
+                        elseif addon.Modules.Utils:IsSoulShard(itemData.link) or 
+                               itemData.class == "Projectile" or 
+                               itemData.subclass == "Arrow" or 
+                               itemData.subclass == "Bullet" then
+                            table.insert(categories["Class Items"], {bagID = bagID, slotID = slotID, itemData = itemData})
+
+                        -- Priority 3: Quest Items
                         elseif (not isOtherChar and addon.Modules.Utils:IsQuestItemTooltip(bagID, slotID)) or itemData.class == "Quest" then
                             table.insert(categories["Quest"], {bagID = bagID, slotID = slotID, itemData = itemData})
                         
-                        -- Priority 3: Food and Drink
+                        -- Priority 4: Food and Drink
                         elseif itemData.class == "Consumable" then
                             cat = "Consumable"
                             local sub = itemData.subclass or ""
