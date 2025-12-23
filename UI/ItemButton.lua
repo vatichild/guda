@@ -10,11 +10,19 @@ scanTooltip:SetOwner(WorldFrame, "ANCHOR_NONE")
 
 -- Check if an item is a quest item by scanning its tooltip
 -- Check if an item is a quest item by scanning its tooltip and determine type
-local function IsQuestItem(bagID, slotID)
+local function IsQuestItem(bagID, slotID, isBank)
 	if not bagID or not slotID then return false end
 
 	scanTooltip:ClearLines()
-	scanTooltip:SetBagItem(bagID, slotID)
+    if isBank and bagID == -1 then
+        if scanTooltip.SetInventoryItem then
+            scanTooltip:SetInventoryItem("player", 39 + slotID)
+        else
+            scanTooltip:SetBagItem(bagID, slotID)
+        end
+    else
+	    scanTooltip:SetBagItem(bagID, slotID)
+    end
 
 	local isQuestItem = false
 	local isQuestStarter = false
@@ -338,7 +346,7 @@ function Guda_ItemButton_OnLoad(self)
             if link and addon and addon.Modules and addon.Modules.Utils then
                 local itemID = addon.Modules.Utils:ExtractItemID(link)
                 if itemID then
-                    local isQuest = IsQuestItem(this.bagID, this.slotID)
+                    local isQuest = IsQuestItem(this.bagID, this.slotID, this.isBank)
                     if isQuest and addon.Modules.QuestItemBar and addon.Modules.QuestItemBar.PinItem then
                         addon.Modules.QuestItemBar:PinItem(itemID)
                         return

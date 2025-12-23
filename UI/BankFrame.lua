@@ -421,7 +421,7 @@ function BankFrame:DisplayItemsByCategory(bankData, isOtherChar, charName)
                 button:Show()
                 
                 local matchesFilter = self:PassesSearchFilter(itemData)
-                Guda_ItemButton_SetItem(button, bagID, slot, itemData, true, isOtherChar and charName or nil, matchesFilter, true)
+                Guda_ItemButton_SetItem(button, bagID, slot, itemData, true, isOtherChar and charName or nil, matchesFilter, isOtherChar or isReadOnlyMode)
                 button.inUse = true
                 
                 col = col + 1
@@ -539,7 +539,7 @@ function BankFrame:DisplayItemsByCategory(bankData, isOtherChar, charName)
                         button:ClearAllPoints()
                         button:SetPoint("TOPLEFT", itemContainer, "TOPLEFT", x + currentBottomX + (sCol * (buttonSize + spacing)), itemY - (sRow * (buttonSize + spacing)))
                         button:Show()
-                        Guda_ItemButton_SetItem(button, item.bagID, item.slotID, item.itemData, true, isOtherChar and charName or nil, self:PassesSearchFilter(item.itemData), true)
+                        Guda_ItemButton_SetItem(button, item.bagID, item.slotID, item.itemData, true, isOtherChar and charName or nil, self:PassesSearchFilter(item.itemData), isOtherChar or isReadOnlyMode)
                         button.inUse = true
                         
                         sCol = sCol + 1
