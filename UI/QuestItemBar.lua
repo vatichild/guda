@@ -39,7 +39,7 @@ local function IsItemUsable(bagID, slotID)
             if text then
                 local tl = string.lower(text)
                 -- Match explicit usability phrases (case-insensitive). Avoid generic 'quest item' matches.
-                if string.find(tl, "use:") or string.find(tl, "right%-click") or string.find(tl, "right click") or string.find(tl, "click to") or string.find(tl, "starts a quest") then
+                if string.find(tl, "use:") or string.find(tl, "begins a quest") or string.find(tl, "starts a quest") then
                     return true
                 end
             end
