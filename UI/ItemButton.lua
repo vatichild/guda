@@ -544,7 +544,7 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
     local check = getglobal(self:GetName().."_Check")
     if check then
         local isTracked = false
-        if self.hasItem and addon.Modules.DB:GetSetting("showTrackedItems") then
+        if self.hasItem then
             local itemID = addon.Modules.Utils:ExtractItemID(self.itemData and self.itemData.link)
             if itemID then
                 local trackedItems = addon.Modules.DB:GetSetting("trackedItems") or {}
@@ -771,7 +771,7 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
         if not self.isReadOnly and not self.otherChar then
             local old_OnClick = self:GetScript("OnClick")
             self:SetScript("OnClick", function()
-                if IsControlKeyDown() and addon.Modules.DB:GetSetting("showTrackedItems") then
+                if IsControlKeyDown() then
                     local itemID = addon.Modules.Utils:ExtractItemID(GetContainerItemLink(this:GetParent():GetID(), this:GetID()))
                     if itemID then
                         local trackedItems = addon.Modules.DB:GetSetting("trackedItems") or {}

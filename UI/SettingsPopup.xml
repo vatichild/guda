@@ -343,24 +343,6 @@
                 </Scripts>
             </CheckButton>
 
-            <!-- Show Tracked Items Checkbox -->
-            <CheckButton name="$parent_ShowTrackedItemsCheckbox" inherits="OptionsCheckButtonTemplate">
-                <Anchors>
-                    <Anchor point="TOP" relativePoint="BOTTOM" relativeTo="$parent_HoverBaglineCheckbox">
-                        <Offset>
-                            <AbsDimension x="0" y="-8"/>
-                        </Offset>
-                    </Anchor>
-                </Anchors>
-                <Scripts>
-                    <OnLoad>
-                        Guda_SettingsPopup_ShowTrackedItemsCheckbox_OnLoad(this)
-                    </OnLoad>
-                    <OnClick>
-                        Guda_SettingsPopup_ShowTrackedItemsCheckbox_OnClick(this)
-                    </OnClick>
-                </Scripts>
-            </CheckButton>
         </Frames>
 
         <Scripts>

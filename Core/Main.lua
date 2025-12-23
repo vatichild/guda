@@ -124,12 +124,15 @@ function Main:SetupSlashCommands()
             addon:Print("Quest bar: %s", show and "ON" or "OFF")
 
         elseif msg == "track" then
-            -- Toggle tracked items
-            local show = not addon.Modules.DB:GetSetting("showTrackedItems")
-            addon.Modules.DB:SetSetting("showTrackedItems", show)
-            if addon.Modules.TrackedItemBar then addon.Modules.TrackedItemBar:Update() end
-            if addon.Modules.BagFrame then addon.Modules.BagFrame:Update() end
-            addon:Print("Track items: %s", show and "ON" or "OFF")
+            -- Toggle tracked items bar visibility
+            local frame = Guda_TrackedItemBar
+            if frame then
+                if frame:IsShown() then
+                    frame:Hide()
+                else
+                    frame:Show()
+                end
+            end
 
         elseif msg == "cleanup" then
             -- Cleanup old characters

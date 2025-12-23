@@ -64,13 +64,7 @@ end
 
 -- Update the bar buttons
 function TrackedItemBar:Update()
-    local showTrackedItems = addon.Modules.DB:GetSetting("showTrackedItems")
     local frame = Guda_TrackedItemBar
-    
-    if showTrackedItems == false then
-        if frame then frame:Hide() end
-        return
-    end
     
     if not frame then return end
     frame:Show()

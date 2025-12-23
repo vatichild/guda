@@ -65,10 +65,6 @@ function Guda_SettingsPopup_OnShow(self)
     if hoverBagline == nil then
         hoverBagline = false
     end
-    local showTrackedItems = Guda.Modules.DB:GetSetting("showTrackedItems")
-    if showTrackedItems == nil then
-        showTrackedItems = false
-    end
     local bgTransparency = Guda.Modules.DB:GetSetting("bgTransparency") or 0.15
 
     -- Update sliders and checkboxes
@@ -85,7 +81,6 @@ function Guda_SettingsPopup_OnShow(self)
     local showSearchBarCheckbox = getglobal("Guda_SettingsPopup_ShowSearchBarCheckbox")
     local showQuestBarCheckbox = getglobal("Guda_SettingsPopup_ShowQuestBarCheckbox")
     local hoverBaglineCheckbox = getglobal("Guda_SettingsPopup_HoverBaglineCheckbox")
-    local showTrackedItemsCheckbox = getglobal("Guda_SettingsPopup_ShowTrackedItemsCheckbox")
 
     if bagSlider then
         bagSlider:SetValue(bagColumns)
@@ -139,9 +134,6 @@ function Guda_SettingsPopup_OnShow(self)
         hoverBaglineCheckbox:SetChecked(hoverBagline and 1 or 0)
     end
 
-    if showTrackedItemsCheckbox then
-        showTrackedItemsCheckbox:SetChecked(showTrackedItems and 1 or 0)
-    end
 
     -- Update display (might be too tall for current frame size)
     local frame = getglobal("Guda_SettingsPopup")
@@ -819,27 +811,3 @@ function SettingsPopup:Initialize()
     Guda:Debug("Settings popup initialized")
 end
 
--- Show Tracked Items Checkbox OnLoad
-function Guda_SettingsPopup_ShowTrackedItemsCheckbox_OnLoad(self)
-    getglobal(self:GetName().."Text"):SetText("Track items")
-    local currentValue = Guda.Modules.DB:GetSetting("showTrackedItems")
-    if currentValue == nil then
-        currentValue = false
-    end
-    self:SetChecked(currentValue and 1 or 0)
-end
-
--- Show Tracked Items Checkbox OnClick
-function Guda_SettingsPopup_ShowTrackedItemsCheckbox_OnClick(self)
-    local isChecked = self:GetChecked()
-    Guda.Modules.DB:SetSetting("showTrackedItems", isChecked == 1)
-    
-    if Guda.Modules.TrackedItemBar and Guda.Modules.TrackedItemBar.Update then
-        Guda.Modules.TrackedItemBar:Update()
-    end
-    
-    -- Refresh bag frame to show/hide checkmarks
-    if Guda.Modules.BagFrame and Guda.Modules.BagFrame.Update then
-        Guda.Modules.BagFrame:Update()
-    end
-end
