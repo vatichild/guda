@@ -327,7 +327,7 @@ function QuestItemBar:Update()
                         pins[index] = nil
                         addon.Modules.DB:SetSetting("questBarPinnedItems", pins)
                         QuestItemBar:Update()
-                    else
+                    elseif not IsShiftKeyDown() then
                         UseContainerItem(this.bagID, this.slotID)
                     end
                 end

@@ -144,7 +144,7 @@ function TrackedItemBar:Update()
                     end
                     TrackedItemBar:Update()
                 end
-            else
+            elseif not IsShiftKeyDown() then
                 -- Use item
                 if this.bagID and this.slotID then
                     UseContainerItem(this.bagID, this.slotID)

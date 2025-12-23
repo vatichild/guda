@@ -37,14 +37,16 @@ function Guda_SettingsPopup_OnLoad(self)
     local instructions = getglobal(self:GetName().."_HowToUseTab_Instructions")
     if instructions then
         local text = "|cffffd100Tracking Items:|r\n" ..
-                     "Ctrl + Left Click on any item in your bags to track it.\n" ..
+                     "Alt + Left Click on any item in your bags to track it.\n" ..
                      "Tracked items will appear in the Tracked Item Bar.\n" ..
-                     "Ctrl + Left Click on an item in the bar to untrack it.\n\n" ..
+                     "Left Click on an item in the bar to use it.\n" ..
+                     "Alt + Left Click on an item in the bar to untrack it.\n\n" ..
                      "|cffffd100Moving Bars:|r\n" ..
                      "Shift + Left Click and drag any item on the Quest Item Bar or Tracked Item Bar to move the bar.\n" ..
                      "You can also drag the bar background if it's visible.\n\n" ..
                      "|cffffd100Quest Item Bar:|r\n" ..
-                     "Alt + Left Click on a quest item in your bags to pin it to the bar."
+                     "Alt + Left Click on a quest item in your bags to pin it.\n" ..
+                     "Alt + Right Click on an item in the bar to unpin it."
         instructions:SetText(text)
     end
 
