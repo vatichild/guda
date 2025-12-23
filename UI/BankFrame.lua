@@ -295,6 +295,18 @@ function BankFrame:DisplayItemsByCategory(bankData, isOtherChar, charName)
             return
         end
 
+        -- Detect Food and Drink
+        if itemData.class == "Consumable" then
+            local sub = itemData.subclass or ""
+            if sub == "Food & Drink" or string.find(sub, "Food") or string.find(sub, "Drink") then
+                if string.find(sub, "Drink") then
+                    cat = "Drink"
+                else
+                    cat = "Food"
+                end
+            end
+        end
+
         local cat = itemData.class or "Miscellaneous"
 
         -- Force Quest category if it's a quest item (tooltip scan)
@@ -308,18 +320,6 @@ function BankFrame:DisplayItemsByCategory(bankData, isOtherChar, charName)
                 cat = itemData.class
             else
                 cat = "Armor"
-            end
-        end
-
-        -- Detect Food and Drink
-        if itemData.class == "Consumable" then
-            local sub = itemData.subclass or ""
-            if sub == "Food & Drink" or string.find(sub, "Food") or string.find(sub, "Drink") then
-                if string.find(sub, "Drink") then
-                    cat = "Drink"
-                else
-                    cat = "Food"
-                end
             end
         end
 
@@ -476,7 +476,7 @@ function BankFrame:DisplayItemsByCategory(bankData, isOtherChar, charName)
                 local blockHeight = 20 + (blockRows * (buttonSize + spacing))
 
                 -- Check if it fits in current row (Inline block for bottom sections too)
-                if col > 0 and (col * (buttonSize + spacing)) + blockWidth + 20 > totalWidth + 5 then
+                if col > 0 and (col * (buttonSize + spacing)) + blockWidth > totalWidth + 5 then
                     col = 0
                     y = y - sectionMaxHeight - 5
                     sectionMaxHeight = 0
@@ -513,7 +513,7 @@ function BankFrame:DisplayItemsByCategory(bankData, isOtherChar, charName)
                 end
 
                 if blockHeight > sectionMaxHeight then sectionMaxHeight = blockHeight end
-                col = col + blockCols + math.ceil(20 / (buttonSize + spacing))
+                col = col + blockCols + 1 -- Add 1 slot worth of spacing (around 40px) instead of 20px gap logic
                 
                 -- If we wrapped exactly at the end of a block
                 if (col * (buttonSize + spacing)) >= totalWidth then

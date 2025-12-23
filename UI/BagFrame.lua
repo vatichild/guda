@@ -445,14 +445,6 @@ function BagFrame:DisplayItemsByCategory(bagData, isOtherChar, charName)
                            string.find(itemName, "Skinning Knife") or
                            itemName == "Blood Scythe" then
                             table.insert(specialItems.Tools, {bagID = bagID, slotID = slotID, itemData = itemData})
-                        -- Split Equipment into Weapon and Armor
-                        elseif itemData.equipSlot and itemData.equipSlot ~= "" then
-                            if itemData.class == "Weapon" or itemData.class == "Armor" then
-                                cat = itemData.class
-                            else
-                                cat = "Armor" -- Accessories etc usually fall here if equippable
-                            end
-                            table.insert(categories[cat], {bagID = bagID, slotID = slotID, itemData = itemData})
                         -- Detect Food and Drink
                         elseif itemData.class == "Consumable" then
                             local sub = itemData.subclass or ""
@@ -462,6 +454,14 @@ function BagFrame:DisplayItemsByCategory(bagData, isOtherChar, charName)
                                 else
                                     cat = "Food"
                                 end
+                            end
+                            table.insert(categories[cat], {bagID = bagID, slotID = slotID, itemData = itemData})
+                        -- Split Equipment into Weapon and Armor
+                        elseif itemData.equipSlot and itemData.equipSlot ~= "" then
+                            if itemData.class == "Weapon" or itemData.class == "Armor" then
+                                cat = itemData.class
+                            else
+                                cat = "Armor" -- Accessories etc usually fall here if equippable
                             end
                             table.insert(categories[cat], {bagID = bagID, slotID = slotID, itemData = itemData})
                         else
@@ -611,7 +611,7 @@ function BagFrame:DisplayItemsByCategory(bagData, isOtherChar, charName)
                 local blockHeight = 20 + (blockRows * (buttonSize + spacing))
 
                 -- Check if it fits in current row (Inline block for bottom sections too)
-                if col > 0 and (col * (buttonSize + spacing)) + blockWidth + 20 > totalWidth + 5 then
+                if col > 0 and (col * (buttonSize + spacing)) + blockWidth > totalWidth + 5 then
                     col = 0
                     y = y - sectionMaxHeight - 5
                     sectionMaxHeight = 0
@@ -648,7 +648,7 @@ function BagFrame:DisplayItemsByCategory(bagData, isOtherChar, charName)
                 end
 
                 if blockHeight > sectionMaxHeight then sectionMaxHeight = blockHeight end
-                col = col + blockCols + math.ceil(20 / (buttonSize + spacing))
+                col = col + blockCols + 1 -- Add 1 slot worth of spacing (around 40px) instead of 20px gap logic
                 
                 -- If we wrapped exactly at the end of a block
                 if (col * (buttonSize + spacing)) >= totalWidth then

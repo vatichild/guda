@@ -145,7 +145,7 @@ local function GetTexturePattern(textureName)
 end
 
 -- Check if an item is a mount by texture path
-local function IsMount(itemTexture)
+function SortEngine.IsMount(itemTexture)
 	if not itemTexture then return false end
 
 	local textureLower = string.lower(itemTexture)
@@ -158,6 +158,7 @@ local function IsMount(itemTexture)
 
 	return false
 end
+local IsMount = SortEngine.IsMount
 
 -- Determine subclass order for grouping related items
 local function GetSubclassOrder(subclass, itemName)
