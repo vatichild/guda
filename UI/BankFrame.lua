@@ -269,21 +269,16 @@ function BankFrame:DisplayItemsByCategory(bankData, isOtherChar, charName)
     -- Helper to assign category
     local function CategorizeItem(itemData, bagID, slotID)
         local itemName = itemData.name or ""
+        local cat = "Miscellaneous"
 
-        -- Detect Hearthstone
+        -- Priority 1: Special items (Hearthstone, Mounts, Tools)
         if string.find(itemName, "Hearthstone") then
             table.insert(specialItems.Hearthstone, {bagID = bagID, slotID = slotID, itemData = itemData})
             return
-        end
-
-        -- Detect Mounts
-        if addon.Modules.SortEngine and addon.Modules.SortEngine.IsMount and addon.Modules.SortEngine.IsMount(itemData.texture) then
+        elseif addon.Modules.SortEngine and addon.Modules.SortEngine.IsMount and addon.Modules.SortEngine.IsMount(itemData.texture) then
             table.insert(specialItems.Mount, {bagID = bagID, slotID = slotID, itemData = itemData})
             return
-        end
-
-        -- Detect Tools category
-        if string.find(itemName, "Runed .* Rod") or
+        elseif string.find(itemName, "Runed .* Rod") or
            string.find(itemName, "Fishing Pole") or
            string.find(itemName, "Mining Pick") or
            string.find(itemName, "Blacksmith Hammer") or
@@ -296,8 +291,13 @@ function BankFrame:DisplayItemsByCategory(bankData, isOtherChar, charName)
             return
         end
 
-        -- Detect Food and Drink
-        if itemData.class == "Consumable" then
+        -- Priority 2: Quest Items
+        if (not isOtherChar and addon.Modules.Utils:IsQuestItemTooltip(bagID, slotID)) or itemData.class == "Quest" then
+            cat = "Quest"
+        
+        -- Priority 3: Food and Drink
+        elseif itemData.class == "Consumable" then
+            cat = "Consumable"
             local sub = itemData.subclass or ""
             if sub == "Food & Drink" or string.find(sub, "Food") or string.find(sub, "Drink") then
                 if string.find(sub, "Drink") then
@@ -306,39 +306,25 @@ function BankFrame:DisplayItemsByCategory(bankData, isOtherChar, charName)
                     cat = "Food"
                 end
             end
-        end
 
-        local cat = itemData.class or "Miscellaneous"
-
-        -- Force Quest category if it's a quest item (tooltip scan)
-        if not isOtherChar and addon.Modules.Utils:IsQuestItemTooltip(bagID, slotID) then
-            cat = "Quest"
-        end
-
-        -- Split Equipment into Weapon and Armor
-        if itemData.equipSlot and itemData.equipSlot ~= "" then
+        -- Priority 4: Equipment (Weapon and Armor)
+        elseif itemData.equipSlot and itemData.equipSlot ~= "" then
             if itemData.class == "Weapon" or itemData.class == "Armor" then
                 cat = itemData.class
             else
                 cat = "Armor"
             end
+        
+        -- Priority 5: Other Categories
+        else
+            cat = itemData.class or "Miscellaneous"
         end
 
         if not categories[cat] then cat = "Miscellaneous" end
         table.insert(categories[cat], {bagID = bagID, slotID = slotID, itemData = itemData})
     end
 
-    -- Bank main slots (bagID -1)
-    local bankMain = bankData[-1]
-    if bankMain and bankMain.slots then
-        for slotID, itemData in pairs(bankMain.slots) do
-            if itemData then
-                CategorizeItem(itemData, -1, slotID)
-            end
-        end
-    end
-
-    -- Bank bags
+    -- Bank slots
     for _, bagID in ipairs(addon.Constants.BANK_BAGS) do
         if not hiddenBankBags[bagID] then
             local bag = bankData[bagID]

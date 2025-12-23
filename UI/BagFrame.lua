@@ -419,22 +419,14 @@ function BagFrame:DisplayItemsByCategory(bagData, isOtherChar, charName)
             if bag and bag.slots then
                 for slotID, itemData in pairs(bag.slots) do
                     if itemData then
-                        local cat = itemData.class or "Miscellaneous"
+                        local cat = "Miscellaneous"
                         local itemName = itemData.name or ""
 
-                        -- Force Quest category if it's a quest item (tooltip scan)
-                        -- For other characters, we rely on the saved class, but for current we can be more accurate
-                        if not isOtherChar and addon.Modules.Utils:IsQuestItemTooltip(bagID, slotID) then
-                            cat = "Quest"
-                        end
-
-                        -- Detect Hearthstone
+                        -- Priority 1: Special items (Hearthstone, Mounts, Tools)
                         if string.find(itemName, "Hearthstone") then
                             table.insert(specialItems.Hearthstone, {bagID = bagID, slotID = slotID, itemData = itemData})
-                        -- Detect Mounts
                         elseif addon.Modules.SortEngine and addon.Modules.SortEngine.IsMount and addon.Modules.SortEngine.IsMount(itemData.texture) then
                              table.insert(specialItems.Mount, {bagID = bagID, slotID = slotID, itemData = itemData})
-                        -- Detect Tools category
                         elseif string.find(itemName, "Runed .* Rod") or
                            string.find(itemName, "Fishing Pole") or
                            string.find(itemName, "Mining Pick") or
@@ -445,8 +437,14 @@ function BagFrame:DisplayItemsByCategory(bagData, isOtherChar, charName)
                            string.find(itemName, "Skinning Knife") or
                            itemName == "Blood Scythe" then
                             table.insert(specialItems.Tools, {bagID = bagID, slotID = slotID, itemData = itemData})
-                        -- Detect Food and Drink
+                        
+                        -- Priority 2: Quest Items
+                        elseif (not isOtherChar and addon.Modules.Utils:IsQuestItemTooltip(bagID, slotID)) or itemData.class == "Quest" then
+                            table.insert(categories["Quest"], {bagID = bagID, slotID = slotID, itemData = itemData})
+                        
+                        -- Priority 3: Food and Drink
                         elseif itemData.class == "Consumable" then
+                            cat = "Consumable"
                             local sub = itemData.subclass or ""
                             if sub == "Food & Drink" or string.find(sub, "Food") or string.find(sub, "Drink") then
                                 if string.find(sub, "Drink") then
@@ -456,15 +454,19 @@ function BagFrame:DisplayItemsByCategory(bagData, isOtherChar, charName)
                                 end
                             end
                             table.insert(categories[cat], {bagID = bagID, slotID = slotID, itemData = itemData})
-                        -- Split Equipment into Weapon and Armor
+
+                        -- Priority 4: Equipment (Weapon and Armor)
                         elseif itemData.equipSlot and itemData.equipSlot ~= "" then
                             if itemData.class == "Weapon" or itemData.class == "Armor" then
                                 cat = itemData.class
                             else
-                                cat = "Armor" -- Accessories etc usually fall here if equippable
+                                cat = "Armor"
                             end
                             table.insert(categories[cat], {bagID = bagID, slotID = slotID, itemData = itemData})
+                        
+                        -- Priority 5: Other Categories
                         else
+                            cat = itemData.class or "Miscellaneous"
                             if not categories[cat] then cat = "Miscellaneous" end
                             table.insert(categories[cat], {bagID = bagID, slotID = slotID, itemData = itemData})
                         end
