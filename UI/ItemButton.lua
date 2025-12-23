@@ -957,28 +957,28 @@ function Guda_ItemButton_OnEnter(self)
 
 	-- Debug: print hovered item's texture path to chat
 	-- Uses GetItemInfo on the hovered item's ID
-	if self.hasItem then
-		local link = nil
-		if self.itemData and self.itemData.link then
-			link = self.itemData.link
-		else
-			-- Fallback to live bag query
-			link = GetContainerItemLink(self.bagID, self.slotID)
-		end
-		if link and addon and addon.Modules and addon.Modules.Utils and addon.Modules.Utils.ExtractItemID then
-			local itemID = addon.Modules.Utils:ExtractItemID(link)
-			if itemID and addon.Modules.Utils.GetItemInfoSafe then
-				local name, itemLink, itemRarity, itemLevel, itemCategory, itemType, itemStackCount,
-					itemSubType, itemTexture, itemEquipLoc, itemSellPrice = addon.Modules.Utils:GetItemInfoSafe(itemID)
-				if addon and addon.Print then
-					addon:Print("itemTexture: %s", tostring(itemTexture))
-					addon:Print("itemCategory: %s", tostring(itemCategory))
-					addon:Print("itemType: %s", tostring(itemType))
-					addon:Print("itemType: %s", tostring(itemType))
-				end
-			end
-		end
-	end
+	--if self.hasItem then
+	--	local link = nil
+	--	if self.itemData and self.itemData.link then
+	--		link = self.itemData.link
+	--	else
+	--		-- Fallback to live bag query
+	--		link = GetContainerItemLink(self.bagID, self.slotID)
+	--	end
+	--	if link and addon and addon.Modules and addon.Modules.Utils and addon.Modules.Utils.ExtractItemID then
+	--		local itemID = addon.Modules.Utils:ExtractItemID(link)
+	--		if itemID and addon.Modules.Utils.GetItemInfoSafe then
+	--			local name, itemLink, itemRarity, itemLevel, itemCategory, itemType, itemStackCount,
+	--				itemSubType, itemTexture, itemEquipLoc, itemSellPrice = addon.Modules.Utils:GetItemInfoSafe(itemID)
+	--			if addon and addon.Print then
+	--				addon:Print("itemTexture: %s", tostring(itemTexture))
+	--				addon:Print("itemCategory: %s", tostring(itemCategory))
+	--				addon:Print("itemType: %s", tostring(itemType))
+	--				addon:Print("itemType: %s", tostring(itemType))
+	--			end
+	--		end
+	--	end
+	--end
 	-- Handle merchant sell cursor (same approach as BagShui)
 	if MerchantFrame:IsShown() and not self.isBank and not self.otherChar and self.hasItem then
 		ShowContainerSellCursor(self.bagID, self.slotID)

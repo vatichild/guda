@@ -224,9 +224,21 @@ function BankFrame:GetSectionHeader(index)
     if not header then
         header = CreateFrame("Frame", name, getglobal("Guda_BankFrame_ItemContainer"))
         header:SetHeight(20)
+        header:EnableMouse(true)
         local text = header:CreateFontString(nil, "OVERLAY", "GameFontNormal")
         text:SetPoint("LEFT", header, "LEFT", 0, 0)
         header.text = text
+
+        header:SetScript("OnEnter", function()
+            if this.fullName and this.isShortened then
+                GameTooltip:SetOwner(this, "ANCHOR_TOP")
+                GameTooltip:SetText(this.fullName)
+                GameTooltip:Show()
+            end
+        end)
+        header:SetScript("OnLeave", function()
+            GameTooltip:Hide()
+        end)
     end
     header.inUse = true
     return header
@@ -408,7 +420,15 @@ function BankFrame:DisplayItemsByCategory(bankData, isOtherChar, charName)
             headerIdx = headerIdx + 1
             header:SetPoint("TOPLEFT", itemContainer, "TOPLEFT", startX + currentX, startY - currentY)
             header:SetWidth(blockWidth)
-            header.text:SetText(catName)
+            
+            local displayName = catName
+            header.fullName = catName
+            header.isShortened = false
+            if string.len(displayName) > 10 and numItems < 2 then
+                displayName = string.sub(displayName, 1, 7) .. "..."
+                header.isShortened = true
+            end
+            header.text:SetText(displayName)
             header:Show()
             
             local itemY = currentY + 20
