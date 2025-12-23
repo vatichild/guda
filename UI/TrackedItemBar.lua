@@ -106,6 +106,7 @@ function TrackedItemBar:Update()
 
         button.hasItem = true
         button.itemData = { link = info.link }
+        button.itemID = info.itemID
         button.isReadOnly = true -- Don't allow regular clicks/interaction like usage? 
         -- Actually user didn't specify usage, but "action bar type" suggests it might be usable.
         -- But "tracked items" usually means materials or currencies.
@@ -121,15 +122,18 @@ function TrackedItemBar:Update()
         button:SetScript("OnClick", function()
             if IsControlKeyDown() then
                 -- Un-track item
-                local trackedIDs = addon.Modules.DB:GetSetting("trackedItems") or {}
-                trackedIDs[info.itemID] = nil
-                addon.Modules.DB:SetSetting("trackedItems", trackedIDs)
-                
-                -- Update everything
-                if Guda.Modules.BagFrame and Guda.Modules.BagFrame.Update then
-                    Guda.Modules.BagFrame:Update()
+                local itemID = this.itemID
+                if itemID then
+                    local trackedIDs = addon.Modules.DB:GetSetting("trackedItems") or {}
+                    trackedIDs[itemID] = nil
+                    addon.Modules.DB:SetSetting("trackedItems", trackedIDs)
+                    
+                    -- Update everything
+                    if Guda.Modules.BagFrame and Guda.Modules.BagFrame.Update then
+                        Guda.Modules.BagFrame:Update()
+                    end
+                    TrackedItemBar:Update()
                 end
-                TrackedItemBar:Update()
             end
         end)
         
