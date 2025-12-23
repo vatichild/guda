@@ -323,6 +323,17 @@ function BagFrame:Update()
 
 	-- Display items
 	local viewType = addon.Modules.DB:GetSetting("bagViewType") or "single"
+	
+    -- Reset all section headers before displaying items
+    local i = 1
+    while true do
+        local header = getglobal("Guda_BagFrame_SectionHeader" .. i)
+        if not header then break end
+        header.inUse = false
+        header:Hide()
+        i = i + 1
+    end
+
 	if viewType == "category" then
 		self:DisplayItemsByCategory(bagData, isOtherChar, charName)
 	else
@@ -335,19 +346,8 @@ function BagFrame:Update()
 	-- Update bag slots info
 	self:UpdateBagSlotsInfo(bagData, isOtherChar)
 
- -- Update bagline layout (hover option)
+	-- Update bagline layout (hover option)
 	self:UpdateBaglineLayout()
-
-    -- Clean up unused section headers
-    local i = 1
-    while true do
-        local header = getglobal("Guda_BagFrame_SectionHeader" .. i)
-        if not header then break end
-        if not header.inUse then
-            header:Hide()
-        end
-        i = i + 1
-    end
 
 	-- Clean up unused buttons AFTER display is complete (prevents drag/drop issues)
 	for _, bagParent in pairs(bagParents) do
@@ -397,15 +397,6 @@ function BagFrame:DisplayItemsByCategory(bagData, isOtherChar, charName)
     local spacing = addon.Modules.DB:GetSetting("iconSpacing") or addon.Constants.BUTTON_SPACING
     local perRow = addon.Modules.DB:GetSetting("bagColumns") or 10
     local itemContainer = getglobal("Guda_BagFrame_ItemContainer")
-
-    -- Reset headers
-    local idx = 1
-    while true do
-        local h = getglobal("Guda_BagFrame_SectionHeader" .. idx)
-        if not h then break end
-        h.inUse = false
-        idx = idx + 1
-    end
 
     -- Group items by category
     local categories = {}
@@ -510,8 +501,9 @@ function BagFrame:DisplayItemsByCategory(bagData, isOtherChar, charName)
     end
 
     -- Update container height
-    itemContainer:SetHeight(math.abs(y) + 20)
-    self:UpdateFrameSize()
+    local finalHeight = math.abs(y) + 20
+    itemContainer:SetHeight(finalHeight)
+    self:ResizeFrame(nil, nil, perRow, finalHeight)
 end
 
 -- Display items
@@ -676,12 +668,12 @@ function BagFrame:DisplayItems(bagData, isOtherChar, charName)
 end
 
 -- Resize frame based on number of rows and columns
-function BagFrame:ResizeFrame(currentRow, currentCol, columns)
+function BagFrame:ResizeFrame(currentRow, currentCol, columns, overrideHeight)
 	local buttonSize = addon.Modules.DB:GetSetting("iconSize") or addon.Constants.BUTTON_SIZE
 	local spacing = addon.Modules.DB:GetSetting("iconSpacing") or addon.Constants.BUTTON_SPACING
 
 	-- Calculate actual number of rows used
-	local totalRows = currentRow + 1
+	local totalRows = (currentRow or 0) + 1
 
 	-- Ensure at least 1 row
 	if totalRows < 1 then
@@ -690,7 +682,7 @@ function BagFrame:ResizeFrame(currentRow, currentCol, columns)
 
 	-- Calculate required dimensions based on columns
 	local containerWidth = (columns * (buttonSize + spacing)) + 20
-	local containerHeight = (totalRows * (buttonSize + spacing)) + 20
+	local containerHeight = overrideHeight or ((totalRows * (buttonSize + spacing)) + 20)
 	local frameWidth = containerWidth + 20
 
 	-- Check if search bar is visible

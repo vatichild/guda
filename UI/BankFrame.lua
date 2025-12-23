@@ -178,6 +178,17 @@ function BankFrame:Update()
     end
 
     local viewType = addon.Modules.DB:GetSetting("bankViewType") or "single"
+    
+    -- Reset all section headers before displaying items
+    local i = 1
+    while true do
+        local header = getglobal("Guda_BankFrame_SectionHeader" .. i)
+        if not header then break end
+        header.inUse = false
+        header:Hide()
+        i = i + 1
+    end
+
     if viewType == "category" then
         self:DisplayItemsByCategory(bankData, isOtherChar, charName)
     else
@@ -189,17 +200,6 @@ function BankFrame:Update()
 
     -- Update bank slots info
     self:UpdateBankSlotsInfo(bankData, isOtherChar)
-
-    -- Clean up unused section headers
-    local i = 1
-    while true do
-        local header = getglobal("Guda_BankFrame_SectionHeader" .. i)
-        if not header then break end
-        if not header.inUse then
-            header:Hide()
-        end
-        i = i + 1
-    end
 
     -- Clean up unused buttons AFTER display is complete (prevents drag/drop issues)
     for _, bankBagParent in pairs(bankBagParents) do
@@ -249,15 +249,6 @@ function BankFrame:DisplayItemsByCategory(bankData, isOtherChar, charName)
     local spacing = addon.Modules.DB:GetSetting("iconSpacing") or addon.Constants.BUTTON_SPACING
     local perRow = addon.Modules.DB:GetSetting("bankColumns") or 10
     local itemContainer = getglobal("Guda_BankFrame_ItemContainer")
-
-    -- Reset headers
-    local idx = 1
-    while true do
-        local h = getglobal("Guda_BankFrame_SectionHeader" .. idx)
-        if not h then break end
-        h.inUse = false
-        idx = idx + 1
-    end
 
     -- Group items by category
     local categories = {}
@@ -357,8 +348,9 @@ function BankFrame:DisplayItemsByCategory(bankData, isOtherChar, charName)
     end
 
     -- Update container height
-    itemContainer:SetHeight(math.abs(y) + 20)
-    self:UpdateFrameSize()
+    local finalHeight = math.abs(y) + 20
+    itemContainer:SetHeight(finalHeight)
+    self:ResizeFrame(nil, nil, perRow, finalHeight)
 end
 
 -- Display items
@@ -495,12 +487,12 @@ function BankFrame:DisplayItems(bankData, isOtherChar, charName)
 end
 
 -- Resize bank frame based on number of rows and columns
-function BankFrame:ResizeFrame(currentRow, currentCol, columns)
+function BankFrame:ResizeFrame(currentRow, currentCol, columns, overrideHeight)
     local buttonSize = addon.Modules.DB:GetSetting("iconSize") or addon.Constants.BUTTON_SIZE
     local spacing = addon.Modules.DB:GetSetting("iconSpacing") or addon.Constants.BUTTON_SPACING
 
     -- Calculate actual number of rows used
-    local totalRows = currentRow + 1
+    local totalRows = (currentRow or 0) + 1
     if totalRows < 1 then
         totalRows = 1
     end
@@ -512,7 +504,7 @@ function BankFrame:ResizeFrame(currentRow, currentCol, columns)
 
     -- Calculate required dimensions
     local containerWidth = (columns * (buttonSize + spacing)) + 10
-    local containerHeight = (totalRows * (buttonSize + spacing)) + 20
+    local containerHeight = overrideHeight or ((totalRows * (buttonSize + spacing)) + 20)
     local frameWidth = containerWidth + 30
 
     -- Check if search bar is visible
