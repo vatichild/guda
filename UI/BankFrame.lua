@@ -398,15 +398,15 @@ function BankFrame:ResizeFrame(currentRow, currentCol, columns)
     end
 
     -- Maximum sizes
-    if containerWidth > 800 then
-        containerWidth = 800
-        frameWidth = 830
+    if containerWidth > 1250 then
+        containerWidth = 1250
+        frameWidth = 1280
     end
-    if containerHeight > 600 then
-        containerHeight = 600
+    if containerHeight > 1000 then
+        containerHeight = 1000
     end
-    if frameHeight > 800 then
-        frameHeight = 800
+    if frameHeight > 1200 then
+        frameHeight = 1200
     end
 
     local bankFrame = getglobal("Guda_BankFrame")

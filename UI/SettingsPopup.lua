@@ -360,7 +360,7 @@ end
 
 -- Icon Size Slider OnLoad
 function Guda_SettingsPopup_IconSizeSlider_OnLoad(self)
-    getglobal(self:GetName().."Low"):SetText("30px")
+    getglobal(self:GetName().."Low"):SetText("28px")
     getglobal(self:GetName().."High"):SetText("64px")
 
     local text = getglobal(self:GetName().."Text")
@@ -372,7 +372,7 @@ function Guda_SettingsPopup_IconSizeSlider_OnLoad(self)
         text:SetFont(font, 12, flags)
     end
 
-    self:SetMinMaxValues(30, 64)
+    self:SetMinMaxValues(28, 64)
     self:SetValueStep(1)
 
     local currentValue = Guda.Modules.DB:GetSetting("iconSize") or addon.Constants.BUTTON_SIZE
@@ -440,8 +440,8 @@ end
 
 -- Icon Spacing Slider OnLoad
 function Guda_SettingsPopup_IconSpacingSlider_OnLoad(self)
-    getglobal(self:GetName().."Low"):SetText("-5px")
-    getglobal(self:GetName().."High"):SetText("10px")
+    getglobal(self:GetName().."Low"):SetText("-10px")
+    getglobal(self:GetName().."High"):SetText("20px")
 
     local text = getglobal(self:GetName().."Text")
     text:SetText("Icon spacing")
@@ -452,7 +452,7 @@ function Guda_SettingsPopup_IconSpacingSlider_OnLoad(self)
         text:SetFont(font, 12, flags)
     end
 
-    self:SetMinMaxValues(-5, 10)
+    self:SetMinMaxValues(-10, 20)
     self:SetValueStep(1)
 
     local currentValue = Guda.Modules.DB:GetSetting("iconSpacing") or 0
