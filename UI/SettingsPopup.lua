@@ -26,11 +26,50 @@ function Guda_SettingsPopup_OnLoad(self)
     if titleFont then
         title:SetFont(titleFont, 16, titleFlags)
     end
+
+    -- Set tab names
+    PanelTemplates_SetNumTabs(self, 2)
+    getglobal(self:GetName().."Tab1"):SetText("General")
+    getglobal(self:GetName().."Tab2"):SetText("Quick Guide")
+    PanelTemplates_SetTab(self, 1)
+
+    -- Set How to Use text
+    local instructions = getglobal(self:GetName().."_HowToUseTab_Instructions")
+    if instructions then
+        local text = "|cffffd100Tracking Items:|r\n" ..
+                     "Ctrl + Left Click on any item in your bags to track it.\n" ..
+                     "Tracked items will appear in the Tracked Item Bar.\n" ..
+                     "Ctrl + Left Click on an item in the bar to untrack it.\n\n" ..
+                     "|cffffd100Moving Bars:|r\n" ..
+                     "Shift + Left Click and drag any item on the Quest Item Bar or Tracked Item Bar to move the bar.\n" ..
+                     "You can also drag the bar background if it's visible.\n\n" ..
+                     "|cffffd100Quest Item Bar:|r\n" ..
+                     "Alt + Left Click on a quest item in your bags to pin it to the bar."
+        instructions:SetText(text)
+    end
+
     Guda:Debug("Settings popup loaded")
+end
+
+-- Tab switching logic
+function Guda_SettingsPopup_Tab_OnClick(id)
+    local frame = Guda_SettingsPopup
+    PanelTemplates_SetTab(frame, id)
+    
+    if id == 1 then
+        getglobal(frame:GetName().."_GeneralTab"):Show()
+        getglobal(frame:GetName().."_HowToUseTab"):Hide()
+    else
+        getglobal(frame:GetName().."_GeneralTab"):Hide()
+        getglobal(frame:GetName().."_HowToUseTab"):Show()
+    end
 end
 
 -- OnShow
 function Guda_SettingsPopup_OnShow(self)
+    -- Default to General tab
+    Guda_SettingsPopup_Tab_OnClick(1)
+
     -- Load current settings
     local bagColumns = Guda.Modules.DB:GetSetting("bagColumns") or 10
     local bankColumns = Guda.Modules.DB:GetSetting("bankColumns") or 10
