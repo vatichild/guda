@@ -397,7 +397,7 @@
 
                     <!-- View Types (Toggles for now since no Dropdown) -->
                     <Button name="Guda_SettingsPopup_BagViewTypeButton" inherits="UIPanelButtonTemplate">
-                        <Size><AbsDimension x="120" y="25"/></Size>
+                        <Size><AbsDimension x="130" y="25"/></Size>
                         <Anchors>
                             <Anchor point="TOPLEFT" relativeTo="Guda_SettingsPopup_HideFooterCheckbox" relativePoint="BOTTOMLEFT">
                                 <Offset><AbsDimension x="-175" y="-15"/></Offset>
@@ -409,7 +409,7 @@
                     </Button>
 
                     <Button name="Guda_SettingsPopup_BankViewTypeButton" inherits="UIPanelButtonTemplate">
-                        <Size><AbsDimension x="120" y="25"/></Size>
+                        <Size><AbsDimension x="130" y="25"/></Size>
                         <Anchors>
                             <Anchor point="LEFT" relativeTo="Guda_SettingsPopup_BagViewTypeButton" relativePoint="RIGHT">
                                 <Offset><AbsDimension x="20" y="0"/></Offset>
