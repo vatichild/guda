@@ -107,6 +107,8 @@ function Guda_SettingsPopup_OnShow(self)
         hoverBagline = false
     end
     local bgTransparency = Guda.Modules.DB:GetSetting("bgTransparency") or 0.15
+    local bagViewType = Guda.Modules.DB:GetSetting("bagViewType") or "single"
+    local bankViewType = Guda.Modules.DB:GetSetting("bankViewType") or "single"
 
     -- Update sliders and checkboxes
     local bagSlider = getglobal("Guda_SettingsPopup_BagColumnsSlider")
@@ -124,6 +126,8 @@ function Guda_SettingsPopup_OnShow(self)
     local hoverBaglineCheckbox = getglobal("Guda_SettingsPopup_HoverBaglineCheckbox")
     local hideFooterCheckbox = getglobal("Guda_SettingsPopup_HideFooterCheckbox")
     local showTooltipCountsCheckbox = getglobal("Guda_SettingsPopup_ShowTooltipCountsCheckbox")
+    local bagViewButton = getglobal("Guda_SettingsPopup_BagViewTypeButton")
+    local bankViewButton = getglobal("Guda_SettingsPopup_BankViewTypeButton")
 
     local showTooltipCounts = Guda.Modules.DB:GetSetting("showTooltipCounts")
     if showTooltipCounts == nil then
@@ -184,6 +188,22 @@ function Guda_SettingsPopup_OnShow(self)
 
     if showTooltipCountsCheckbox then
         showTooltipCountsCheckbox:SetChecked(showTooltipCounts and 1 or 0)
+    end
+
+    if bagViewButton then
+        if bagViewType == "single" then
+            bagViewButton:SetText("Bag View: Single")
+        else
+            bagViewButton:SetText("Bag View: Category")
+        end
+    end
+
+    if bankViewButton then
+        if bankViewType == "single" then
+            bankViewButton:SetText("Bank View: Single")
+        else
+            bankViewButton:SetText("Bank View: Category")
+        end
     end
 
 
@@ -916,6 +936,40 @@ function Guda_SettingsPopup_ShowTooltipCountsCheckbox_OnClick(self)
     -- Save setting
     if Guda and Guda.Modules and Guda.Modules.DB then
         Guda.Modules.DB:SetSetting("showTooltipCounts", isChecked)
+    end
+end
+
+-- Bag View Type Button OnClick
+function Guda_SettingsPopup_BagViewTypeButton_OnClick()
+    local current = Guda.Modules.DB:GetSetting("bagViewType") or "single"
+    local newValue = (current == "single") and "category" or "single"
+    Guda.Modules.DB:SetSetting("bagViewType", newValue)
+    
+    local btn = getglobal("Guda_SettingsPopup_BagViewTypeButton")
+    if btn then
+        btn:SetText(newValue == "single" and "Bag View: Single" or "Bag View: Category")
+    end
+    
+    -- Refresh bag frame if it's open
+    if Guda_BagFrame:IsShown() then
+        Guda.Modules.BagFrame:Update()
+    end
+end
+
+-- Bank View Type Button OnClick
+function Guda_SettingsPopup_BankViewTypeButton_OnClick()
+    local current = Guda.Modules.DB:GetSetting("bankViewType") or "single"
+    local newValue = (current == "single") and "category" or "single"
+    Guda.Modules.DB:SetSetting("bankViewType", newValue)
+    
+    local btn = getglobal("Guda_SettingsPopup_BankViewTypeButton")
+    if btn then
+        btn:SetText(newValue == "single" and "Bank View: Single" or "Bank View: Category")
+    end
+    
+    -- Refresh bank frame if it's open
+    if Guda_BankFrame:IsShown() then
+        Guda.Modules.BankFrame:Update()
     end
 end
 

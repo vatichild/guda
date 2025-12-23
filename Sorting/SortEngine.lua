@@ -56,14 +56,16 @@ local CATEGORY_ORDER = {
 	["Projectile"] = 3,
 	["Weapon"] = 4,      -- Non-equippable weapons
 	["Armor"] = 5,       -- Non-equippable armor
-	["Quiver"] = 6,
-	["Reagent"] = 7,
-	["Trade Goods"] = 8,
-	["Recipe"] = 9,
-	["Container"] = 10,
-	["Quest"] = 11,
-	["Key"] = 12,
-	["Miscellaneous"] = 13,
+	["Tools"] = 6,
+	["Quiver"] = 8,
+	["Reagent"] = 9,
+	["Trade Goods"] = 10,
+	["Recipe"] = 11,
+	["Container"] = 12,
+	["Key"] = 14,
+	["Miscellaneous"] = 15,
+	["Quest"] = 16,
+	["Class Items"] = 17,
 }
 
 -- Subclass ordering for grouping related items
@@ -144,7 +146,7 @@ local function GetTexturePattern(textureName)
 end
 
 -- Check if an item is a mount by texture path
-local function IsMount(itemTexture)
+function SortEngine.IsMount(itemTexture)
 	if not itemTexture then return false end
 
 	local textureLower = string.lower(itemTexture)
@@ -157,6 +159,7 @@ local function IsMount(itemTexture)
 
 	return false
 end
+local IsMount = SortEngine.IsMount
 
 -- Determine subclass order for grouping related items
 local function GetSubclassOrder(subclass, itemName)

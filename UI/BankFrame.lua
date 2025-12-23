@@ -177,7 +177,25 @@ function BankFrame:Update()
         end
     end
 
-    self:DisplayItems(bankData, isOtherChar, charName)
+    local viewType = addon.Modules.DB:GetSetting("bankViewType") or "single"
+    
+    -- Reset all section headers before displaying items
+    local i = 1
+    while true do
+        local header = getglobal("Guda_BankFrame_SectionHeader" .. i)
+        if not header then break end
+        header.inUse = false
+        header:Hide()
+        i = i + 1
+    end
+
+    if viewType == "category" then
+        self:DisplayItemsByCategory(bankData, isOtherChar, charName)
+        if getglobal("Guda_BankFrame_SortButton") then getglobal("Guda_BankFrame_SortButton"):Hide() end
+    else
+        self:DisplayItems(bankData, isOtherChar, charName)
+        if getglobal("Guda_BankFrame_SortButton") then getglobal("Guda_BankFrame_SortButton"):Show() end
+    end
 
     -- Update money
     self:UpdateMoney()
@@ -197,6 +215,391 @@ function BankFrame:Update()
             end
         end
     end
+end
+
+-- Helper to get or create section header
+function BankFrame:GetSectionHeader(index)
+    local name = "Guda_BankFrame_SectionHeader" .. index
+    local header = getglobal(name)
+    if not header then
+        header = CreateFrame("Frame", name, getglobal("Guda_BankFrame_ItemContainer"))
+        header:SetHeight(20)
+        header:EnableMouse(true)
+        local text = header:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        text:SetPoint("LEFT", header, "LEFT", 0, 0)
+        header.text = text
+
+        header:SetScript("OnEnter", function()
+            if this.fullName and this.isShortened then
+                GameTooltip:SetOwner(this, "ANCHOR_TOP")
+                GameTooltip:SetText(this.fullName)
+                GameTooltip:Show()
+            end
+        end)
+        header:SetScript("OnLeave", function()
+            GameTooltip:Hide()
+        end)
+    end
+    header.inUse = true
+    return header
+end
+
+-- Helper to get or create bank bag parent frame
+function BankFrame:GetBagParent(bagID)
+    local itemContainer = getglobal("Guda_BankFrame_ItemContainer")
+    if not bankBagParents[bagID] then
+        bankBagParents[bagID] = CreateFrame("Frame", "Guda_BankFrame_BagParent"..bagID, itemContainer)
+        bankBagParents[bagID]:SetAllPoints(itemContainer)
+        if bankBagParents[bagID].SetID then
+            bankBagParents[bagID]:SetID(bagID)
+        end
+    end
+    return bankBagParents[bagID]
+end
+
+-- Display items by category
+function BankFrame:DisplayItemsByCategory(bankData, isOtherChar, charName)
+    local buttonSize = addon.Modules.DB:GetSetting("iconSize") or addon.Constants.BUTTON_SIZE
+    local spacing = addon.Modules.DB:GetSetting("iconSpacing") or addon.Constants.BUTTON_SPACING
+    local perRow = addon.Modules.DB:GetSetting("bankColumns") or 10
+    local itemContainer = getglobal("Guda_BankFrame_ItemContainer")
+
+    -- Group items by category
+    local categories = {}
+    local categoryList = {
+        "Weapon", "Armor", "Consumable", "Food", "Drink", "Trade Goods", "Reagent", "Recipe", "Quiver", "Container", "Soul Bag", "Miscellaneous", "Quest", "Class Items"
+    }
+    for _, cat in ipairs(categoryList) do categories[cat] = {} end
+
+    local specialItems = {
+        Hearthstone = {},
+        Mount = {},
+        Tools = {},
+        Empty = {}
+    }
+
+    -- Helper to assign category
+    local function CategorizeItem(itemData, bagID, slotID)
+        local itemName = itemData.name or ""
+        local cat = "Miscellaneous"
+
+        -- Priority 1: Special items (Hearthstone, Mounts, Tools)
+        if string.find(itemName, "Hearthstone") then
+            table.insert(specialItems.Hearthstone, {bagID = bagID, slotID = slotID, itemData = itemData})
+            return
+        elseif addon.Modules.SortEngine and addon.Modules.SortEngine.IsMount and addon.Modules.SortEngine.IsMount(itemData.texture) then
+            table.insert(specialItems.Mount, {bagID = bagID, slotID = slotID, itemData = itemData})
+            return
+        elseif string.find(itemName, "Runed .* Rod") or
+           string.find(itemName, "Fishing Pole") or
+           string.find(itemName, "Mining Pick") or
+           string.find(itemName, "Blacksmith Hammer") or
+           itemName == "Arclight Spanner" or
+           itemName == "Gyromatic Micro-Adjustor" or
+           itemName == "Philosopher's Stone" or
+           string.find(itemName, "Skinning Knife") or
+           itemName == "Blood Scythe" then
+            table.insert(specialItems.Tools, {bagID = bagID, slotID = slotID, itemData = itemData})
+            return
+        end
+
+        -- Priority 2: Class Items (Soul Shards, Arrows, Bullets)
+        if addon.Modules.Utils:IsSoulShard(itemData.link) or 
+           itemData.class == "Projectile" or 
+           itemData.subclass == "Arrow" or 
+           itemData.subclass == "Bullet" then
+            table.insert(categories["Class Items"], {bagID = bagID, slotID = slotID, itemData = itemData})
+            return
+        end
+
+        -- Priority 3: Quest Items
+        if (not isOtherChar and addon.Modules.Utils:IsQuestItemTooltip(bagID, slotID)) or itemData.class == "Quest" then
+            cat = "Quest"
+        
+        -- Priority 4: Food and Drink
+        elseif itemData.class == "Consumable" then
+            cat = "Consumable"
+            local sub = itemData.subclass or ""
+            if sub == "Food & Drink" or string.find(sub, "Food") or string.find(sub, "Drink") then
+                if string.find(sub, "Drink") then
+                    cat = "Drink"
+                else
+                    cat = "Food"
+                end
+            end
+
+        -- Priority 4: Equipment (Weapon and Armor)
+        elseif itemData.equipSlot and itemData.equipSlot ~= "" then
+            if itemData.class == "Weapon" or itemData.class == "Armor" then
+                cat = itemData.class
+            else
+                cat = "Armor"
+            end
+        
+        -- Priority 5: Other Categories
+        else
+            cat = itemData.class or "Miscellaneous"
+        end
+
+        if not categories[cat] then cat = "Miscellaneous" end
+        table.insert(categories[cat], {bagID = bagID, slotID = slotID, itemData = itemData})
+    end
+
+    -- Bank slots
+    for _, bagID in ipairs(addon.Constants.BANK_BAGS) do
+        if not hiddenBankBags[bagID] then
+            local bag = bankData[bagID]
+            if bag and bag.slots then
+                for slotID, itemData in pairs(bag.slots) do
+                    if itemData then
+                        CategorizeItem(itemData, bagID, slotID)
+                    end
+                end
+            end
+        end
+    end
+
+    -- Calculate total empty slots and find first available one for drop target
+    local totalFreeSlots = 0
+    local firstFreeBag, firstFreeSlot
+    for _, bagID in ipairs(addon.Constants.BANK_BAGS) do
+        if not hiddenBankBags[bagID] then
+            local bag = bankData[bagID]
+            if bag then
+                totalFreeSlots = totalFreeSlots + (bag.freeSlots or 0)
+                if not firstFreeBag and (bag.freeSlots or 0) > 0 then
+                    for s = 1, (bag.numSlots or 0) do
+                        if not bag.slots or not bag.slots[s] then
+                            firstFreeBag = bagID
+                            firstFreeSlot = s
+                            break
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    -- Layout
+    local startX, startY = 5, -10
+    local currentX, currentY = 0, 0
+    local rowMaxHeight = 0
+    local headerIdx = 1
+    local totalWidth = perRow * (buttonSize + spacing)
+    
+    for _, catName in ipairs(categoryList) do
+        local items = categories[catName]
+        local numItems = items and table.getn(items) or 0
+        if numItems > 0 then
+            -- Sort items in category: Subclass > Quality > Name
+            table.sort(items, function(a, b)
+                if a.itemData.subclass ~= b.itemData.subclass then
+                    return (a.itemData.subclass or "") < (b.itemData.subclass or "")
+                end
+                if a.itemData.quality ~= b.itemData.quality then
+                    return a.itemData.quality > b.itemData.quality
+                end
+                return (a.itemData.name or "") < (b.itemData.name or "")
+            end)
+
+            local blockCols = numItems
+            if blockCols > perRow then blockCols = perRow end
+            local blockRows = math.ceil(numItems / perRow)
+            local blockWidth = blockCols * (buttonSize + spacing)
+            local blockHeight = 20 + (blockRows * (buttonSize + spacing)) + 5
+
+            -- Check if it fits in current row
+            if currentX > 0 and currentX + blockWidth + 20 > totalWidth + 5 then
+                currentX = 0
+                currentY = currentY + rowMaxHeight
+                rowMaxHeight = 0
+            end
+
+            -- Add Header
+            local header = self:GetSectionHeader(headerIdx)
+            headerIdx = headerIdx + 1
+            header:SetPoint("TOPLEFT", itemContainer, "TOPLEFT", startX + currentX, startY - currentY)
+            header:SetWidth(blockWidth)
+            
+            local displayName = catName
+            header.fullName = catName
+            header.isShortened = false
+            if string.len(displayName) > 10 and numItems < 2 then
+                displayName = string.sub(displayName, 1, 7) .. "..."
+                header.isShortened = true
+            end
+            header.text:SetText(displayName)
+            header:Show()
+            
+            local itemY = currentY + 20
+            local col = 0
+            local row = 0
+            for _, item in ipairs(items) do
+                local bagID = item.bagID
+                local slot = item.slotID
+                local itemData = item.itemData
+                
+                local bagParent = self:GetBagParent(bagID)
+                local button = Guda_GetItemButton(bagParent)
+                
+                button:SetParent(bagParent)
+                button:SetWidth(buttonSize)
+                button:SetHeight(buttonSize)
+                button:ClearAllPoints()
+                button:SetPoint("TOPLEFT", itemContainer, "TOPLEFT", startX + currentX + (col * (buttonSize + spacing)), startY - (itemY + (row * (buttonSize + spacing))))
+                button:Show()
+                
+                local matchesFilter = self:PassesSearchFilter(itemData)
+                Guda_ItemButton_SetItem(button, bagID, slot, itemData, true, isOtherChar and charName or nil, matchesFilter, isOtherChar or isReadOnlyMode)
+                button.inUse = true
+                
+                col = col + 1
+                if col >= blockCols then
+                    col = 0
+                    row = row + 1
+                end
+            end
+            
+            if blockHeight > rowMaxHeight then rowMaxHeight = blockHeight end
+            currentX = currentX + blockWidth + 20 -- 20px gap between categories
+        end
+    end
+
+    -- Update Y for bottom sections
+    local y = currentY + rowMaxHeight
+    
+    -- Special sections at bottom (Hearthstone, Mount, Tools, Empty)
+    local bottomSections = {
+        { name = "Home", items = specialItems.Hearthstone },
+        { name = "Mounts", items = specialItems.Mount },
+        { name = "Tools", items = specialItems.Tools },
+        { name = "Empty", items = {} }
+    }
+    
+    local x = startX
+    y = startY - y -- convert to coordinate relative to TOPLEFT
+    
+    -- Add spacing before special section
+    local hasAnyBottom = false
+    for _, sec in ipairs(bottomSections) do
+        if table.getn(sec.items) > 0 then
+            hasAnyBottom = true
+            break
+        end
+    end
+
+    if hasAnyBottom then
+        y = y - 10
+        local currentBottomX = 0
+        local sectionMaxHeight = 0
+
+        for _, sec in ipairs(bottomSections) do
+            local items = sec.items
+            local numItems = table.getn(items)
+            if sec.name == "Empty" then
+                numItems = (totalFreeSlots > 0) and 1 or 0
+            end
+            if numItems > 0 then
+                -- Sort Tools (Hearthstone/Mounts don't usually need it but good for consistency)
+                if sec.name == "Tools" then
+                    table.sort(items, function(a, b)
+                        if a.itemData.quality ~= b.itemData.quality then
+                            return a.itemData.quality > b.itemData.quality
+                        end
+                        return (a.itemData.name or "") < (b.itemData.name or "")
+                    end)
+                end
+
+                local blockCols = numItems
+                if blockCols > perRow then blockCols = perRow end
+                local blockRows = math.ceil(numItems / perRow)
+                local blockWidth = blockCols * (buttonSize + spacing)
+                local blockHeight = 20 + (blockRows * (buttonSize + spacing))
+
+                -- Check if it fits in current row (Inline block for bottom sections too)
+                if currentBottomX > 0 and currentBottomX + blockWidth + 20 > totalWidth + 5 then
+                    currentBottomX = 0
+                    y = y - sectionMaxHeight - 5
+                    sectionMaxHeight = 0
+                end
+
+                -- Add Header
+                local header = self:GetSectionHeader(headerIdx)
+                headerIdx = headerIdx + 1
+                header:SetPoint("TOPLEFT", itemContainer, "TOPLEFT", x + currentBottomX, y)
+                header:SetWidth(blockWidth)
+                header.text:SetText(sec.name)
+                header:Show()
+
+                local itemY = y - 20
+                local sCol = 0
+                local sRow = 0
+                
+                if sec.name == "Empty" then
+                    -- Display one empty slot button with count
+                    local bagID = firstFreeBag or -1
+                    local slotID = firstFreeSlot or 1
+                    local bagParent = self:GetBagParent(bagID)
+                    local button = Guda_GetItemButton(bagParent)
+                    button:SetParent(bagParent)
+                    button:SetWidth(buttonSize)
+                    button:SetHeight(buttonSize)
+                    button:ClearAllPoints()
+                    button:SetPoint("TOPLEFT", itemContainer, "TOPLEFT", x + currentBottomX, itemY)
+                    button:Show()
+                    
+                    local emptyItemData = { 
+                        texture = "Interface\\PaperDoll\\UI-PaperDoll-Slot-Bag", 
+                        count = totalFreeSlots, 
+                        name = "Empty Slots" 
+                    }
+                    -- Use fake data but real IDs for drop handling
+                    Guda_ItemButton_SetItem(button, bagID, slotID, emptyItemData, true, isOtherChar and charName or nil, true, true)
+                    -- Ensure it's not actually read-only for drop behavior
+                    button.isReadOnly = false
+                    button.inUse = true
+                else
+                    for _, item in ipairs(items) do
+                        local bagParent = self:GetBagParent(item.bagID)
+                        local button = Guda_GetItemButton(bagParent)
+                        button:SetParent(bagParent)
+                        button:SetWidth(buttonSize)
+                        button:SetHeight(buttonSize)
+                        button:ClearAllPoints()
+                        button:SetPoint("TOPLEFT", itemContainer, "TOPLEFT", x + currentBottomX + (sCol * (buttonSize + spacing)), itemY - (sRow * (buttonSize + spacing)))
+                        button:Show()
+                        Guda_ItemButton_SetItem(button, item.bagID, item.slotID, item.itemData, true, isOtherChar and charName or nil, self:PassesSearchFilter(item.itemData), isOtherChar or isReadOnlyMode)
+                        button.inUse = true
+                        
+                        sCol = sCol + 1
+                        if sCol >= blockCols then
+                            sCol = 0
+                            sRow = sRow + 1
+                        end
+                    end
+                end
+
+                if blockHeight > sectionMaxHeight then sectionMaxHeight = blockHeight end
+                currentBottomX = currentBottomX + blockWidth + 20 -- Match the 20px gap used in top categories
+                
+                -- If we wrapped exactly at the end of a block
+                if currentBottomX >= totalWidth then
+                    currentBottomX = 0
+                    y = y - sectionMaxHeight - 5
+                    sectionMaxHeight = 0
+                end
+            end
+        end
+        
+        if currentBottomX > 0 then
+            y = y - sectionMaxHeight
+        end
+    end
+    
+    -- Update container height
+    local finalHeight = math.abs(y) + 20
+    itemContainer:SetHeight(finalHeight)
+    self:ResizeFrame(nil, nil, perRow, finalHeight)
 end
 
 -- Display items
@@ -304,15 +707,7 @@ function BankFrame:DisplayItems(bankData, isOtherChar, charName)
                 local matchesFilter = self:PassesSearchFilter(itemData)
 
                 -- Ensure a per-bag parent frame exists and carries the bag ID
-                local bankBagParent
-                if not bankBagParents[bagID] then
-                    bankBagParents[bagID] = CreateFrame("Frame", "Guda_BankFrame_BankBagParent"..bagID, itemContainer)
-                    bankBagParents[bagID]:SetAllPoints(itemContainer)
-                    if bankBagParents[bagID].SetID then
-                        bankBagParents[bagID]:SetID(bagID)
-                    end
-                end
-                bankBagParent = bankBagParents[bagID]
+                local bankBagParent = self:GetBagParent(bagID)
 
                 local button = Guda_GetItemButton(bankBagParent)
                 if button.isBagSlot then break end
@@ -341,12 +736,12 @@ function BankFrame:DisplayItems(bankData, isOtherChar, charName)
 end
 
 -- Resize bank frame based on number of rows and columns
-function BankFrame:ResizeFrame(currentRow, currentCol, columns)
+function BankFrame:ResizeFrame(currentRow, currentCol, columns, overrideHeight)
     local buttonSize = addon.Modules.DB:GetSetting("iconSize") or addon.Constants.BUTTON_SIZE
     local spacing = addon.Modules.DB:GetSetting("iconSpacing") or addon.Constants.BUTTON_SPACING
 
     -- Calculate actual number of rows used
-    local totalRows = currentRow + 1
+    local totalRows = (currentRow or 0) + 1
     if totalRows < 1 then
         totalRows = 1
     end
@@ -358,7 +753,7 @@ function BankFrame:ResizeFrame(currentRow, currentCol, columns)
 
     -- Calculate required dimensions
     local containerWidth = (columns * (buttonSize + spacing)) + 10
-    local containerHeight = (totalRows * (buttonSize + spacing)) + 20
+    local containerHeight = overrideHeight or ((totalRows * (buttonSize + spacing)) + 20)
     local frameWidth = containerWidth + 30
 
     -- Check if search bar is visible
@@ -854,14 +1249,16 @@ function BankFrame:EnsureBagButtonsInitialized()
             btn = CreateFrame("Button", name, toolbar, "ItemButtonTemplate")
             -- Anchor sequenced to the left; position similar to XML
             if suffix == "BankBagMain" then
-                btn:SetSize(24, 24)
+                btn:SetWidth(24)
+                btn:SetHeight(24)
                 btn:SetPoint("LEFT", toolbar, "LEFT", 13, 0)
             else
                 -- Determine previous button
                 local prev
                 if bagID == 5 then prev = getglobal("Guda_BankFrame_Toolbar_BankBagMain")
                 else prev = getglobal("Guda_BankFrame_Toolbar_BankBag"..tostring(bagID-1)) end
-                btn:SetSize(24, 24)
+                btn:SetWidth(24)
+                btn:SetHeight(24)
                 if prev then
                     btn:SetPoint("LEFT", prev, "RIGHT", 2, 0)
                 else

@@ -155,6 +155,46 @@ function Utils:FormatTimeAgo(timestamp)
     end
 end
 
+-- Create hidden tooltip for scanning (only once)
+local scanTooltip = nil
+local function GetScanTooltip()
+    if not scanTooltip then
+        scanTooltip = CreateFrame("GameTooltip", "GudaBagScanTooltip", nil, "GameTooltipTemplate")
+        scanTooltip:SetOwner(WorldFrame, "ANCHOR_NONE")
+    end
+    return scanTooltip
+end
+
+-- Check if an item is a quest item by scanning its tooltip
+function Utils:IsQuestItemTooltip(bagID, slotID)
+    if not bagID or not slotID then return false end
+
+    local tooltip = GetScanTooltip()
+    tooltip:ClearLines()
+    tooltip:SetBagItem(bagID, slotID)
+
+    -- Check all tooltip lines for quest-related text
+    for i = 1, tooltip:NumLines() do
+        local line = getglobal("GudaBagScanTooltipTextLeft" .. i)
+        if line then
+            local text = line:GetText()
+            if text then
+                -- Check for quest starter patterns
+                if string.find(text, "Quest Starter") or
+                   string.find(text, "This Item Begins a Quest") or
+                   string.find(text, "Use: Starts a Quest") then
+                    return true
+                -- Check for regular quest item patterns
+                elseif string.find(text, "Quest Item") or
+                       string.find(text, "Manual") then
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
 -- Get bag slot count
 function Utils:GetBagSlotCount(bagID)
     if bagID == -1 then
@@ -190,17 +230,6 @@ function Utils:TruncateText(text, maxLen)
     return string.sub(text, 1, maxLen - 3) .. "..."
 end
 
--- Create hidden tooltip for scanning (only once)
-local scanTooltip = nil
-local function GetScanTooltip()
-    if not scanTooltip then
-        scanTooltip = CreateFrame("GameTooltip", "GudaBagScanTooltip", nil, "GameTooltipTemplate")
-        scanTooltip:SetOwner(WorldFrame, "ANCHOR_NONE")
-    end
-    return scanTooltip
-end
-
--- Check if a bag is Quiver or Ammo Pouch
 function Utils:IsAmmoQuiverBag(bagID)
     -- Skip backpack, bank, and keyring
     if bagID == 0 or bagID == -1 or bagID == -2 then

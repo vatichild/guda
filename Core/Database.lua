@@ -47,12 +47,20 @@ function DB:Initialize()
 				bgTransparency = 0.15,
 				showTrackedItems = true,
 				showTooltipCounts = true,
+				bagViewType = "single", -- single, category
+				bankViewType = "single", -- single, category
 				trackedItems = {},
 			},
 		}
 	end
 
 	-- Ensure new settings exist for existing installations
+	if Guda_CharDB.settings.bagViewType == nil then
+		Guda_CharDB.settings.bagViewType = "single"
+	end
+	if Guda_CharDB.settings.bankViewType == nil then
+		Guda_CharDB.settings.bankViewType = "single"
+	end
 	if Guda_CharDB.settings.showTooltipCounts == nil then
 		Guda_CharDB.settings.showTooltipCounts = true
 	end
