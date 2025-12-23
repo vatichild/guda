@@ -103,20 +103,62 @@ local function IsQuestItemTooltip(bagID, slotID)
 	scanTooltip:ClearLines()
 	scanTooltip:SetBagItem(bagID, slotID)
 
-	-- Check all tooltip lines for quest-related text
+	-- Check all tooltip lines for quest-related text (case-insensitive)
 	for i = 1, scanTooltip:NumLines() do
 		local line = getglobal("Guda_SortScanTooltipTextLeft" .. i)
 		if line then
 			local text = line:GetText()
 			if text then
-				-- Check for quest starter patterns
-				if string.find(text, "Quest Starter") or
-				   string.find(text, "This Item Begins a Quest") or
-				   string.find(text, "Use: Starts a Quest") then
+				local tl = string.lower(text)
+				if string.find(tl, "quest starter") or
+				   string.find(tl, "this item begins a quest") or
+				   string.find(tl, "starts a quest") or
+				   string.find(tl, "quest item") or
+				   string.find(tl, "manual") then
 					return true
-				-- Check for regular quest item patterns
-				elseif string.find(text, "Quest Item") or
-				       string.find(text, "Manual") then
+				end
+			end
+		end
+	end
+	return false
+end
+
+-- Check if a quest item is usable (has 'Use:' or click to text)
+local function IsQuestItemUsable(bagID, slotID)
+	if not bagID or not slotID then return false end
+
+	scanTooltip:ClearLines()
+	scanTooltip:SetBagItem(bagID, slotID)
+
+	for i = 1, scanTooltip:NumLines() do
+		local line = getglobal("Guda_SortScanTooltipTextLeft" .. i)
+		if line then
+			local text = line:GetText()
+			if text then
+				local tl = string.lower(text)
+				if string.find(tl, "use:") or string.find(tl, "right%-click") or string.find(tl, "right click") or string.find(tl, "click to") or string.find(tl, "starts a quest") then
+					return true
+				end
+			end
+		end
+	end
+	return false
+end
+
+-- Check if item is a quest starter (explicit 'Starts a Quest' or 'This Item Begins a Quest')
+local function IsQuestItemStarter(bagID, slotID)
+	if not bagID or not slotID then return false end
+
+	scanTooltip:ClearLines()
+	scanTooltip:SetBagItem(bagID, slotID)
+
+	for i = 1, scanTooltip:NumLines() do
+		local line = getglobal("Guda_SortScanTooltipTextLeft" .. i)
+		if line then
+			local text = line:GetText()
+			if text then
+				local tl = string.lower(text)
+				if string.find(tl, "quest starter") or string.find(tl, "this item begins a quest") or string.find(tl, "starts a quest") then
 					return true
 				end
 			end
@@ -400,6 +442,7 @@ local function AddSortKeys(items)
 			local itemID = GetItemID(item.data.link)
 			local itemName, itemLink, itemRarity, itemLevel, itemCategory, itemType, itemStackCount,
 			itemSubType, itemTexture, itemEquipLoc, itemSellPrice = GetItemInfo(itemID)
+				item.itemName = itemName
 			--addon:Print("itemTexture:%s",itemTexture or 0);
 			--addon:Print("itemEquipLoc:%s",itemEquipLoc or 0);
 			--addon:Print("itemSubType:%s",itemSubType or 0);
@@ -445,7 +488,7 @@ local function AddSortKeys(items)
 					item.sortedClass = CATEGORY_ORDER[itemCategory] or 99
 					-- Heuristic: Detect items that should be in the Quest category (priority 11)
 					-- but aren't categorized as such by the game (e.g. some "Manual" items)
-					if item.sortedClass ~= 11 then
+					if item.sortedClass ~= (CATEGORY_ORDER["Quest"] or 99) then
 						local nameLower = item.itemName and string.lower(item.itemName) or ""
 						if string.find(nameLower, "manual") or string.find(nameLower, "quest") then
 							item.sortedClass = 11
@@ -458,8 +501,36 @@ local function AddSortKeys(items)
 				end
 
 				-- Subclass ordering
-				item.sortedSubclass = GetSubclassOrder(itemSubType, item.name)
+				-- Detect consumable restore/eat/drink tag (if available) BEFORE computing subclass priority
+			item.restoreTag = nil
+			if addon.Modules.Utils and addon.Modules.Utils.GetConsumableRestoreTag then
+				if item.bagID and item.slot then
+					local tag = addon.Modules.Utils:GetConsumableRestoreTag(item.bagID, item.slot)
+					if tag then
+						item.restoreTag = tag
+					end
+				end
+			end
+			local baseSub = GetSubclassOrder(itemSubType, item.name)
+			local function _cons_prk(t)
+				if t == "eat" then return -300 end
+				if t == "drink" then return -200 end
+				if t == "restore" then return -100 end
+				return 0
+			end
+			item.sortedSubclass = _cons_prk(item.restoreTag) + baseSub
 				item.subclass = itemSubType or ""
+
+				-- Quest flags: mark quest items and detect starter/usable states
+				item.isQuest = false
+				item.isQuestStarter = false
+				item.isQuestUsable = false
+				local nameLower = item.itemName and string.lower(item.itemName) or ""
+				if itemCategory == "Quest" or string.find(nameLower, "quest") or (item.data and item.data.class == "Quest") or IsQuestItemTooltip(item.bagID, item.slot) then
+					item.isQuest = true
+					if IsQuestItemStarter(item.bagID, item.slot) then item.isQuestStarter = true end
+					if IsQuestItemUsable(item.bagID, item.slot) then item.isQuestUsable = true end
+				end
 
 				-- Texture pattern for grouping similar items (especially trade goods)
 				item.texturePattern = GetTexturePattern(itemTexture)
@@ -514,9 +585,35 @@ local function SortItems(items)
 				return a.itemName < b.itemName
 			end
 		else
-		-- 4. For non-equippable items: sort by class, subclass, texture pattern, quality, name
+		-- 4. For non-equippable items: prioritize consumable restoreTag, then class, subclass, texture pattern, quality, name
+			-- If either item has a restoreTag, compare their priority (eat>drink>restore>none)
+			local pa = a.restoreTag or nil
+			local pb = b.restoreTag or nil
+			local function pr(t)
+				if t == "eat" then return 3 end
+				if t == "drink" then return 2 end
+				if t == "restore" then return 1 end
+				return 0
+			end
+			if pr(pa) ~= pr(pb) then
+				return pr(pa) > pr(pb)
+			end
 			if a.sortedClass ~= b.sortedClass then
 				return a.sortedClass < b.sortedClass
+			end
+			-- If both items are in the Quest class, apply quest-specific ordering
+			-- If both items are detected as quest items, apply quest-specific ordering
+			if a.isQuest and b.isQuest then
+				local function qrank(it)
+					if it.isQuestStarter then return 3 end
+					if it.isQuestUsable then return 2 end
+					if it.isQuest then return 1 end
+					return 0
+				end
+				local ra, rb = qrank(a), qrank(b)
+				if ra ~= rb then
+					return ra > rb
+				end
 			end
 			if a.sortedSubclass ~= b.sortedSubclass then
 				return a.sortedSubclass < b.sortedSubclass
