@@ -438,6 +438,12 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
         end
     end
 
+    -- Reset all visual state before reassigning pooled button
+    if self.questBorder then self.questBorder:Hide() end
+    if self.questIcon then self.questIcon:Hide() end
+    if self.qualityBorder then self.qualityBorder:Hide() end
+    if self.unusableOverlay then self.unusableOverlay:Hide() end
+
     self.bagID = bagID
     self.slotID = slotID
     -- Also set the Blizzard slot ID for compatibility with ContainerFrameItemButtonTemplate behavior
