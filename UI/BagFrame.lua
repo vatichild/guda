@@ -424,6 +424,29 @@ function BagFrame:DisplayItemsByCategory(bagData, isOtherChar, charName)
         Mount = {},
         Tools = {}
     }
+    -- Helper: detect items that grant 'Equip: Increased Fishing' via tooltip or hyperlink
+    local function HasFishingEquip(bagID, slotID, itemData)
+        local tooltip = getglobal("Guda_SortScanTooltip") or _G["Guda_SortScanTooltip"]
+        if not tooltip then return false end
+        tooltip:ClearLines()
+        if itemData and itemData.link and tooltip.SetHyperlink then
+            tooltip:SetHyperlink(itemData.link)
+        elseif bagID and slotID and tooltip.SetBagItem then
+            tooltip:SetBagItem(bagID, slotID)
+        else
+            return false
+        end
+        for i = 1, tooltip:NumLines() do
+            local line = getglobal("Guda_SortScanTooltipTextLeft" .. i)
+            if line then
+                local text = line:GetText()
+                if text and string.find(string.lower(text), "equip: increased fishing") then
+                    return true
+                end
+            end
+        end
+        return false
+    end
 
     for _, bagID in ipairs(addon.Constants.BAGS) do
         if not hiddenBags[bagID] then
@@ -455,7 +478,9 @@ function BagFrame:DisplayItemsByCategory(bagData, isOtherChar, charName)
                            itemName == "Gyromatic Micro-Adjustor" or
                            itemName == "Philosopher's Stone" or
                            string.find(itemName, "Skinning Knife") or
-                           itemName == "Blood Scythe" then
+                           itemName == "Blood Scythe" or
+                           HasFishingEquip(bagID, slotID, itemData) then
+                            if HasFishingEquip(bagID, slotID, itemData) then itemData.isFishingTool = true end
                             table.insert(specialItems.Tools, {bagID = bagID, slotID = slotID, itemData = itemData})
                         
                         -- Priority 2: Class Items (Soul Shards, Arrows, Bullets)
@@ -691,6 +716,17 @@ function BagFrame:DisplayItemsByCategory(bagData, isOtherChar, charName)
                 -- Sort Tools (Hearthstone/Mounts don't usually need it but good for consistency)
                 if sec.name == "Tools" then
                     table.sort(items, function(a, b)
+                        -- Group fishing tools (Fishing Pole and items with Equip: Increased Fishing) first
+                        local function isFishing(d)
+                            if not d or not d.itemData then return false end
+                            local n = string.lower(d.itemData.name or "")
+                            if string.find(n, "fishing pole") then return true end
+                            if d.itemData.isFishingTool then return true end
+                            return false
+                        end
+                        local fa = isFishing(a)
+                        local fb = isFishing(b)
+                        if fa ~= fb then return fa and not fb end
                         if a.itemData.quality ~= b.itemData.quality then
                             return a.itemData.quality > b.itemData.quality
                         end
@@ -2570,7 +2606,6 @@ function BagFrame:Initialize()
 			HideCharacterDropdown()
 			if originalOnMouseDown then
 				originalOnMouseDown()
-			end
 		end)
 	end
 
