@@ -36,8 +36,20 @@ function MailboxScanner:ScanMailItemRows(index)
     local rows = {}
     
     if hasItem then
-        -- Turtle WoW supports up to 12 attachments per mail
-        for itemIndex = 1, 12 do
+        -- Turtle WoW supports up to 12 attachments per mail.
+        -- We use GetInboxNumAttachments if available to avoid over-scanning on servers
+        -- that might ignore the second argument of GetInboxItem.
+        local numAttachments = 0
+        if GetInboxNumAttachments then
+            numAttachments = GetInboxNumAttachments(index) or 0
+        end
+
+        -- Fallback: if we don't have the count but header says there's an item, assume at least 1.
+        if numAttachments == 0 and hasItem then
+            numAttachments = 1
+        end
+
+        for itemIndex = 1, numAttachments do
             -- GetInboxItem(index, itemIndex) returns: name, texture, count, quality, canUse
             local name, texture, count, quality, canUse = GetInboxItem(index, itemIndex)
             if not name then break end

@@ -93,7 +93,19 @@ local function CountCurrentCharacterItems(itemID)
 		for i = 1, numInboxItems do
 			local _, _, _, _, _, _, _, hasItem = GetInboxHeaderInfo(i)
 			if hasItem then
-				for j = 1, 12 do -- Turtle WoW supports up to 12 attachments
+				-- Turtle WoW supports up to 12 attachments per mail.
+				-- We use GetInboxNumAttachments if available to avoid over-scanning.
+				local numAttachments = 0
+				if GetInboxNumAttachments then
+					numAttachments = GetInboxNumAttachments(i) or 0
+				end
+
+				-- Fallback: if we don't have the count but header says there's an item, assume at least 1.
+				if numAttachments == 0 and hasItem then
+					numAttachments = 1
+				end
+
+				for j = 1, numAttachments do -- Turtle WoW supports up to 12 attachments
 					local name, _, count = GetInboxItem(i, j)
 					if name then
 						local itemLink = addon.Modules.Utils:GetInboxItemLink(i, j)
