@@ -648,11 +648,7 @@
                 Guda_BankFrame_OnShow(this)
             </OnShow>
             <OnHide>
-                Guda_BankFrame:Hide()
-                -- Close the actual Blizzard bank too
-                if BankFrame and BankFrame:IsShown() then
-                    CloseBankFrame()
-                end
+                Guda_BankFrame_OnHide(this)
             </OnHide>
             <OnMouseDown>
                 -- Clear search box focus when clicking on bank frame

@@ -81,6 +81,18 @@ function Guda_BankFrame_OnShow(self)
    	BankFrame:Update()
    end
 
+-- OnHide
+function Guda_BankFrame_OnHide(self)
+    -- Close any open dropdown menus when the bank frame is hidden
+    CloseDropDownMenus()
+
+    -- Close the actual Blizzard bank too
+    local blizzardBankFrame = getglobal("BankFrame")
+    if blizzardBankFrame and blizzardBankFrame:IsShown() then
+        CloseBankFrame()
+    end
+end
+
 -- Toggle visibility
 function BankFrame:Toggle()
     if Guda_BankFrame:IsShown() then

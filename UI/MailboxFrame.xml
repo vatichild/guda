@@ -325,6 +325,9 @@
             <OnShow>
                 Guda_MailboxFrame_OnShow(this)
             </OnShow>
+            <OnHide>
+                Guda_MailboxFrame_OnHide(this)
+            </OnHide>
             <OnMouseDown>
                 this:StartMoving()
             </OnMouseDown>

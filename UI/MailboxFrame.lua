@@ -61,6 +61,12 @@ function Guda_MailboxFrame_OnShow(self)
     MailboxFrame:Update()
 end
 
+-- OnHide
+function Guda_MailboxFrame_OnHide(self)
+    -- Close any open dropdown menus when the mailbox frame is hidden
+    CloseDropDownMenus()
+end
+
 -- Toggle visibility
 function MailboxFrame:Toggle()
     if Guda_MailboxFrame:IsShown() then
@@ -71,6 +77,10 @@ function MailboxFrame:Toggle()
 end
 
 -- Show specific character's mailbox
+function MailboxFrame:GetCurrentViewChar()
+    return currentViewChar
+end
+
 function MailboxFrame:ShowCharacter(fullName)
     currentViewChar = fullName
     currentPage = 1
