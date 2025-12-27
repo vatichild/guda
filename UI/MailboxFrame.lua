@@ -203,10 +203,10 @@ function MailboxFrame:DisplayItems(items, charFullName, totalMails)
         itemButton.mailIndex = mail.mailIndex
         itemButton.mailItemIndex = mail.itemIndex or 1
 
-        -- Force left alignment in case template or other code changed anchors
+        -- Center vertically in the row
         if itemButton then
             itemButton:ClearAllPoints()
-            itemButton:SetPoint("TOPLEFT", row, "TOPLEFT", 10, -8)
+            itemButton:SetPoint("LEFT", row, "LEFT", 10, 0)
         end
         
         if mail.item and (mail.item.texture or mail.item.link) then
@@ -240,9 +240,9 @@ function MailboxFrame:DisplayItems(items, charFullName, totalMails)
         -- Row Money Frame
         local moneyFrame = getglobal(row:GetName() .. "_MoneyFrame")
         if moneyFrame then
-            -- Force left alignment for the money frame
+            -- Restore right alignment for the money frame to avoid overlap with icon
             moneyFrame:ClearAllPoints()
-            moneyFrame:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 10, 8)
+            moneyFrame:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -10, 8)
         end
         if (mail.money or 0) > 0 then
             MoneyFrame_Update(moneyFrame:GetName(), mail.money)
