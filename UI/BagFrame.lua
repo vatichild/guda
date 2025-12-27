@@ -161,21 +161,7 @@ end
 
 -- Update lock states of existing buttons (lightweight, used during drag)
 function BagFrame:UpdateLockStates()
-	for _, bagParent in pairs(bagParents) do
-		if bagParent then
-			local buttons = { bagParent:GetChildren() }
-			for _, button in ipairs(buttons) do
-				if button.hasItem ~= nil and button:IsShown() and button.bagID and button.slotID then
-					-- Get live lock state
-					local _, _, locked = GetContainerItemInfo(button.bagID, button.slotID)
-					-- Update desaturation (gray out locked items)
-					if not button.otherChar and not button.isReadOnly and SetItemButtonDesaturated then
-						SetItemButtonDesaturated(button, locked, 0.5, 0.5, 0.5)
-					end
-				end
-			end
-		end
-	end
+    Guda_UpdateLockStates(bagParents)
 end
 
 -- Update bagline layout (hover option)
@@ -380,44 +366,13 @@ function BagFrame:Update()
 	end
 end
 
--- Helper to get or create section header
+-- Delegate to centralized helpers
 function BagFrame:GetSectionHeader(index)
-    local name = "Guda_BagFrame_SectionHeader" .. index
-    local header = getglobal(name)
-    if not header then
-        header = CreateFrame("Frame", name, getglobal("Guda_BagFrame_ItemContainer"))
-        header:SetHeight(20)
-        header:EnableMouse(true)
-        local text = header:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-        text:SetPoint("LEFT", header, "LEFT", 0, 0)
-        header.text = text
-
-        header:SetScript("OnEnter", function()
-            if this.fullName and this.isShortened then
-                GameTooltip:SetOwner(this, "ANCHOR_TOP")
-                GameTooltip:SetText(this.fullName)
-                GameTooltip:Show()
-            end
-        end)
-        header:SetScript("OnLeave", function()
-            GameTooltip:Hide()
-        end)
-    end
-    header.inUse = true
-    return header
+    return Guda_GetSectionHeader("Guda_BagFrame", "Guda_BagFrame_ItemContainer", index)
 end
 
--- Helper to get or create bag parent frame
 function BagFrame:GetBagParent(bagID)
-    local itemContainer = getglobal("Guda_BagFrame_ItemContainer")
-    if not bagParents[bagID] then
-        bagParents[bagID] = CreateFrame("Frame", "Guda_BagFrame_BagParent"..bagID, itemContainer)
-        bagParents[bagID]:SetAllPoints(itemContainer)
-        if bagParents[bagID].SetID then
-            bagParents[bagID]:SetID(bagID)
-        end
-    end
-    return bagParents[bagID]
+    return Guda_GetBagParent("Guda_BagFrame", bagParents, bagID, "Guda_BagFrame_ItemContainer")
 end
 
 -- Display items by category
@@ -1084,74 +1039,8 @@ end
 
 -- Check if item passes search filter (pfUI style)
 function BagFrame:PassesSearchFilter(itemData)
--- If no search text, everything matches
-	if not self:IsSearchActive() then
-		return true
-	end
-
-	-- Empty slots don't match when searching (pfUI style - they get dimmed)
-	if not itemData then
-		return false
-	end
-
-	-- Get item name from itemData.name or parse from link
-	local itemName = itemData.name
-	if not itemName and itemData.link then
-	-- Parse name from item link: |cffffffff|Hitem:...|h[Item Name]|h|r
-		local _, _, name = string.find(itemData.link, "%[(.+)%]")
-		itemName = name
-		if not self.warnedAboutParsing then
-			addon:Print("DEBUG: Had to parse item name from link: " .. (itemName or "FAILED"))
-			self.warnedAboutParsing = true
-		end
-	end
-
-	if not itemName then
-		if not self.warnedAboutNoName then
-			addon:Print("DEBUG: Item has no name and no link! texture = " .. tostring(itemData.texture))
-			self.warnedAboutNoName = true
-		end
-		return false
-	end
-
-	-- Case-insensitive search in item name
-	local search = string.lower(searchText)
-
-	-- Advanced search (pfUI style categories)
-	if string.sub(search, 1, 1) == "~" then
-		local category = string.sub(search, 2)
-		local itemType = itemData.class or ""
-		local itemQuality = itemData.quality or -1
-
-		if category == "equipment" or category == "armor" or category == "weapon" then
-			if itemType == "Armor" or itemType == "Weapon" then return true end
-		elseif category == "consumable" then
-			if itemType == "Consumable" then return true end
-		elseif category == "tradegoods" or category == "trades" then
-			if itemType == "Trade Goods" then return true end
-		elseif category == "quest" then
-			local isQuest, isQuestStarter = Guda_GetQuestInfo(itemData.bagID, itemData.slotID, itemData.isBank)
-			if isQuest or isQuestStarter or itemType == "Quest" then return true end
-		elseif category == "reagent" then
-			if itemType == "Reagent" then return true end
-		elseif category == "common" then if itemQuality == 1 then return true end
-		elseif category == "uncommon" then if itemQuality == 2 then return true end
-		elseif category == "rare" then if itemQuality == 3 then return true end
-		elseif category == "epic" then if itemQuality == 4 then return true end
-		elseif category == "legendary" then if itemQuality == 5 then return true end
-		end
-	end
-
-	itemName = string.lower(itemName)
-	-- Check if item name contains search text
-	local matches = string.find(itemName, search, 1, true) ~= nil
-
-	-- Debug: print first match found
-	if matches and not self.foundFirstMatch then
-		self.foundFirstMatch = true
-	end
-
-	return matches
+    if not self:IsSearchActive() then return true end
+    return Guda_PassesSearchFilter(itemData, searchText)
 end
 
 function BagFrame:UpdateMoney()
