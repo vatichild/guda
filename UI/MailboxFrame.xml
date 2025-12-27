@@ -244,8 +244,8 @@
                 </Scripts>
             </Button>
 
-            <!-- Scroll Frame for Items -->
-            <ScrollFrame name="$parent_ScrollFrame" inherits="UIPanelScrollFrameTemplate">
+            <!-- Item Container -->
+            <Frame name="Guda_MailboxFrame_ItemContainer">
                 <Size>
                     <AbsDimension x="360" y="420"/>
                 </Size>
@@ -253,49 +253,6 @@
                     <Anchor point="TOPLEFT">
                         <Offset>
                             <AbsDimension x="20" y="-75"/>
-                        </Offset>
-                    </Anchor>
-                </Anchors>
-                <ScrollChild>
-                    <Frame name="Guda_MailboxFrame_ItemContainer">
-                        <Size>
-                            <AbsDimension x="360" y="420"/>
-                        </Size>
-                        <Anchors>
-                            <Anchor point="TOPLEFT"/>
-                        </Anchors>
-                    </Frame>
-                </ScrollChild>
-            </ScrollFrame>
-
-            <!-- Footer for stats/info -->
-            <Frame name="$parent_Footer">
-                <Size>
-                    <AbsDimension x="380" y="20"/>
-                </Size>
-                <Anchors>
-                    <Anchor point="BOTTOMLEFT">
-                        <Offset>
-                            <AbsDimension x="20" y="15"/>
-                        </Offset>
-                    </Anchor>
-                </Anchors>
-                <Layers>
-                    <Layer level="ARTWORK">
-                        <FontString name="$parent_Text" inherits="GameFontHighlightSmall" justifyH="LEFT">
-                            <Anchors>
-                                <Anchor point="LEFT"/>
-                            </Anchors>
-                        </FontString>
-                    </Layer>
-                </Layers>
-            </Frame>
-            
-            <Frame name="$parent_MoneyFrame" inherits="SmallMoneyFrameTemplate">
-                <Anchors>
-                    <Anchor point="BOTTOMRIGHT">
-                        <Offset>
-                            <AbsDimension x="-15" y="10"/>
                         </Offset>
                     </Anchor>
                 </Anchors>
@@ -307,9 +264,9 @@
                     <AbsDimension x="60" y="22"/>
                 </Size>
                 <Anchors>
-                    <Anchor point="BOTTOMLEFT">
+                    <Anchor point="BOTTOM">
                         <Offset>
-                            <AbsDimension x="120" y="10"/>
+                            <AbsDimension x="-100" y="30"/>
                         </Offset>
                     </Anchor>
                 </Anchors>
@@ -325,9 +282,9 @@
                     <AbsDimension x="60" y="22"/>
                 </Size>
                 <Anchors>
-                    <Anchor point="BOTTOMRIGHT" relativeTo="$parent_MoneyFrame" relativePoint="BOTTOMLEFT">
+                    <Anchor point="BOTTOM">
                         <Offset>
-                            <AbsDimension x="-10" y="0"/>
+                            <AbsDimension x="100" y="30"/>
                         </Offset>
                     </Anchor>
                 </Anchors>
@@ -337,6 +294,28 @@
                     </OnClick>
                 </Scripts>
             </Button>
+
+            <Frame name="$parent_Pagination">
+                <Size>
+                    <AbsDimension x="130" y="22"/>
+                </Size>
+                <Anchors>
+                    <Anchor point="BOTTOM">
+                        <Offset>
+                            <AbsDimension x="0" y="30"/>
+                        </Offset>
+                    </Anchor>
+                </Anchors>
+                <Layers>
+                    <Layer level="ARTWORK">
+                        <FontString name="$parent_Text" inherits="GameFontHighlightSmall" justifyH="CENTER">
+                            <Anchors>
+                                <Anchor point="CENTER"/>
+                            </Anchors>
+                        </FontString>
+                    </Layer>
+                </Layers>
+            </Frame>
         </Frames>
 
         <Scripts>

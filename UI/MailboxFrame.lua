@@ -114,6 +114,7 @@ function MailboxFrame:Update()
 
     -- Filter items based on search text
     local filteredItems = {}
+    local totalItems = table.getn(mailboxData)
     for i, mail in ipairs(mailboxData) do
         local matchesSearch = true
         if searchText ~= "" then
@@ -158,27 +159,11 @@ function MailboxFrame:Update()
     end
 
     -- Display items
-    self:DisplayItems(filteredItems, charFullName)
-
-    -- Update footer info
-    local totalItems = table.getn(mailboxData)
-    local displayedItems = table.getn(filteredItems)
-    local footerText = string.format("Items: %d", totalItems)
-    if searchText ~= "" then
-        footerText = string.format("Filtered: %d / %d", displayedItems, totalItems)
-    end
-    getglobal("Guda_MailboxFrame_Footer_Text"):SetText(footerText)
-
-    -- Update money (total money in mailbox)
-    local totalMoney = 0
-    for _, mail in ipairs(mailboxData) do
-        totalMoney = totalMoney + (mail.money or 0)
-    end
-    MoneyFrame_Update("Guda_MailboxFrame_MoneyFrame", totalMoney)
+    self:DisplayItems(filteredItems, charFullName, totalItems)
 end
 
 -- Display mailbox items in a list
-function MailboxFrame:DisplayItems(items, charFullName)
+function MailboxFrame:DisplayItems(items, charFullName, totalMails)
     local container = getglobal("Guda_MailboxFrame_ItemContainer")
     
     -- Hide all existing rows first
@@ -260,7 +245,7 @@ function MailboxFrame:DisplayItems(items, charFullName)
             end
             if itemButton.qualityBorder then itemButton.qualityBorder:Hide() end
         end
-        
+
         -- Row Money Frame
         local moneyFrame = getglobal(row:GetName() .. "_MoneyFrame")
         if (mail.money or 0) > 0 then
@@ -290,10 +275,11 @@ function MailboxFrame:DisplayItems(items, charFullName)
         nextBtn:Disable()
     end
     
-    -- Update page text in footer
-    local footerFontString = getglobal("Guda_MailboxFrame_Footer_Text")
-    local footerText = footerFontString:GetText() or ""
-    footerFontString:SetText(footerText .. "  (Page " .. currentPage .. " of " .. totalPages .. ")")
+    -- Update pagination text
+    local paginationText = getglobal("Guda_MailboxFrame_Pagination_Text")
+    if paginationText then
+        paginationText:SetText(string.format("%d/%d (items: %d)", currentPage, totalPages, totalMails or 0))
+    end
 end
 
 -- Search text changed
