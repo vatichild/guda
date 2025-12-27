@@ -6,6 +6,15 @@ local addon = Guda
 local BagFrame = {}
 addon.Modules.BagFrame = BagFrame
 
+-- Use centralized frame helpers for section headers and bag parents
+function BagFrame:GetSectionHeader(index)
+    return Guda_GetSectionHeader("Guda_BagFrame", "Guda_BagFrame_ItemContainer", index)
+end
+
+function BagFrame:GetBagParent(bagID)
+    return Guda_GetBagParent("Guda_BagFrame", bagParents, bagID, "Guda_BagFrame_ItemContainer")
+end
+
 local currentViewChar = nil -- nil = current character
 function BagFrame:GetCurrentViewChar()
     return currentViewChar

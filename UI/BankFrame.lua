@@ -232,44 +232,13 @@ function BankFrame:Update()
     end
 end
 
--- Helper to get or create section header
+-- Use centralized frame helpers for section headers and bag parents
 function BankFrame:GetSectionHeader(index)
-    local name = "Guda_BankFrame_SectionHeader" .. index
-    local header = getglobal(name)
-    if not header then
-        header = CreateFrame("Frame", name, getglobal("Guda_BankFrame_ItemContainer"))
-        header:SetHeight(20)
-        header:EnableMouse(true)
-        local text = header:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-        text:SetPoint("LEFT", header, "LEFT", 0, 0)
-        header.text = text
-
-        header:SetScript("OnEnter", function()
-            if this.fullName and this.isShortened then
-                GameTooltip:SetOwner(this, "ANCHOR_TOP")
-                GameTooltip:SetText(this.fullName)
-                GameTooltip:Show()
-            end
-        end)
-        header:SetScript("OnLeave", function()
-            GameTooltip:Hide()
-        end)
-    end
-    header.inUse = true
-    return header
+    return Guda_GetSectionHeader("Guda_BankFrame", "Guda_BankFrame_ItemContainer", index)
 end
 
--- Helper to get or create bank bag parent frame
 function BankFrame:GetBagParent(bagID)
-    local itemContainer = getglobal("Guda_BankFrame_ItemContainer")
-    if not bankBagParents[bagID] then
-        bankBagParents[bagID] = CreateFrame("Frame", "Guda_BankFrame_BagParent"..bagID, itemContainer)
-        bankBagParents[bagID]:SetAllPoints(itemContainer)
-        if bankBagParents[bagID].SetID then
-            bankBagParents[bagID]:SetID(bagID)
-        end
-    end
-    return bankBagParents[bagID]
+    return Guda_GetBagParent("Guda_BankFrame", bankBagParents, bagID, "Guda_BankFrame_ItemContainer")
 end
 
 -- Display items by category

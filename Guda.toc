@@ -24,6 +24,7 @@ Sorting\SortEngine.lua
 
 # UI Lua must load before XML so OnLoad handlers exist
 UI\ItemButton.lua
+UI\FrameHelpers.lua
 UI\BagFrame.lua
 UI\BankFrame.lua
 UI\MailboxFrame.lua
