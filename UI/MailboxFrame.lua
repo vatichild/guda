@@ -17,8 +17,13 @@ local mailboxClickCatcher = nil
 
 -- OnLoad
 function Guda_MailboxFrame_OnLoad(self)
+    -- Apply border visibility setting
+    if MailboxFrame.UpdateBorderVisibility then
+        MailboxFrame:UpdateBorderVisibility()
+    end
+
     -- Set up initial backdrop
-    addon:ApplyBackdrop(self, "DEFAULT_FRAME")
+    -- (No longer needed here as UpdateBorderVisibility handles it)
 
     -- Set up search box placeholder
     local searchBox = getglobal(self:GetName().."_SearchBar_SearchBox")
@@ -53,12 +58,27 @@ end
 
 -- OnShow
 function Guda_MailboxFrame_OnShow(self)
+    -- Apply border visibility setting
+    if MailboxFrame.UpdateBorderVisibility then
+        MailboxFrame:UpdateBorderVisibility()
+    end
+
     -- Apply frame transparency
     if Guda_ApplyBackgroundTransparency then
         Guda_ApplyBackgroundTransparency()
     end
 
     MailboxFrame:Update()
+end
+
+-- Update border visibility
+function MailboxFrame:UpdateBorderVisibility()
+    local hideBorders = addon.Modules.DB:GetSetting("hideBorders")
+    if hideBorders then
+        Guda:ApplyBackdrop(Guda_MailboxFrame, "MINIMALIST_BORDER", "DEFAULT")
+    else
+        Guda:ApplyBackdrop(Guda_MailboxFrame, "DEFAULT_FRAME", "DEFAULT")
+    end
 end
 
 -- OnHide

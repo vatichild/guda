@@ -136,26 +136,31 @@
             </Button>
 
             <!-- Search Bar -->
-            <Frame name="$parent_SearchBar" inherits="OptionFrameBoxTemplate">
+            <Frame name="$parent_SearchBar">
                 <Size>
-                    <AbsDimension x="250" y="32"/>
+                    <AbsDimension x="350" y="30"/>
                 </Size>
                 <Anchors>
                     <Anchor point="TOPLEFT">
                         <Offset>
-                            <AbsDimension x="20" y="-35"/>
+                            <AbsDimension x="20" y="-40"/>
                         </Offset>
                     </Anchor>
                 </Anchors>
                 <Frames>
                     <EditBox name="$parent_SearchBox" autoFocus="false" inherits="InputBoxTemplate">
                         <Size>
-                            <AbsDimension x="235" y="20"/>
+                            <AbsDimension x="0" y="20"/>
                         </Size>
                         <Anchors>
                             <Anchor point="LEFT">
                                 <Offset>
-                                    <AbsDimension x="10" y="0"/>
+                                    <AbsDimension x="16" y="0"/>
+                                </Offset>
+                            </Anchor>
+                            <Anchor point="RIGHT">
+                                <Offset>
+                                    <AbsDimension x="-10" y="0"/>
                                 </Offset>
                             </Anchor>
                         </Anchors>
@@ -190,12 +195,6 @@
                         </Scripts>
                     </EditBox>
                 </Frames>
-                <Scripts>
-                    <OnLoad>
-                        this:SetBackdropBorderColor(0.4, 0.4, 0.4)
-                        this:SetBackdropColor(0.15, 0.15, 0.15, 0.5)
-                    </OnLoad>
-                </Scripts>
             </Frame>
 
             <!-- Character Selection Button -->

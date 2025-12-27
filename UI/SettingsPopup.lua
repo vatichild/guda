@@ -368,7 +368,7 @@ function Guda_ApplyBackgroundTransparency()
     local transparency = Guda.Modules.DB:GetSetting("bgTransparency") or 0.15
     local alpha = 1.0 - transparency
     
-    local frames = { "Guda_BagFrame", "Guda_BankFrame", "Guda_SettingsPopup", "Guda_QuestItemBar" }
+    local frames = { "Guda_BagFrame", "Guda_BankFrame", "Guda_MailboxFrame", "Guda_SettingsPopup", "Guda_QuestItemBar" }
     for _, frameName in ipairs(frames) do
         local frame = getglobal(frameName)
         if frame then
@@ -600,6 +600,15 @@ function Guda_SettingsPopup_HideBordersCheckbox_OnClick(self)
             Guda:ApplyBackdrop(bankFrame, "MINIMALIST_BORDER", "DEFAULT")
         else
             Guda:ApplyBackdrop(bankFrame, "DEFAULT_FRAME", "DEFAULT")
+        end
+    end
+
+    local mailboxFrame = getglobal("Guda_MailboxFrame")
+    if mailboxFrame then
+        if isChecked then
+            Guda:ApplyBackdrop(mailboxFrame, "MINIMALIST_BORDER", "DEFAULT")
+        else
+            Guda:ApplyBackdrop(mailboxFrame, "DEFAULT_FRAME", "DEFAULT")
         end
     end
 
