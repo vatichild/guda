@@ -381,6 +381,15 @@ function Guda_ItemButton_OnLoad(self)
         
         -- Default behavior
         if ContainerFrameItemButton_OnClick then
+            -- Mailbox clicks should be ignored except for Ctrl+Click (preview)
+            -- OR if it's a live mail item for the current player and Shift+Click (loot)
+            if this.isMail then
+                if IsControlKeyDown() then
+                    ContainerFrameItemButton_OnClick(arg1)
+                end
+                return
+            end
+
             ContainerFrameItemButton_OnClick(arg1)
         end
     end)
@@ -1000,6 +1009,9 @@ function Guda_ItemButton_OnEnter(self)
         elseif self.itemData and self.itemData.name then
             -- Money or generic mail
             GameTooltip:AddLine(self.itemData.name, 1, 1, 1)
+        elseif self.mailData and self.mailData.money and self.mailData.money > 0 then
+            -- Fallback for money only mail
+            GameTooltip:AddLine("Money", 1, 1, 1)
         end
 
         -- Add mailbox metadata if available
