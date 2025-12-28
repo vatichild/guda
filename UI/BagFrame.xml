@@ -338,7 +338,6 @@
                             </OnClick>
                             <OnEnter>
                                 Guda_BagSlot_OnEnter(this, 0)
-                                Guda_BagFrame_HighlightBagSlots(0)
                             </OnEnter>
                             <OnLeave>
                                 GameTooltip:Hide()
@@ -373,7 +372,6 @@
                             </OnClick>
                             <OnEnter>
                                 Guda_BagSlot_OnEnter(this, 1)
-                                Guda_BagFrame_HighlightBagSlots(1)
                             </OnEnter>
                             <OnDragStart>
                                 Guda_BagSlot_OnDragStart(this, 1)
@@ -414,7 +412,6 @@
                             </OnClick>
                             <OnEnter>
                                 Guda_BagSlot_OnEnter(this, 2)
-                                Guda_BagFrame_HighlightBagSlots(2)
                             </OnEnter>
                             <OnDragStart>
                                 Guda_BagSlot_OnDragStart(this, 2)
@@ -455,7 +452,6 @@
                             </OnClick>
                             <OnEnter>
                                 Guda_BagSlot_OnEnter(this, 3)
-                                Guda_BagFrame_HighlightBagSlots(3)
                             </OnEnter>
                             <OnDragStart>
                                 Guda_BagSlot_OnDragStart(this, 3)
@@ -496,7 +492,6 @@
                             </OnClick>
                             <OnEnter>
                                 Guda_BagSlot_OnEnter(this, 4)
-                                Guda_BagFrame_HighlightBagSlots(4)
                             </OnEnter>
                             <OnDragStart>
                                 Guda_BagSlot_OnDragStart(this, 4)
@@ -552,13 +547,6 @@
                                 Guda_BagFrame_ToggleKeyring()
                             </OnClick>
                             <OnEnter>
-                                GameTooltip:SetOwner(this, "ANCHOR_TOP")
-                                GameTooltip:SetText("Keyring", 1.0, 1.0, 1.0)
-                                local numSlots = GetContainerNumSlots(-2) or 0
-                                GameTooltip:AddLine(string.format("%d Slots", numSlots), 0.8, 0.8, 0.8)
-                                GameTooltip:AddLine("(Right-click to toggle)", 0.5, 0.8, 0.5)
-                                GameTooltip:Show()
-                                Guda_BagFrame_HighlightBagSlots(-2)
                                 Guda_BagSlot_OnEnter(this, -2)
                             </OnEnter>
                             <OnLeave>

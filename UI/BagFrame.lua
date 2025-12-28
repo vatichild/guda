@@ -2002,6 +2002,18 @@ function Guda_BagSlot_OnEnter(button, bagID)
 		else
 			GameTooltip:AddLine("(Right-Click to hide)", 0.5, 0.8, 0.5)
 		end
+		Guda_BagFrame_HighlightBagSlots(0)
+	elseif bagID == -2 then
+		-- Keyring tooltip
+		GameTooltip:SetText("Keyring", 1.0, 1.0, 1.0)
+		local numSlots = GetContainerNumSlots(-2) or 0
+		GameTooltip:AddLine(string.format("%d Slots", numSlots), 0.8, 0.8, 0.8)
+		if hiddenBags[bagID] then
+			GameTooltip:AddLine("(Hidden - Right-Click to show)", 0.8, 0.5, 0.5)
+		else
+			GameTooltip:AddLine("(Right-Click to hide)", 0.5, 0.8, 0.5)
+		end
+		Guda_BagFrame_HighlightBagSlots(-2)
 	else
 	-- Bag slot tooltip
 		local invSlot = ContainerIDToInventoryID(bagID)
@@ -2015,6 +2027,7 @@ function Guda_BagSlot_OnEnter(button, bagID)
 			else
 				GameTooltip:AddLine("(Right-Click to hide)", 0.5, 0.8, 0.5)
 			end
+			Guda_BagFrame_HighlightBagSlots(bagID)
 		else
 		-- Empty slot
 			GameTooltip:SetText(string.format("Bag %d", bagID), 1.0, 1.0, 1.0)
@@ -2024,6 +2037,7 @@ function Guda_BagSlot_OnEnter(button, bagID)
 			else
 				GameTooltip:AddLine("(Right-Click to hide)", 0.5, 0.8, 0.5)
 			end
+			Guda_BagFrame_HighlightBagSlots(bagID)
 		end
 	end
 
