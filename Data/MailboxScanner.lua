@@ -270,43 +270,34 @@ function MailboxScanner:Initialize()
         return originalPlaceAuctionBid(type, index, bid)
     end
 
+    -- Hook taking items/money to update database immediately
+    local originalTakeInboxItem = TakeInboxItem
+    TakeInboxItem = function(index, attachmentIndex)
+        local result = originalTakeInboxItem(index, attachmentIndex)
+        MailboxScanner:SaveToDatabase()
+        return result
+    end
+
+    local originalTakeInboxMoney = TakeInboxMoney
+    TakeInboxMoney = function(index)
+        local result = originalTakeInboxMoney(index)
+        MailboxScanner:SaveToDatabase()
+        return result
+    end
+
+    local originalAutoLootMailItem = AutoLootMailItem
+    AutoLootMailItem = function(index)
+        local result = originalAutoLootMailItem(index)
+        MailboxScanner:SaveToDatabase()
+        return result
+    end
+
     -- Mailbox opened
     addon.Modules.Events:OnMailShow(function()
         mailboxOpen = true
         addon:Debug("Mailbox opened")
-        
-        -- Delay scan slightly to ensure item info is available
-        local frame = CreateFrame("Frame")
-        local elapsed = 0
-        frame:SetScript("OnUpdate", function()
-            elapsed = elapsed + arg1
-            if elapsed >= 0.5 then
-                frame:SetScript("OnUpdate", nil)
-                if mailboxOpen then
-                    MailboxScanner:SaveToDatabase()
-                end
-            end
-        end)
+        MailboxScanner:SaveToDatabase()
     end, "MailboxScanner")
-
-    -- Register for GET_ITEM_INFO_RECEIVED to refresh if item data arrives
-    addon.Modules.Events:Register("GET_ITEM_INFO_RECEIVED", function()
-        if mailboxOpen then
-            addon:Debug("GET_ITEM_INFO_RECEIVED: Refreshing mailbox")
-            MailboxScanner:SaveToDatabase()
-        end
-    end, "MailboxScanner")
-
-    -- Register for MAIL_INBOX_UPDATE to detect when mail content changes
-    addon.Modules.Events:Register("MAIL_INBOX_UPDATE", function()
-        if mailboxOpen then
-            addon:Debug("MAIL_INBOX_UPDATE: Refreshing mailbox")
-            MailboxScanner:SaveToDatabase()
-        end
-    end, "MailboxScanner")
-
-    -- Register for UI_ERROR_MESSAGE to handle "item not found" situations if needed
-    -- (Some items might not be in cache and fail silently otherwise)
 
     -- Mailbox closed
     addon.Modules.Events:OnMailClosed(function()
