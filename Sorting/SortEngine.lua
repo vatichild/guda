@@ -97,100 +97,137 @@ local GEM_PATTERNS = {
 local scanTooltip = CreateFrame("GameTooltip", "Guda_SortScanTooltip", nil, "GameTooltipTemplate")
 scanTooltip:SetOwner(WorldFrame, "ANCHOR_NONE")
 
--- Check if an item is a quest item by scanning its tooltip
-local function IsQuestItemTooltip(bagID, slotID)
-	if not bagID or not slotID then return false end
+-- Property cache to prevent race conditions during rapid moves
+local propertyCache = {}
 
-	scanTooltip:ClearLines()
-	scanTooltip:SetBagItem(bagID, slotID)
+function SortEngine:ClearCache()
+	propertyCache = {}
+end
 
-	-- Check all tooltip lines for quest-related text (case-insensitive)
-	for i = 1, scanTooltip:NumLines() do
-		local line = getglobal("Guda_SortScanTooltipTextLeft" .. i)
-		if line then
-			local text = line:GetText()
-			if text then
-				local tl = string.lower(text)
-				if string.find(tl, "quest starter") or
-				   string.find(tl, "this item begins a quest") or
-				   string.find(tl, "starts a quest") or
-				   string.find(tl, "quest item") or
-				   string.find(tl, "manual") then
-					return true
+local function GetItemProperties(bagID, slotID, itemLink)
+	if not itemLink then return nil end
+	
+	-- Extract base item link for stable caching (item:ID:Enchant:...)
+	local _, _, baseLink = string.find(itemLink, "(item:%d+:%d+:%d+:%d+:%d+:%d+:%d+:%d+)")
+	local cacheKey = baseLink or itemLink
+	
+	if propertyCache[cacheKey] then
+		return propertyCache[cacheKey]
+	end
+
+	local props = {
+		isQuest = false,
+		isQuestStarter = false,
+		isQuestUsable = false,
+		isGray = false,
+		restoreTag = nil
+	}
+
+	-- Quality check from link color code (|cff9d9d9d is gray)
+	if string.find(itemLink, "|cff9d9d9d") then
+		props.isGray = true
+	end
+
+	if bagID and slotID then
+		scanTooltip:ClearLines()
+		scanTooltip:SetBagItem(bagID, slotID)
+		
+		local numLines = scanTooltip:NumLines()
+		if numLines and numLines > 0 then
+			for i = 1, numLines do
+				local line = getglobal("Guda_SortScanTooltipTextLeft" .. i)
+				if line then
+					local text = line:GetText()
+					if text then
+						local tl = string.lower(text)
+						
+						-- Quest item check
+						if string.find(tl, "quest starter") or
+						   string.find(tl, "this item begins a quest") or
+						   string.find(tl, "starts a quest") or
+						   string.find(tl, "quest item") or
+						   string.find(tl, "manual") then
+							props.isQuest = true
+						end
+						
+						-- Starter check
+						if string.find(tl, "quest starter") or 
+						   string.find(tl, "this item begins a quest") or 
+						   string.find(tl, "starts a quest") then
+							props.isQuestStarter = true
+						end
+						
+						-- Usable check
+						if string.find(tl, "use:") or 
+						   string.find(tl, "right%-click") or 
+						   string.find(tl, "right click") or 
+						   string.find(tl, "click to") then
+							props.isQuestUsable = true
+						end
+						
+						-- Restore tag check (higher priority tags override lower ones)
+						if string.find(tl, "while eating") then
+							props.restoreTag = "eat"
+						elseif string.find(tl, "while drinking") then
+							if props.restoreTag ~= "eat" then
+								props.restoreTag = "drink"
+							end
+						elseif string.find(tl, "use: restores") then
+							if not props.restoreTag then
+								props.restoreTag = "restore"
+							end
+						end
+
+						-- Gray check (header line color fallback)
+						if i == 1 and string.find(text, "|cff9d9d9d") then
+							props.isGray = true
+						end
+					end
 				end
 			end
 		end
 	end
-	return false
+
+	propertyCache[cacheKey] = props
+	return props
+end
+
+-- Check if an item is a quest item by scanning its tooltip
+local function IsQuestItemTooltip(bagID, slotID)
+	if not bagID or not slotID then return false end
+	local link = GetContainerItemLink(bagID, slotID)
+	local props = GetItemProperties(bagID, slotID, link)
+	return props and props.isQuest or false
 end
 
 -- Check if a quest item is usable (has 'Use:' or click to text)
 local function IsQuestItemUsable(bagID, slotID)
 	if not bagID or not slotID then return false end
-
-	scanTooltip:ClearLines()
-	scanTooltip:SetBagItem(bagID, slotID)
-
-	for i = 1, scanTooltip:NumLines() do
-		local line = getglobal("Guda_SortScanTooltipTextLeft" .. i)
-		if line then
-			local text = line:GetText()
-			if text then
-				local tl = string.lower(text)
-				if string.find(tl, "use:") or string.find(tl, "right%-click") or string.find(tl, "right click") or string.find(tl, "click to") or string.find(tl, "starts a quest") then
-					return true
-				end
-			end
-		end
-	end
-	return false
+	local link = GetContainerItemLink(bagID, slotID)
+	local props = GetItemProperties(bagID, slotID, link)
+	return props and props.isQuestUsable or false
 end
 
 -- Check if item is a quest starter (explicit 'Starts a Quest' or 'This Item Begins a Quest')
 local function IsQuestItemStarter(bagID, slotID)
 	if not bagID or not slotID then return false end
-
-	scanTooltip:ClearLines()
-	scanTooltip:SetBagItem(bagID, slotID)
-
-	for i = 1, scanTooltip:NumLines() do
-		local line = getglobal("Guda_SortScanTooltipTextLeft" .. i)
-		if line then
-			local text = line:GetText()
-			if text then
-				local tl = string.lower(text)
-				if string.find(tl, "quest starter") or string.find(tl, "this item begins a quest") or string.find(tl, "starts a quest") then
-					return true
-				end
-			end
-		end
-	end
-	return false
+	local link = GetContainerItemLink(bagID, slotID)
+	local props = GetItemProperties(bagID, slotID, link)
+	return props and props.isQuestStarter or false
 end
 
 -- Check if an item has a gray title in its tooltip or link
 local function IsItemGrayTooltip(bagID, slotID, itemLink)
-	-- Check link first if provided
-	if itemLink and string.find(itemLink, "|cff9d9d9d") then
-		return true
-	end
+	local props = GetItemProperties(bagID, slotID, itemLink)
+	return props and props.isGray or false
+end
 
-	if not bagID or not slotID then return false end
-
-	scanTooltip:ClearLines()
-	scanTooltip:SetBagItem(bagID, slotID)
-
-	local line = getglobal("Guda_SortScanTooltipTextLeft1")
-	if line then
-		local text = line:GetText()
-		if text then
-			-- Poor quality color code is |cff9d9d9d
-			if string.find(text, "|cff9d9d9d") then
-				return true
-			end
-		end
-	end
-	return false
+-- Check if an item has a restore tag (eat, drink, or restore)
+local function GetItemRestoreTagTooltip(bagID, slotID)
+	if not bagID or not slotID then return nil end
+	local link = GetContainerItemLink(bagID, slotID)
+	local props = GetItemProperties(bagID, slotID, link)
+	return props and props.restoreTag or nil
 end
 
 -- Extract itemID from item link
@@ -198,6 +235,19 @@ local function GetItemID(link)
 	if not link then return 0 end
 	local _, _, itemID = string.find(link, "item:(%d+)")
 	return tonumber(itemID) or 0
+end
+
+-- Get item quality from link color code
+local function GetQualityFromLink(link)
+	if not link then return 1 end
+	if string.find(link, "|cff9d9d9d") then return 0 end -- Gray
+	if string.find(link, "|cffffffff") then return 1 end -- White
+	if string.find(link, "|cff1eff00") then return 2 end -- Green
+	if string.find(link, "|cff0070dd") then return 3 end -- Blue
+	if string.find(link, "|cffa335ee") then return 4 end -- Purple
+	if string.find(link, "|cffff8000") then return 5 end -- Orange
+	if string.find(link, "|cffe6cc80") then return 6 end -- Red/Artifact
+	return 1
 end
 
 -- Extract texture pattern for grouping similar items
@@ -466,24 +516,30 @@ local function AddSortKeys(items)
 	for _, item in ipairs(items) do
 		if item.data and item.data.link then
 			local itemID = GetItemID(item.data.link)
-			local itemName, itemLink, itemRarity, itemLevel, itemCategory, itemType, itemStackCount,
-			itemSubType, itemTexture, itemEquipLoc, itemSellPrice = GetItemInfo(itemID)
-				item.itemName = itemName
-			--addon:Print("itemTexture:%s",itemTexture or 0);
-			--addon:Print("itemEquipLoc:%s",itemEquipLoc or 0);
-			--addon:Print("itemSubType:%s",itemSubType or 0);
-			--addon:Print("itemType:%s",itemType or 0);
-			--addon:Print("itemCategory:%s",itemCategory or 0);
-			--addon:Print("itemLevel:%s",itemLevel or 0);
+			
+			-- Use data collected during the initial scan (item.data) for absolute stability
+			local d = item.data
+			local itemName = d.name
+			local itemLink = d.link
+			local itemRarity = d.quality
+			local itemLevel = d.iLevel
+			local itemCategory = d.class
+			local itemType = d.type
+			local itemSubType = d.subclass
+			local itemTexture = d.texture
+			local itemEquipLoc = d.equipLoc
+			local itemStackSize = d.stackSize or 1
+
+			item.itemName = itemName or ""
+			
 			if not itemName then
-			-- Skip items that couldn't be loaded
+				-- Skip items that couldn't be loaded (fallback safety)
 				item.sortedClass = 999
 				item.isEquippable = false
 				item.priority = 1000
 				item.equipSlotOrder = 999
 				item.invertedQuality = 0
 				item.invertedItemLevel = 0
-				item.itemName = ""
 				item.sortedSubclass = 999
 				item.subclass = ""
 				item.texturePattern = ""
@@ -522,11 +578,10 @@ local function AddSortKeys(items)
 					-- Heuristic: Detect items that should be in the Quest category (priority 7)
 					-- but aren't categorized as such by the game (e.g. some "Manual" items)
 					if item.sortedClass ~= (CATEGORY_ORDER["Quest"] or 7) then
-						local nameLower = item.itemName and string.lower(item.itemName) or ""
+						local nameLower = string.lower(item.itemName)
 						if string.find(nameLower, "manual") or string.find(nameLower, "quest") then
 							item.sortedClass = CATEGORY_ORDER["Quest"] or 7
 						elseif IsQuestItemTooltip(item.bagID, item.slot) then
-							-- If name-based heuristic fails, check tooltip
 							item.sortedClass = CATEGORY_ORDER["Quest"] or 7
 						end
 					end
@@ -535,31 +590,24 @@ local function AddSortKeys(items)
 
 				-- Subclass ordering
 				-- Detect consumable restore/eat/drink tag (if available) BEFORE computing subclass priority
-			item.restoreTag = nil
-			if addon.Modules.Utils and addon.Modules.Utils.GetConsumableRestoreTag then
-				if item.bagID and item.slot then
-					local tag = addon.Modules.Utils:GetConsumableRestoreTag(item.bagID, item.slot)
-					if tag then
-						item.restoreTag = tag
-					end
+				item.restoreTag = GetItemRestoreTagTooltip(item.bagID, item.slot)
+				
+				local baseSub = GetSubclassOrder(itemSubType, item.itemName)
+				local function _cons_prk(t)
+					if t == "eat" then return -300 end
+					if t == "drink" then return -200 end
+					if t == "restore" then return -100 end
+					return 0
 				end
-			end
-			local baseSub = GetSubclassOrder(itemSubType, item.name)
-			local function _cons_prk(t)
-				if t == "eat" then return -300 end
-				if t == "drink" then return -200 end
-				if t == "restore" then return -100 end
-				return 0
-			end
-			item.sortedSubclass = _cons_prk(item.restoreTag) + baseSub
+				item.sortedSubclass = _cons_prk(item.restoreTag) + baseSub
 				item.subclass = itemSubType or ""
 
 				-- Quest flags: mark quest items and detect starter/usable states
 				item.isQuest = false
 				item.isQuestStarter = false
 				item.isQuestUsable = false
-				local nameLower = item.itemName and string.lower(item.itemName) or ""
-				if itemCategory == "Quest" or string.find(nameLower, "quest") or (item.data and item.data.class == "Quest") or IsQuestItemTooltip(item.bagID, item.slot) then
+				local nameLower = string.lower(item.itemName)
+				if itemCategory == "Quest" or string.find(nameLower, "quest") or item.data.class == "Quest" or IsQuestItemTooltip(item.bagID, item.slot) then
 					item.isQuest = true
 					if IsQuestItemStarter(item.bagID, item.slot) then item.isQuestStarter = true end
 					if IsQuestItemUsable(item.bagID, item.slot) then item.isQuestUsable = true end
@@ -568,7 +616,6 @@ local function AddSortKeys(items)
 				-- Texture pattern for grouping similar items (especially trade goods)
 				item.texturePattern = GetTexturePattern(itemTexture)
 				-- Group Trade Goods: meats (names ending with 'meat') before eggs
-				local nameLower = item.itemName and string.lower(item.itemName) or ""
 				if itemType == "Trade Goods" then
 					if string.find(nameLower, "meat$") then
 						item.texturePattern = "trade_meat"
@@ -584,12 +631,9 @@ local function AddSortKeys(items)
 				item.invertedItemID = -tonumber(itemID)
 
 				-- Stack info for reverse stack sorting
-				item.maxStackCount = tonumber(itemStackCount) or 1
+				item.maxStackCount = tonumber(itemStackSize) or 1
 				item.isStackable = item.maxStackCount > 1
 				item.stackCount = tonumber(item.data.count) or 1
-
-				-- Name for alphabetical sorting
-				item.itemName = item.name or ""
 			end
 		end
 	end
@@ -747,6 +791,11 @@ local function CollectItems(bagIDs)
 					-- Get fresh item info with ALL return values
 					local itemID = GetItemID(itemLink)
 					local name, link, quality, iLevel, category, itemType, stackCount, subType, iconTex, equipLoc, sellPrice = GetItemInfo(itemID)
+					
+					-- Fallback for quality if GetItemInfo fails (ensures stability)
+					if not quality then
+						quality = GetQualityFromLink(itemLink)
+					end
 
 					sequence = sequence + 1
 					table.insert(items, {
@@ -755,14 +804,16 @@ local function CollectItems(bagIDs)
 						sequence = sequence,  -- Preserve original order
 						data = {
 							link = itemLink,
-							texture = texture,
+							texture = texture or iconTex,
 							count = itemCount or 1,
 							quality = quality or 0,
 							name = name,
 							iLevel = iLevel,
 							type = itemType,
 							class = category,
-							subclass = subType,  -- NOW INCLUDED!
+							subclass = subType,
+							equipLoc = equipLoc,
+							stackSize = stackCount or 1,
 							locked = locked,
 						},
 						quality = quality or 0,
@@ -898,8 +949,6 @@ end
 -- and spilling into previous bags when needed.
 local function BuildGreyTailPositions(bagIDs, greyCount)
 	local positions = {}
-	local index = 1
-
 	if greyCount <= 0 then return positions end
 
 	-- Order bags: lowest priority first (these are considered "last"),
@@ -927,26 +976,42 @@ local function BuildGreyTailPositions(bagIDs, greyCount)
 	end)
 
 	-- Collect tail slots from end to start, spilling to previous bags as needed.
+	local tailSlots = {}
 	for _, info in ipairs(ordered) do
 		for slot = info.numSlots, 1, -1 do
-			if index <= greyCount then
-				positions[index] = { bag = info.bagID, slot = slot }
-				index = index + 1
+			if table.getn(tailSlots) < greyCount then
+				table.insert(tailSlots, { bag = info.bagID, slot = slot })
 			else
 				break
 			end
 		end
-		if index > greyCount then break end
+		if table.getn(tailSlots) >= greyCount then break end
 	end
 
-	return positions
+	-- STABILITY FIX: Sort the collected tail slots to match the ascending scan order.
+	-- This ensures that identical items don't swap places every pass.
+	-- Ascending order: Priority DESC, BagID ASC, Slot ASC (matching BuildTargetPositions)
+	table.sort(tailSlots, function(a, b)
+		local aPrio = tonumber(addon.Modules.Utils:GetContainerPriority(a.bag)) or 0
+		local bPrio = tonumber(addon.Modules.Utils:GetContainerPriority(b.bag)) or 0
+		if aPrio ~= bPrio then
+			return aPrio > bPrio
+		end
+		if a.bag ~= b.bag then
+			return a.bag < b.bag
+		end
+		return a.slot < b.slot
+	end)
+
+	return tailSlots
 end
 
 -- Split a list of collected items into non-greys and greys (quality 0)
 local function SplitGreyItems(items)
     local nonGreys, greys = {}, {}
     for _, item in ipairs(items) do
-        if tonumber(item.quality or 0) == 0 then
+        -- Use same logic as AddSortKeys for determining Junk/Grey status (stability)
+        if tonumber(item.quality or 0) == 0 or IsItemGrayTooltip(item.bagID, item.slot, item.data.link) then
             table.insert(greys, item)
         else
             table.insert(nonGreys, item)
@@ -1033,20 +1098,8 @@ function SortEngine:AnalyzeContainer(bagIDs, containerType)
 
 			for i, item in ipairs(greys) do
 				local target = tailPositions[i]
-				-- FIX: Check if grey item is already in a tail position of a valid regular bag
-				local isInTailPosition = false
-
-				-- Check if this grey item is already in the end slots of any valid regular bag
-				for _, bagID in ipairs(validRegularBags) do
-					local numSlots = addon.Modules.Utils:GetBagSlotCount(bagID)
-					if item.bagID == bagID and item.slot >= (numSlots - table.getn(greys) + 1) then
-						isInTailPosition = true
-						break
-					end
-				end
-
-				-- Only count as out of place if it's NOT in a tail position AND doesn't match target
-				if target and (item.bagID ~= target.bag or item.slot ~= target.slot) and not isInTailPosition then
+				-- Only count as out of place if it doesn't match the specific stable target
+				if target and (item.bagID ~= target.bag or item.slot ~= target.slot) then
 					totalOutOfPlace = totalOutOfPlace + 1
 				end
 			end
@@ -1333,6 +1386,9 @@ end
 --===========================================================================
 
 function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sortType)
+	-- Clear property cache at the start of a sort operation
+	self:ClearCache()
+
 -- Analyze to determine how many passes are needed
 	local analysis = analyzeFunction()
 
