@@ -255,6 +255,23 @@
                         </Offset>
                     </Anchor>
                 </Anchors>
+                <Layers>
+                    <Layer level="ARTWORK">
+                        <FontString name="Guda_MailboxFrame_EmptyMessage" inherits="GameFontNormal" justifyH="CENTER" hidden="true">
+                            <Size>
+                                <AbsDimension x="300" y="0"/>
+                            </Size>
+                            <Anchors>
+                                <Anchor point="CENTER">
+                                    <Offset>
+                                        <AbsDimension x="0" y="0"/>
+                                    </Offset>
+                                </Anchor>
+                            </Anchors>
+                            <Color r="1" g="0.82" b="0"/>
+                        </FontString>
+                    </Layer>
+                </Layers>
             </Frame>
 
             <!-- Pagination -->

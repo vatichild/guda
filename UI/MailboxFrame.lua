@@ -164,6 +164,16 @@ function MailboxFrame:Update()
     end
 
     -- Display items
+    local emptyMessage = getglobal("Guda_MailboxFrame_EmptyMessage")
+    if emptyMessage then
+        if totalItems == 0 then
+            emptyMessage:SetText("No mailbox data found for this character.\n\nVisit a mailbox in-game to save your mail data.")
+            emptyMessage:Show()
+        else
+            emptyMessage:Hide()
+        end
+    end
+
     self:DisplayItems(filteredItems, charFullName, totalItems)
 end
 
@@ -308,7 +318,11 @@ function MailboxFrame:DisplayItems(items, charFullName, totalMails)
     -- Update pagination text
     local paginationText = getglobal("Guda_MailboxFrame_Pagination_Text")
     if paginationText then
-        paginationText:SetText(string.format("%d/%d (items: %d)", currentPage, totalPages, totalMails or 0))
+        if totalMails == 0 then
+            paginationText:SetText("No Mail")
+        else
+            paginationText:SetText(string.format("%d/%d (items: %d)", currentPage, totalPages, totalMails or 0))
+        end
     end
 end
 
