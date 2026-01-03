@@ -54,19 +54,11 @@ function Guda_UpdateLockStates(parentsTable)
             local buttons = { parent:GetChildren() }
             for _, button in ipairs(buttons) do
                 if button.hasItem ~= nil and button:IsShown() and button.bagID and button.slotID then
-                    local ok, name, texture, count, quality, canUse = pcall(function() return GetContainerItemInfo(button.bagID, button.slotID) end)
-                    local _, _, locked = nil, nil, nil
-                    if ok then
-                        -- older GetContainerItemInfo returns texture, count, locked etc in different orders; try to call a safe wrapper if available
-                        local infoOk, iName, iTexture, iCount, iQuality, iCanUse, iLocked = pcall(function() return GetContainerItemInfo(button.bagID, button.slotID) end)
-                        if infoOk then
-                            -- Try to find 'locked' boolean among returned values (best-effort)
-                            for _, val in ipairs({iName, iTexture, iCount, iQuality, iCanUse, iLocked}) do
-                                if type(val) == "boolean" then locked = val; break end
-                            end
-                        end
-                    end
-                    if not button.otherChar and not button.isReadOnly and SetItemButtonDesaturated and locked ~= nil then
+                    -- GetContainerItemInfo returns: texture, itemCount, locked, quality, readable
+                    -- The 3rd return value is the lock state (boolean or nil)
+                    local _, _, locked = GetContainerItemInfo(button.bagID, button.slotID)
+                    if not button.otherChar and not button.isReadOnly and SetItemButtonDesaturated then
+                        -- locked can be true/1 (locked) or nil/false (unlocked)
                         SetItemButtonDesaturated(button, locked, 0.5, 0.5, 0.5)
                     end
                 end

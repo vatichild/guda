@@ -324,7 +324,12 @@ function BagFrame:Update()
 
 	-- Display items
 	local viewType = addon.Modules.DB:GetSetting("bagViewType") or "single"
-	
+
+	-- Clear itemButtons table before rebuilding (prevents stale references)
+	for k in pairs(itemButtons) do
+		itemButtons[k] = nil
+	end
+
     -- Reset all section headers before displaying items
     local i = 1
     while true do
@@ -610,7 +615,8 @@ function BagFrame:DisplayItemsByCategory(bagData, isOtherChar, charName)
                 local matchesFilter = self:PassesSearchFilter(itemData)
                 Guda_ItemButton_SetItem(button, bagID, slot, itemData, false, isOtherChar and charName or nil, matchesFilter, isOtherChar)
                 button.inUse = true
-                
+                table.insert(itemButtons, button)
+
                 col = col + 1
                 if col >= blockCols then
                     col = 0
@@ -716,6 +722,7 @@ function BagFrame:DisplayItemsByCategory(bagData, isOtherChar, charName)
                     -- Ensure it's not actually read-only for drop behavior (it should still receive clicks/drops)
                     button.isReadOnly = false
                     button.inUse = true
+                    table.insert(itemButtons, button)
                 else
                     for _, item in ipairs(items) do
                         local bagParent = self:GetBagParent(item.bagID)
@@ -728,7 +735,8 @@ function BagFrame:DisplayItemsByCategory(bagData, isOtherChar, charName)
                         button:Show()
                         Guda_ItemButton_SetItem(button, item.bagID, item.slotID, item.itemData, false, isOtherChar and charName or nil, self:PassesSearchFilter(item.itemData), isOtherChar)
                         button.inUse = true
-                        
+                        table.insert(itemButtons, button)
+
                         sCol = sCol + 1
                         if sCol >= blockCols then
                             sCol = 0
