@@ -276,9 +276,28 @@ function BagFrame:Update()
 	end
 
 	-- If cursor is holding an item (mid-drag), only update lock states, don't rebuild UI
+	-- BUT only if we already have items displayed - otherwise we need to do initial build
 	if CursorHasItem and CursorHasItem() then
-		self:UpdateLockStates()
-		return
+		-- Check if we have any displayed items
+		local hasDisplayedItems = false
+		for _, bagParent in pairs(bagParents) do
+			if bagParent then
+				local children = { bagParent:GetChildren() }
+				for _, button in ipairs(children) do
+					if button.hasItem and button:IsShown() then
+						hasDisplayedItems = true
+						break
+					end
+				end
+			end
+			if hasDisplayedItems then break end
+		end
+
+		if hasDisplayedItems then
+			self:UpdateLockStates()
+			return
+		end
+		-- If no items displayed yet, continue with full update
 	end
 
 	-- Mark all existing buttons as not in use (we'll mark active ones during display)
