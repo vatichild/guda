@@ -9,6 +9,27 @@ addon.Modules.SortEngine = SortEngine
 -- Flag to track if sorting is currently in progress
 SortEngine.sortingInProgress = false
 
+-- Update sort button appearance based on sorting state
+function SortEngine:UpdateSortButtonState(isDisabled)
+	local buttons = {
+		getglobal("Guda_BagFrame_SortButton"),
+		getglobal("Guda_BankFrame_SortButton")
+	}
+
+	for _, btn in ipairs(buttons) do
+		if btn then
+			local icon = getglobal(btn:GetName() .. "_Icon")
+			if icon then
+				if isDisabled then
+					icon:SetVertexColor(0.4, 0.4, 0.4)
+				else
+					icon:SetVertexColor(0.8, 0.8, 0.8)
+				end
+			end
+		end
+	end
+end
+
 --===========================================================================
 -- CONSTANTS
 --===========================================================================
@@ -1406,8 +1427,9 @@ function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sort
 		return false, "already sorted"
 	end
 
-	-- Set sorting flag
+	-- Set sorting flag and update button appearance
 	self.sortingInProgress = true
+	self:UpdateSortButtonState(true)
 
 	-- Print analysis results
 	addon:Print("Sorting %s... (%d/%d items need sorting, estimated %d passes)",
@@ -1442,6 +1464,7 @@ function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sort
 				if GetTime() - startTime >= 0.7 then
 					frame:SetScript("OnUpdate", nil)
 					SortEngine.sortingInProgress = false
+					SortEngine:UpdateSortButtonState(false)
 					updateFrame()
 				end
 			end)
@@ -1457,6 +1480,7 @@ function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sort
 				if GetTime() - startTime >= 0.7 then
 					frame:SetScript("OnUpdate", nil)
 					SortEngine.sortingInProgress = false
+					SortEngine:UpdateSortButtonState(false)
 					updateFrame()
 				end
 			end)
@@ -1478,6 +1502,7 @@ function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sort
                     if GetTime() - startTime >= 0.7 then
                         frame:SetScript("OnUpdate", nil)
                         SortEngine.sortingInProgress = false
+                        SortEngine:UpdateSortButtonState(false)
                         updateFrame()
                     end
                 end)

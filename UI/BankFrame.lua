@@ -1096,8 +1096,9 @@ function Guda_BankFrame_MergeStacks()
 		return
 	end
 
-	-- Set sorting flag
+	-- Set sorting flag and update button appearance
 	addon.Modules.SortEngine.sortingInProgress = true
+	addon.Modules.SortEngine:UpdateSortButtonState(true)
 
 	-- Process queue with delays
 	local queueIndex = 1
@@ -1108,6 +1109,7 @@ function Guda_BankFrame_MergeStacks()
 		if queueIndex > table.getn(moveQueue) then
 			addon:Print("Merged " .. totalMoves .. " stack(s)")
 			addon.Modules.SortEngine.sortingInProgress = false
+			addon.Modules.SortEngine:UpdateSortButtonState(false)
 			BankFrame:Update()
 			return
 		end
