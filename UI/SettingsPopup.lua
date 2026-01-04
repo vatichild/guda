@@ -28,9 +28,10 @@ function Guda_SettingsPopup_OnLoad(self)
     end
 
     -- Set tab names
-    PanelTemplates_SetNumTabs(self, 2)
+    PanelTemplates_SetNumTabs(self, 3)
     getglobal(self:GetName().."Tab1"):SetText("General")
-    getglobal(self:GetName().."Tab2"):SetText("Quick Guide")
+    getglobal(self:GetName().."Tab2"):SetText("Icons")
+    getglobal(self:GetName().."Tab3"):SetText("Quick Guide")
     PanelTemplates_SetTab(self, 1)
 
     -- Set How to Use text
@@ -57,12 +58,18 @@ end
 function Guda_SettingsPopup_Tab_OnClick(id)
     local frame = Guda_SettingsPopup
     PanelTemplates_SetTab(frame, id)
-    
+
+    -- Hide all tabs
+    getglobal(frame:GetName().."_GeneralTab"):Hide()
+    getglobal(frame:GetName().."_IconsTab"):Hide()
+    getglobal(frame:GetName().."_HowToUseTab"):Hide()
+
+    -- Show selected tab
     if id == 1 then
         getglobal(frame:GetName().."_GeneralTab"):Show()
-        getglobal(frame:GetName().."_HowToUseTab"):Hide()
+    elseif id == 2 then
+        getglobal(frame:GetName().."_IconsTab"):Show()
     else
-        getglobal(frame:GetName().."_GeneralTab"):Hide()
         getglobal(frame:GetName().."_HowToUseTab"):Show()
     end
 end
@@ -945,6 +952,54 @@ function Guda_SettingsPopup_ShowTooltipCountsCheckbox_OnClick(self)
     -- Save setting
     if Guda and Guda.Modules and Guda.Modules.DB then
         Guda.Modules.DB:SetSetting("showTooltipCounts", isChecked)
+    end
+end
+
+-- Mark Unusable Items Checkbox OnLoad
+function Guda_SettingsPopup_MarkUnusableCheckbox_OnLoad(self)
+    local text = getglobal(self:GetName().."Text")
+    if text then
+        text:SetText("Mark Unusable Items")
+
+        -- Increase font size
+        local font, _, flags = text:GetFont()
+        if font then
+            text:SetFont(font, 13, flags)
+        end
+    end
+
+    -- Tooltip
+    self.tooltipText = "Show a red tint on items that your character cannot use (wrong class, level, etc.)."
+
+    local markUnusable = true
+    if Guda and Guda.Modules and Guda.Modules.DB then
+        markUnusable = Guda.Modules.DB:GetSetting("markUnusableItems")
+        if markUnusable == nil then
+            markUnusable = true
+        end
+    end
+
+    self:SetChecked(markUnusable and 1 or 0)
+end
+
+-- Mark Unusable Items Checkbox OnClick
+function Guda_SettingsPopup_MarkUnusableCheckbox_OnClick(self)
+    local isChecked = self:GetChecked() == 1
+
+    -- Save setting
+    if Guda and Guda.Modules and Guda.Modules.DB then
+        Guda.Modules.DB:SetSetting("markUnusableItems", isChecked)
+    end
+
+    -- Update bag and bank frames to apply/remove the red tint
+    local bagFrame = getglobal("Guda_BagFrame")
+    if bagFrame and bagFrame:IsShown() then
+        Guda.Modules.BagFrame:Update()
+    end
+
+    local bankFrame = getglobal("Guda_BankFrame")
+    if bankFrame and bankFrame:IsShown() then
+        Guda.Modules.BankFrame:Update()
     end
 end
 

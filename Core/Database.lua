@@ -47,6 +47,7 @@ function DB:Initialize()
 				bgTransparency = 0.15,
 				showTrackedItems = true,
 				showTooltipCounts = true,
+				markUnusableItems = true,
 				bagViewType = "single", -- single, category
 				bankViewType = "single", -- single, category
 				trackedItems = {},
@@ -116,6 +117,9 @@ function DB:Initialize()
 	end
 	if Guda_CharDB.settings.questBarPinnedItems == nil then
 		Guda_CharDB.settings.questBarPinnedItems = {}
+	end
+	if Guda_CharDB.settings.markUnusableItems == nil then
+		Guda_CharDB.settings.markUnusableItems = true
 	end
 
 	-- Initialize this character's data

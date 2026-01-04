@@ -6,6 +6,9 @@ local addon = Guda
 local SortEngine = {}
 addon.Modules.SortEngine = SortEngine
 
+-- Flag to track if sorting is currently in progress
+SortEngine.sortingInProgress = false
+
 --===========================================================================
 -- CONSTANTS
 --===========================================================================
@@ -1386,6 +1389,12 @@ end
 --===========================================================================
 
 function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sortType)
+	-- Check if sorting is already in progress
+	if self.sortingInProgress then
+		addon:Print("Sorting already in progress, please wait...")
+		return false, "sorting in progress"
+	end
+
 	-- Clear property cache at the start of a sort operation
 	self:ClearCache()
 
@@ -1396,6 +1405,9 @@ function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sort
 	if analysis.alreadySorted then
 		return false, "already sorted"
 	end
+
+	-- Set sorting flag
+	self.sortingInProgress = true
 
 	-- Print analysis results
 	addon:Print("Sorting %s... (%d/%d items need sorting, estimated %d passes)",
@@ -1429,6 +1441,7 @@ function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sort
 			frame:SetScript("OnUpdate", function()
 				if GetTime() - startTime >= 0.7 then
 					frame:SetScript("OnUpdate", nil)
+					SortEngine.sortingInProgress = false
 					updateFrame()
 				end
 			end)
@@ -1443,6 +1456,7 @@ function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sort
 			frame:SetScript("OnUpdate", function()
 				if GetTime() - startTime >= 0.7 then
 					frame:SetScript("OnUpdate", nil)
+					SortEngine.sortingInProgress = false
 					updateFrame()
 				end
 			end)
@@ -1463,6 +1477,7 @@ function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sort
                 frame:SetScript("OnUpdate", function()
                     if GetTime() - startTime >= 0.7 then
                         frame:SetScript("OnUpdate", nil)
+                        SortEngine.sortingInProgress = false
                         updateFrame()
                     end
                 end)

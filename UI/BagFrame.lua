@@ -1358,6 +1358,12 @@ function Guda_BagFrame_MergeStacks()
 		return
 	end
 
+	-- Check if sorting is already in progress
+	if addon.Modules.SortEngine.sortingInProgress then
+		addon:Print("Sorting already in progress, please wait...")
+		return
+	end
+
 	local bagIDs = addon.Constants.BAGS
 	local moveQueue = {}
 
@@ -1450,6 +1456,9 @@ function Guda_BagFrame_MergeStacks()
 		return
 	end
 
+	-- Set sorting flag
+	addon.Modules.SortEngine.sortingInProgress = true
+
 	-- Process queue with delays
 	local queueIndex = 1
 	local retryCount = 0
@@ -1458,6 +1467,7 @@ function Guda_BagFrame_MergeStacks()
 	local function ProcessNextMove()
 		if queueIndex > table.getn(moveQueue) then
 			addon:Print("Merged " .. totalMoves .. " stack(s)")
+			addon.Modules.SortEngine.sortingInProgress = false
 			BagFrame:Update()
 			return
 		end

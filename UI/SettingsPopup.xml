@@ -3,7 +3,7 @@
     <!-- Settings Popup Frame -->
     <Frame name="Guda_SettingsPopup" toplevel="true" movable="true" enableMouse="true" hidden="true" parent="UIParent" frameStrata="DIALOG">
         <Size>
-            <AbsDimension x="550" y="590"/>
+            <AbsDimension x="510" y="590"/>
         </Size>
 
         <Anchors>
@@ -72,6 +72,20 @@
                     </OnClick>
                 </Scripts>
             </Button>
+            <Button name="$parentTab3" inherits="CharacterFrameTabButtonTemplate" id="3">
+                <Anchors>
+                    <Anchor point="LEFT" relativeTo="$parentTab2" relativePoint="RIGHT">
+                        <Offset>
+                            <AbsDimension x="-16" y="0"/>
+                        </Offset>
+                    </Anchor>
+                </Anchors>
+                <Scripts>
+                    <OnClick>
+                        Guda_SettingsPopup_Tab_OnClick(3)
+                    </OnClick>
+                </Scripts>
+            </Button>
 
             <!-- Close Button -->
             <Button name="$parent_CloseButton" inherits="UIPanelCloseButton">
@@ -95,7 +109,7 @@
                     <!-- Bag Columns Slider -->
                     <Slider name="Guda_SettingsPopup_BagColumnsSlider" inherits="OptionsSliderTemplate">
                         <Size>
-                            <AbsDimension x="500" y="17"/>
+                            <AbsDimension x="460" y="17"/>
                         </Size>
                         <Anchors>
                             <Anchor point="TOP">
@@ -117,7 +131,7 @@
                     <!-- Bank Columns Slider -->
                     <Slider name="Guda_SettingsPopup_BankColumnsSlider" inherits="OptionsSliderTemplate">
                         <Size>
-                            <AbsDimension x="500" y="17"/>
+                            <AbsDimension x="460" y="17"/>
                         </Size>
                         <Anchors>
                             <Anchor point="TOP" relativePoint="BOTTOM" relativeTo="Guda_SettingsPopup_BagColumnsSlider">
@@ -136,79 +150,13 @@
                         </Scripts>
                     </Slider>
 
-                    <!-- Icon Size Slider -->
-                    <Slider name="Guda_SettingsPopup_IconSizeSlider" inherits="OptionsSliderTemplate">
-                        <Size>
-                            <AbsDimension x="500" y="17"/>
-                        </Size>
-                        <Anchors>
-                            <Anchor point="TOP" relativePoint="BOTTOM" relativeTo="Guda_SettingsPopup_BankColumnsSlider">
-                                <Offset>
-                                    <AbsDimension x="0" y="-40"/>
-                                </Offset>
-                            </Anchor>
-                        </Anchors>
-                        <Scripts>
-                            <OnLoad>
-                                Guda_SettingsPopup_IconSizeSlider_OnLoad(this)
-                            </OnLoad>
-                            <OnValueChanged>
-                                Guda_SettingsPopup_IconSizeSlider_OnValueChanged(this)
-                            </OnValueChanged>
-                        </Scripts>
-                    </Slider>
-
-                    <!-- Icon Font Size Slider -->
-                    <Slider name="Guda_SettingsPopup_IconFontSizeSlider" inherits="OptionsSliderTemplate">
-                        <Size>
-                            <AbsDimension x="500" y="17"/>
-                        </Size>
-                        <Anchors>
-                            <Anchor point="TOP" relativePoint="BOTTOM" relativeTo="Guda_SettingsPopup_IconSizeSlider">
-                                <Offset>
-                                    <AbsDimension x="0" y="-40"/>
-                                </Offset>
-                            </Anchor>
-                        </Anchors>
-                        <Scripts>
-                            <OnLoad>
-                                Guda_SettingsPopup_IconFontSizeSlider_OnLoad(this)
-                            </OnLoad>
-                            <OnValueChanged>
-                                Guda_SettingsPopup_IconFontSizeSlider_OnValueChanged(this)
-                            </OnValueChanged>
-                        </Scripts>
-                    </Slider>
-
-                    <!-- Icon Spacing Slider -->
-                    <Slider name="Guda_SettingsPopup_IconSpacingSlider" inherits="OptionsSliderTemplate">
-                        <Size>
-                            <AbsDimension x="500" y="17"/>
-                        </Size>
-                        <Anchors>
-                            <Anchor point="TOP" relativePoint="BOTTOM" relativeTo="Guda_SettingsPopup_IconFontSizeSlider">
-                                <Offset>
-                                    <AbsDimension x="0" y="-40"/>
-                                </Offset>
-                            </Anchor>
-                        </Anchors>
-                        <Scripts>
-                            <OnLoad>
-                                Guda_SettingsPopup_IconSpacingSlider_OnLoad(this)
-                            </OnLoad>
-                            <OnValueChanged>
-                                Guda_SettingsPopup_IconSpacingSlider_OnValueChanged(this)
-                            </OnValueChanged>
-                        </Scripts>
-                    </Slider>
-
                     <!-- Background Transparency Slider -->
                     <Slider name="Guda_SettingsPopup_BgTransparencySlider" inherits="OptionsSliderTemplate">
                         <Size>
-                            <AbsDimension x="500" y="17"/>
+                            <AbsDimension x="460" y="17"/>
                         </Size>
                         <Anchors>
-                            <Anchor point="TOP" relativePoint="BOTTOM" relativeTo="Guda_SettingsPopup_IconSpacingSlider">
+                            <Anchor point="TOP" relativePoint="BOTTOM" relativeTo="Guda_SettingsPopup_BankColumnsSlider">
                                 <Offset>
                                     <AbsDimension x="0" y="-40"/>
                                 </Offset>
@@ -229,7 +177,7 @@
                         <Anchors>
                             <Anchor point="TOP" relativePoint="BOTTOM" relativeTo="Guda_SettingsPopup_BgTransparencySlider">
                                 <Offset>
-                                    <AbsDimension x="-240" y="-30"/>
+                                    <AbsDimension x="-215" y="-30"/>
                                 </Offset>
                             </Anchor>
                         </Anchors>
@@ -248,7 +196,7 @@
                         <Anchors>
                             <Anchor point="LEFT" relativePoint="RIGHT" relativeTo="Guda_SettingsPopup_LockBagsCheckbox">
                                 <Offset>
-                                    <AbsDimension x="145" y="0"/>
+                                    <AbsDimension x="185" y="0"/>
                                 </Offset>
                             </Anchor>
                         </Anchors>
@@ -262,50 +210,12 @@
                         </Scripts>
                     </CheckButton>
 
-                    <!-- Quality Border Equipment Checkbox -->
-                    <CheckButton name="Guda_SettingsPopup_QualityBorderEquipmentCheckbox" inherits="OptionsCheckButtonTemplate">
-                        <Anchors>
-                            <Anchor point="LEFT" relativePoint="RIGHT" relativeTo="Guda_SettingsPopup_HideBordersCheckbox">
-                                <Offset>
-                                    <AbsDimension x="145" y="0"/>
-                                </Offset>
-                            </Anchor>
-                        </Anchors>
-                        <Scripts>
-                            <OnLoad>
-                                Guda_SettingsPopup_QualityBorderEquipmentCheckbox_OnLoad(this)
-                            </OnLoad>
-                            <OnClick>
-                                Guda_SettingsPopup_QualityBorderEquipmentCheckbox_OnClick(this)
-                            </OnClick>
-                        </Scripts>
-                    </CheckButton>
-
-                    <!-- Quality Border Other Checkbox -->
-                    <CheckButton name="Guda_SettingsPopup_QualityBorderOtherCheckbox" inherits="OptionsCheckButtonTemplate">
+                    <!-- Show Search Bar Checkbox -->
+                    <CheckButton name="Guda_SettingsPopup_ShowSearchBarCheckbox" inherits="OptionsCheckButtonTemplate">
                         <Anchors>
                             <Anchor point="TOP" relativePoint="BOTTOM" relativeTo="Guda_SettingsPopup_LockBagsCheckbox">
                                 <Offset>
                                     <AbsDimension x="0" y="-8"/>
-                                </Offset>
-                            </Anchor>
-                        </Anchors>
-                        <Scripts>
-                            <OnLoad>
-                                Guda_SettingsPopup_QualityBorderOtherCheckbox_OnLoad(this)
-                            </OnLoad>
-                            <OnClick>
-                                Guda_SettingsPopup_QualityBorderOtherCheckbox_OnClick(this)
-                            </OnClick>
-                        </Scripts>
-                    </CheckButton>
-
-                    <!-- Show Search Bar Checkbox -->
-                    <CheckButton name="Guda_SettingsPopup_ShowSearchBarCheckbox" inherits="OptionsCheckButtonTemplate">
-                        <Anchors>
-                            <Anchor point="LEFT" relativePoint="RIGHT" relativeTo="Guda_SettingsPopup_QualityBorderOtherCheckbox">
-                                <Offset>
-                                    <AbsDimension x="145" y="0"/>
                                 </Offset>
                             </Anchor>
                         </Anchors>
@@ -324,7 +234,7 @@
                         <Anchors>
                             <Anchor point="LEFT" relativePoint="RIGHT" relativeTo="Guda_SettingsPopup_ShowSearchBarCheckbox">
                                 <Offset>
-                                    <AbsDimension x="145" y="0"/>
+                                    <AbsDimension x="185" y="0"/>
                                 </Offset>
                             </Anchor>
                         </Anchors>
@@ -341,7 +251,7 @@
                     <!-- Hover Bagline Checkbox -->
                     <CheckButton name="Guda_SettingsPopup_HoverBaglineCheckbox" inherits="OptionsCheckButtonTemplate">
                         <Anchors>
-                            <Anchor point="TOP" relativePoint="BOTTOM" relativeTo="Guda_SettingsPopup_QualityBorderOtherCheckbox">
+                            <Anchor point="TOP" relativePoint="BOTTOM" relativeTo="Guda_SettingsPopup_ShowSearchBarCheckbox">
                                 <Offset>
                                     <AbsDimension x="0" y="-8"/>
                                 </Offset>
@@ -362,7 +272,7 @@
                         <Anchors>
                             <Anchor point="LEFT" relativePoint="RIGHT" relativeTo="Guda_SettingsPopup_HoverBaglineCheckbox">
                                 <Offset>
-                                    <AbsDimension x="145" y="0"/>
+                                    <AbsDimension x="185" y="0"/>
                                 </Offset>
                             </Anchor>
                         </Anchors>
@@ -372,25 +282,6 @@
                             </OnLoad>
                             <OnClick>
                                 Guda_SettingsPopup_HideFooterCheckbox_OnClick(this)
-                            </OnClick>
-                        </Scripts>
-                    </CheckButton>
-                    
-                    <!-- Show Tooltip Counts Checkbox -->
-                    <CheckButton name="Guda_SettingsPopup_ShowTooltipCountsCheckbox" inherits="OptionsCheckButtonTemplate">
-                        <Anchors>
-                            <Anchor point="LEFT" relativePoint="RIGHT" relativeTo="Guda_SettingsPopup_HideFooterCheckbox">
-                                <Offset>
-                                    <AbsDimension x="145" y="0"/>
-                                </Offset>
-                            </Anchor>
-                        </Anchors>
-                        <Scripts>
-                            <OnLoad>
-                                Guda_SettingsPopup_ShowTooltipCountsCheckbox_OnLoad(this)
-                            </OnLoad>
-                            <OnClick>
-                                Guda_SettingsPopup_ShowTooltipCountsCheckbox_OnClick(this)
                             </OnClick>
                         </Scripts>
                     </CheckButton>
@@ -414,12 +305,12 @@
                         </Scripts>
                     </CheckButton>
 
-                    <!-- View Types - Same row as Reverse Stack Sort -->
+                    <!-- View Types - Row below Reverse Stack Sort -->
                     <Button name="Guda_SettingsPopup_BagViewTypeButton" inherits="UIPanelButtonTemplate">
-                        <Size><AbsDimension x="140" y="22"/></Size>
+                        <Size><AbsDimension x="200" y="22"/></Size>
                         <Anchors>
-                            <Anchor point="LEFT" relativePoint="RIGHT" relativeTo="Guda_SettingsPopup_ReverseStackSortCheckbox">
-                                <Offset><AbsDimension x="147" y="0"/></Offset>
+                            <Anchor point="TOP" relativePoint="BOTTOM" relativeTo="Guda_SettingsPopup_ReverseStackSortCheckbox">
+                                <Offset><AbsDimension x="85" y="-8"/></Offset>
                             </Anchor>
                         </Anchors>
                         <Scripts>
@@ -428,10 +319,10 @@
                     </Button>
 
                     <Button name="Guda_SettingsPopup_BankViewTypeButton" inherits="UIPanelButtonTemplate">
-                        <Size><AbsDimension x="140" y="22"/></Size>
+                        <Size><AbsDimension x="200" y="22"/></Size>
                         <Anchors>
                             <Anchor point="LEFT" relativeTo="Guda_SettingsPopup_BagViewTypeButton" relativePoint="RIGHT">
-                                <Offset><AbsDimension x="10" y="0"/></Offset>
+                                <Offset><AbsDimension x="20" y="0"/></Offset>
                             </Anchor>
                         </Anchors>
                         <Scripts>
@@ -459,6 +350,155 @@
                         </FontString>
                     </Layer>
                 </Layers>
+            </Frame>
+
+            <!-- Icons Tab Content -->
+            <Frame name="$parent_IconsTab" setAllPoints="true" hidden="true">
+                <Frames>
+                    <!-- Icon Size Slider -->
+                    <Slider name="Guda_SettingsPopup_IconSizeSlider" inherits="OptionsSliderTemplate">
+                        <Size>
+                            <AbsDimension x="460" y="17"/>
+                        </Size>
+                        <Anchors>
+                            <Anchor point="TOP">
+                                <Offset>
+                                    <AbsDimension x="0" y="-90"/>
+                                </Offset>
+                            </Anchor>
+                        </Anchors>
+                        <Scripts>
+                            <OnLoad>
+                                Guda_SettingsPopup_IconSizeSlider_OnLoad(this)
+                            </OnLoad>
+                            <OnValueChanged>
+                                Guda_SettingsPopup_IconSizeSlider_OnValueChanged(this)
+                            </OnValueChanged>
+                        </Scripts>
+                    </Slider>
+
+                    <!-- Icon Font Size Slider -->
+                    <Slider name="Guda_SettingsPopup_IconFontSizeSlider" inherits="OptionsSliderTemplate">
+                        <Size>
+                            <AbsDimension x="460" y="17"/>
+                        </Size>
+                        <Anchors>
+                            <Anchor point="TOP" relativePoint="BOTTOM" relativeTo="Guda_SettingsPopup_IconSizeSlider">
+                                <Offset>
+                                    <AbsDimension x="0" y="-40"/>
+                                </Offset>
+                            </Anchor>
+                        </Anchors>
+                        <Scripts>
+                            <OnLoad>
+                                Guda_SettingsPopup_IconFontSizeSlider_OnLoad(this)
+                            </OnLoad>
+                            <OnValueChanged>
+                                Guda_SettingsPopup_IconFontSizeSlider_OnValueChanged(this)
+                            </OnValueChanged>
+                        </Scripts>
+                    </Slider>
+
+                    <!-- Icon Spacing Slider -->
+                    <Slider name="Guda_SettingsPopup_IconSpacingSlider" inherits="OptionsSliderTemplate">
+                        <Size>
+                            <AbsDimension x="460" y="17"/>
+                        </Size>
+                        <Anchors>
+                            <Anchor point="TOP" relativePoint="BOTTOM" relativeTo="Guda_SettingsPopup_IconFontSizeSlider">
+                                <Offset>
+                                    <AbsDimension x="0" y="-40"/>
+                                </Offset>
+                            </Anchor>
+                        </Anchors>
+                        <Scripts>
+                            <OnLoad>
+                                Guda_SettingsPopup_IconSpacingSlider_OnLoad(this)
+                            </OnLoad>
+                            <OnValueChanged>
+                                Guda_SettingsPopup_IconSpacingSlider_OnValueChanged(this)
+                            </OnValueChanged>
+                        </Scripts>
+                    </Slider>
+
+                    <!-- Quality Border Equipment Checkbox -->
+                    <CheckButton name="Guda_SettingsPopup_QualityBorderEquipmentCheckbox" inherits="OptionsCheckButtonTemplate">
+                        <Anchors>
+                            <Anchor point="TOP" relativePoint="BOTTOM" relativeTo="Guda_SettingsPopup_IconSpacingSlider">
+                                <Offset>
+                                    <AbsDimension x="-215" y="-30"/>
+                                </Offset>
+                            </Anchor>
+                        </Anchors>
+                        <Scripts>
+                            <OnLoad>
+                                Guda_SettingsPopup_QualityBorderEquipmentCheckbox_OnLoad(this)
+                            </OnLoad>
+                            <OnClick>
+                                Guda_SettingsPopup_QualityBorderEquipmentCheckbox_OnClick(this)
+                            </OnClick>
+                        </Scripts>
+                    </CheckButton>
+
+                    <!-- Quality Border Other Checkbox -->
+                    <CheckButton name="Guda_SettingsPopup_QualityBorderOtherCheckbox" inherits="OptionsCheckButtonTemplate">
+                        <Anchors>
+                            <Anchor point="LEFT" relativePoint="RIGHT" relativeTo="Guda_SettingsPopup_QualityBorderEquipmentCheckbox">
+                                <Offset>
+                                    <AbsDimension x="185" y="0"/>
+                                </Offset>
+                            </Anchor>
+                        </Anchors>
+                        <Scripts>
+                            <OnLoad>
+                                Guda_SettingsPopup_QualityBorderOtherCheckbox_OnLoad(this)
+                            </OnLoad>
+                            <OnClick>
+                                Guda_SettingsPopup_QualityBorderOtherCheckbox_OnClick(this)
+                            </OnClick>
+                        </Scripts>
+                    </CheckButton>
+
+                    <!-- Mark Unusable Items Checkbox -->
+                    <CheckButton name="Guda_SettingsPopup_MarkUnusableCheckbox" inherits="OptionsCheckButtonTemplate">
+                        <Anchors>
+                            <Anchor point="TOP" relativePoint="BOTTOM" relativeTo="Guda_SettingsPopup_QualityBorderEquipmentCheckbox">
+                                <Offset>
+                                    <AbsDimension x="0" y="-8"/>
+                                </Offset>
+                            </Anchor>
+                        </Anchors>
+                        <Scripts>
+                            <OnLoad>
+                                Guda_SettingsPopup_MarkUnusableCheckbox_OnLoad(this)
+                            </OnLoad>
+                            <OnClick>
+                                Guda_SettingsPopup_MarkUnusableCheckbox_OnClick(this)
+                            </OnClick>
+                        </Scripts>
+                    </CheckButton>
+
+                    <!-- Show Tooltip Counts Checkbox -->
+                    <CheckButton name="Guda_SettingsPopup_ShowTooltipCountsCheckbox" inherits="OptionsCheckButtonTemplate">
+                        <Anchors>
+                            <Anchor point="LEFT" relativePoint="RIGHT" relativeTo="Guda_SettingsPopup_MarkUnusableCheckbox">
+                                <Offset>
+                                    <AbsDimension x="185" y="0"/>
+                                </Offset>
+                            </Anchor>
+                        </Anchors>
+                        <Scripts>
+                            <OnLoad>
+                                Guda_SettingsPopup_ShowTooltipCountsCheckbox_OnLoad(this)
+                            </OnLoad>
+                            <OnClick>
+                                Guda_SettingsPopup_ShowTooltipCountsCheckbox_OnClick(this)
+                            </OnClick>
+                        </Scripts>
+                    </CheckButton>
+
+
+                </Frames>
             </Frame>
         </Frames>
 

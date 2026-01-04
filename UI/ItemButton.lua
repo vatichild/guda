@@ -193,6 +193,20 @@ local function Guda_ItemButton_UpdateUsableTint(self)
 		SetItemButtonTextureVertexColor(self, 1.0, 1.0, 1.0)
 	end
 
+	-- Check if feature is enabled
+	local markUnusable = true
+	if Guda and Guda.Modules and Guda.Modules.DB then
+		markUnusable = Guda.Modules.DB:GetSetting("markUnusableItems")
+		if markUnusable == nil then
+			markUnusable = true
+		end
+	end
+
+	-- If feature is disabled, just return after clearing
+	if not markUnusable then
+		return
+	end
+
 	-- Only evaluate for live (player) items; DB cached items from other chars cannot be scanned
 	if not self or not self.hasItem or not self.bagID or not self.slotID or self.isReadOnly or self.otherChar then
 		return
@@ -1097,10 +1111,14 @@ function Guda_ItemButton_OnEnter(self)
 		-- For live mode: use SetBagItem for all bags
 		GameTooltip:SetBagItem(self.bagID, self.slotID)
 	end
-	
+
 	GameTooltip:Show()
 
-	-- Handle merchant sell cursor (same approach as BagShui)
+    -- TESTING: Print item info to console for debugging
+    --local name, link, itemQuality, iLevel, itemCategory, itemType, itemStackCount, itemSubType, itemTexture, itemEquipLoc, itemSellPrice = addon.Modules.Utils:GetItemInfo(self.itemData.link)
+	--addon:Print("name:" .. tostring(name) .. " link:" .. tostring(link) .. " quality:" .. tostring(itemQuality) .. " iLevel:" .. tostring(iLevel) .. " category:" .. tostring(itemCategory) .. " type:" .. tostring(itemType) .. " subType:" .. tostring(itemSubType) .. " stackCount:" .. tostring(itemStackCount) .. " equipLoc:" .. tostring(itemEquipLoc) .. " sellPrice:" .. tostring(itemSellPrice))
+
+    -- Handle merchant sell cursor (same approach as BagShui)
 	if MerchantFrame:IsShown() and not self.isBank and not self.otherChar and self.hasItem then
 		ShowContainerSellCursor(self.bagID, self.slotID)
 	else
