@@ -986,9 +986,22 @@ function Guda_ItemButton_OnEnter(self)
 		return
 	end
 
-	GameTooltip:SetOwner(UIParent, "ANCHOR_NONE")
-	-- important position of tooltip
-	GameTooltip:SetPoint("BOTTOMRIGHT", self, "TOPLEFT", 10, 0)
+	-- Check if pfUI cursor tooltip mode is active
+	local pfuiCursorMode = false
+	if pfUI and pfUI.env and pfUI.env.C and pfUI.env.C.tooltip and pfUI.env.C.tooltip.position == "cursor" then
+		pfuiCursorMode = true
+	end
+
+	-- Set tooltip owner and position
+	if pfuiCursorMode then
+		-- For pfUI cursor mode, use ANCHOR_CURSOR like pfUI does
+		GameTooltip:SetOwner(UIParent, "ANCHOR_CURSOR")
+	else
+		-- Standard positioning relative to item button
+		GameTooltip:SetOwner(UIParent, "ANCHOR_NONE")
+		GameTooltip:ClearAllPoints()
+		GameTooltip:SetPoint("BOTTOMRIGHT", self, "TOPLEFT", 10, 0)
+	end
 
     -- Mailbox tooltip handling
     if self.isMail then
@@ -1084,32 +1097,9 @@ function Guda_ItemButton_OnEnter(self)
 		-- For live mode: use SetBagItem for all bags
 		GameTooltip:SetBagItem(self.bagID, self.slotID)
 	end
+	
 	GameTooltip:Show()
 
-	-- Debug: print hovered item's texture path to chat
-	-- Uses GetItemInfo on the hovered item's ID
-	--if self.hasItem then
-	--	local link = nil
-	--	if self.itemData and self.itemData.link then
-	--		link = self.itemData.link
-	--	else
-	--		-- Fallback to live bag query
-	--		link = GetContainerItemLink(self.bagID, self.slotID)
-	--	end
-	--	if link and addon and addon.Modules and addon.Modules.Utils and addon.Modules.Utils.ExtractItemID then
-	--		local itemID = addon.Modules.Utils:ExtractItemID(link)
-	--		if itemID and addon.Modules.Utils.GetItemInfoSafe then
-	--			local name, itemLink, itemRarity, itemLevel, itemCategory, itemType, itemStackCount,
-	--				itemSubType, itemTexture, itemEquipLoc, itemSellPrice = addon.Modules.Utils:GetItemInfoSafe(itemID)
-	--			if addon and addon.Print then
-	--				addon:Print("itemTexture: %s", tostring(itemTexture))
-	--				addon:Print("itemCategory: %s", tostring(itemCategory))
-	--				addon:Print("itemType: %s", tostring(itemType))
-	--				addon:Print("itemType: %s", tostring(itemType))
-	--			end
-	--		end
-	--	end
-	--end
 	-- Handle merchant sell cursor (same approach as BagShui)
 	if MerchantFrame:IsShown() and not self.isBank and not self.otherChar and self.hasItem then
 		ShowContainerSellCursor(self.bagID, self.slotID)
