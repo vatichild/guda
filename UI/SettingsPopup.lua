@@ -390,7 +390,7 @@ end
 
 -- Icon Size Slider OnLoad
 function Guda_SettingsPopup_IconSizeSlider_OnLoad(self)
-    getglobal(self:GetName().."Low"):SetText("28px")
+    getglobal(self:GetName().."Low"):SetText("22px")
     getglobal(self:GetName().."High"):SetText("64px")
 
     local text = getglobal(self:GetName().."Text")
@@ -402,7 +402,7 @@ function Guda_SettingsPopup_IconSizeSlider_OnLoad(self)
         text:SetFont(font, 12, flags)
     end
 
-    self:SetMinMaxValues(28, 64)
+    self:SetMinMaxValues(22, 64)
     self:SetValueStep(1)
 
     local currentValue = Guda.Modules.DB:GetSetting("iconSize") or addon.Constants.BUTTON_SIZE
