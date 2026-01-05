@@ -78,6 +78,9 @@ end
 
 -- OnShow
 function Guda_BagFrame_OnShow(self)
+	-- Play bag open sound
+	PlaySound("igBackPackOpen")
+
 -- Save bag data when opening bags
 	addon.Modules.BagScanner:SaveToDatabase()
 	addon.Modules.MoneyTracker:Update()
@@ -121,6 +124,9 @@ end
 
 -- OnHide
 function Guda_BagFrame_OnHide(self)
+	-- Play bag close sound
+	PlaySound("igBackPackClose")
+
 	-- Close any open dropdown menus when the bag frame is hidden
 	CloseDropDownMenus()
 
