@@ -660,7 +660,7 @@ function QuestItemBar:Initialize()
     frame:SetMovable(true)
     frame:SetClampedToScreen(true)
     
-    addon:ApplyBackdrop(frame, "DEFAULT_FRAME")
+    --addon:ApplyBackdrop(frame, "DEFAULT_FRAME")
     
     -- Create flyout frame
     flyoutFrame = CreateFrame("Frame", "Guda_QuestItemFlyout", UIParent)

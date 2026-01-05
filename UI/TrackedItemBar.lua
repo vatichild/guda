@@ -212,7 +212,7 @@ function TrackedItemBar:Initialize()
     frame:SetMovable(true)
     frame:SetClampedToScreen(true)
     
-    addon:ApplyBackdrop(frame, "DEFAULT_FRAME")
+    --addon:ApplyBackdrop(frame, "DEFAULT_FRAME")
     
     -- Handle dragging
     frame:RegisterForDrag("LeftButton")
