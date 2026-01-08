@@ -52,35 +52,44 @@ local function IsQuestItem(bagID, slotID, isBank)
 		end
 	end
 
- -- Also check item category/type via GetItemInfo for "Quest"
- -- Turtle WoW GetItemInfo returns: name, link, rarity, level, itemCategory, itemType, stack, subType, texture, equipLoc, sellPrice
- if not isQuestItem then
-     local link = GetContainerItemLink(bagID, slotID)
-     if link and addon and addon.Modules and addon.Modules.Utils and addon.Modules.Utils.ExtractItemID and addon.Modules.Utils.GetItemInfoSafe then
-         local itemID = addon.Modules.Utils:ExtractItemID(link)
-         if itemID then
-             local itemName, _, _, _, itemCategory, itemType = addon.Modules.Utils:GetItemInfoSafe(itemID)
-             if itemCategory == "Quest" or itemType == "Quest" then
-                 isQuestItem = true
-             end
-         end
-     end
- end
+	-- Also check item category/type via GetItemInfo for "Quest"
+	-- Turtle WoW GetItemInfo returns: name, link, rarity, level, itemCategory, itemType, stack, subType, texture, equipLoc, sellPrice
+	local link = GetContainerItemLink(bagID, slotID)
+	local itemID
+	local itemCategory, itemType
+	
+	if link and addon and addon.Modules and addon.Modules.Utils and addon.Modules.Utils.ExtractItemID and addon.Modules.Utils.GetItemInfoSafe then
+		itemID = addon.Modules.Utils:ExtractItemID(link)
+		if itemID then
+			_, _, _, _, itemCategory, itemType = addon.Modules.Utils:GetItemInfoSafe(itemID)
+		end
+	end
 
- -- Check the QuestItemsDB for known faction-specific quest items
- if not isQuestItem then
-     local link = GetContainerItemLink(bagID, slotID)
-     if link and addon and addon.Modules and addon.Modules.Utils and addon.Modules.Utils.ExtractItemID then
-         local itemID = addon.Modules.Utils:ExtractItemID(link)
-         if itemID and addon.IsQuestItemByID then
-             local playerFaction = UnitFactionGroup("player")
-             local isDBQuestItem = addon:IsQuestItemByID(itemID, playerFaction)
-             if isDBQuestItem then
-                 isQuestItem = true
-             end
-         end
-     end
- end
+	-- If it's a Weapon or Armor, it shouldn't be a QuestItem unless it's specifically categorized as Quest
+	-- This avoids "Use:" equipment showing up in the quest bar
+	if itemCategory == "Weapon" or itemCategory == "Armor" or itemType == "Weapon" or itemType == "Armor" then
+		if itemCategory ~= "Quest" and itemType ~= "Quest" then
+			isQuestItem = false
+			isQuestStarter = false
+		end
+	end
+
+	if not isQuestItem then
+		if itemCategory == "Quest" or itemType == "Quest" then
+			isQuestItem = true
+		end
+	end
+
+	-- Check the QuestItemsDB for known faction-specific quest items
+	if not isQuestItem then
+		if itemID and addon.IsQuestItemByID then
+			local playerFaction = UnitFactionGroup("player")
+			local isDBQuestItem = addon:IsQuestItemByID(itemID, playerFaction)
+			if isDBQuestItem then
+				isQuestItem = true
+			end
+		end
+	end
 
 	return isQuestItem, isQuestStarter
 end

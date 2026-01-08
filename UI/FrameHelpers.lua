@@ -56,10 +56,21 @@ function Guda_CategorizeItem(itemData, bagID, slotID, categories, specialItems, 
     -- Priority 3: Quest Items
     -- Check multiple sources: tooltip scan, itemClass, itemType, and QuestItemsDB
     local isQuestItem = false
-    if itemData.class == "Quest" or itemData.type == "Quest" then
+    local itemCategory = itemData.class or itemData.category or ""
+    local itemType = itemData.type or ""
+    
+    -- If it's a Weapon or Armor, it shouldn't be a QuestItem unless it's specifically categorized as Quest
+    local isEquipment = (itemCategory == "Weapon" or itemCategory == "Armor" or itemType == "Weapon" or itemType == "Armor")
+    local isQuestCategory = (itemCategory == "Quest" or itemType == "Quest")
+
+    if isQuestCategory then
         isQuestItem = true
     elseif not isOtherChar then
         isQuestItem = addon.Modules.Utils:IsQuestItemTooltip(bagID, slotID)
+        -- If tooltip said it is quest, but it is equipment and not quest category, reject it
+        if isQuestItem and isEquipment and not isQuestCategory then
+            isQuestItem = false
+        end
     end
     -- Also check the QuestItemsDB for known faction-specific quest items
     if not isQuestItem and itemData.link then

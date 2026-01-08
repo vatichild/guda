@@ -212,6 +212,21 @@ function Utils:IsQuestItemTooltip(bagID, slotID)
                    string.find(tl, "starts a quest") or
                    string.find(tl, "quest item") or
                    string.find(tl, "manual") then
+                    
+                    -- Double check category to avoid misidentifying equipment with "Use:"
+                    local link = GetContainerItemLink(bagID, slotID)
+                    if link and self.ExtractItemID and self.GetItemInfoSafe then
+                        local itemID = self:ExtractItemID(link)
+                        if itemID then
+                            local _, _, _, _, itemCategory, itemType = self:GetItemInfoSafe(itemID)
+                            -- If it's Weapon or Armor, and NOT categorized as Quest, then it's not a Quest Item
+                            if (itemCategory == "Weapon" or itemCategory == "Armor" or itemType == "Weapon" or itemType == "Armor") and
+                               (itemCategory ~= "Quest" and itemType ~= "Quest") then
+                                return false
+                            end
+                        end
+                    end
+                    
                     return true
                 end
             end
