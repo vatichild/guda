@@ -618,8 +618,10 @@ function CategoryManager:EvaluateRule(rule, itemData, bagID, slotID, isOtherChar
         -- Check for white equippable items (quality 1 + Weapon/Armor)
         if quality == 1 then
             local itemClass = itemData.class or ""
+            addon:Debug("isJunk check: quality=%s, class='%s', name='%s'", tostring(quality), tostring(itemClass), tostring(itemData.name))
             if itemClass == "Weapon" or itemClass == "Armor" then
                 isWhiteEquip = true
+                addon:Debug("isJunk: WHITE EQUIP DETECTED - %s", tostring(itemData.name))
             end
         end
 
@@ -687,9 +689,23 @@ end
 function CategoryManager:CategorizeItem(itemData, bagID, slotID, isOtherChar)
     local sortedCats = self:GetCategoriesByPriority()
 
+    -- Debug: show white item categorization
+    if itemData.quality == 1 and (itemData.class == "Weapon" or itemData.class == "Armor") then
+        addon:Debug("Categorizing white equip: %s (class=%s, quality=%s)", tostring(itemData.name), tostring(itemData.class), tostring(itemData.quality))
+        for i, entry in ipairs(sortedCats) do
+            addon:Debug("  Cat %d: %s (priority=%s, enabled=%s)", i, entry.id, tostring(entry.def.priority), tostring(entry.def.enabled))
+            if i > 10 then break end  -- Limit debug output
+        end
+    end
+
     for _, entry in ipairs(sortedCats) do
         if not entry.def.isFallback then
-            if self:EvaluateCategoryRules(entry.def, itemData, bagID, slotID, isOtherChar) then
+            local matches = self:EvaluateCategoryRules(entry.def, itemData, bagID, slotID, isOtherChar)
+            -- Debug: show which category matched for white equip
+            if itemData.quality == 1 and (itemData.class == "Weapon" or itemData.class == "Armor") and matches then
+                addon:Debug("  -> MATCHED: %s", entry.id)
+            end
+            if matches then
                 return entry.id
             end
         end
