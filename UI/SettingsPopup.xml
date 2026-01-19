@@ -62,7 +62,7 @@
             <!-- Tab Buttons (GudaPlates style) -->
             <Button name="Guda_SettingsPopup_GeneralTabButton" enableMouse="true">
                 <Size>
-                    <AbsDimension x="150" y="28"/>
+                    <AbsDimension x="113" y="28"/>
                 </Size>
                 <Anchors>
                     <Anchor point="TOPLEFT" relativeTo="$parent" relativePoint="TOPLEFT">
@@ -94,7 +94,7 @@
 
             <Button name="Guda_SettingsPopup_IconsTabButton" enableMouse="true">
                 <Size>
-                    <AbsDimension x="150" y="28"/>
+                    <AbsDimension x="113" y="28"/>
                 </Size>
                 <Anchors>
                     <Anchor point="LEFT" relativeTo="Guda_SettingsPopup_GeneralTabButton" relativePoint="RIGHT">
@@ -124,9 +124,9 @@
                 </Scripts>
             </Button>
 
-            <Button name="Guda_SettingsPopup_GuideTabButton" enableMouse="true">
+            <Button name="Guda_SettingsPopup_CategoriesTabButton" enableMouse="true">
                 <Size>
-                    <AbsDimension x="150" y="28"/>
+                    <AbsDimension x="113" y="28"/>
                 </Size>
                 <Anchors>
                     <Anchor point="LEFT" relativeTo="Guda_SettingsPopup_IconsTabButton" relativePoint="RIGHT">
@@ -142,7 +142,39 @@
                         </Texture>
                     </Layer>
                     <Layer level="OVERLAY">
-                        <FontString name="$parent_Text" inherits="GameFontNormal" text="Quick Guide">
+                        <FontString name="$parent_Text" inherits="GameFontNormal" text="Categories">
+                            <Anchors>
+                                <Anchor point="CENTER"/>
+                            </Anchors>
+                        </FontString>
+                    </Layer>
+                </Layers>
+                <Scripts>
+                    <OnClick>
+                        Guda_SettingsPopup_SelectTab("categories")
+                    </OnClick>
+                </Scripts>
+            </Button>
+
+            <Button name="Guda_SettingsPopup_GuideTabButton" enableMouse="true">
+                <Size>
+                    <AbsDimension x="113" y="28"/>
+                </Size>
+                <Anchors>
+                    <Anchor point="LEFT" relativeTo="Guda_SettingsPopup_CategoriesTabButton" relativePoint="RIGHT">
+                        <Offset>
+                            <AbsDimension x="2" y="0"/>
+                        </Offset>
+                    </Anchor>
+                </Anchors>
+                <Layers>
+                    <Layer level="BACKGROUND">
+                        <Texture name="$parent_Bg" setAllPoints="true">
+                            <Color r="1" g="1" b="1" a="0.1"/>
+                        </Texture>
+                    </Layer>
+                    <Layer level="OVERLAY">
+                        <FontString name="$parent_Text" inherits="GameFontNormal" text="Guide">
                             <Anchors>
                                 <Anchor point="CENTER"/>
                             </Anchors>
@@ -597,6 +629,92 @@
                             </OnClick>
                         </Scripts>
                     </CheckButton>
+                </Frames>
+            </Frame>
+
+            <!-- Categories Tab Content -->
+            <Frame name="Guda_SettingsPopup_CategoriesTab" hidden="true">
+                <Anchors>
+                    <Anchor point="TOPLEFT" relativeTo="$parent" relativePoint="TOPLEFT">
+                        <Offset>
+                            <AbsDimension x="15" y="-90"/>
+                        </Offset>
+                    </Anchor>
+                    <Anchor point="BOTTOMRIGHT" relativeTo="$parent" relativePoint="BOTTOMRIGHT">
+                        <Offset>
+                            <AbsDimension x="-15" y="15"/>
+                        </Offset>
+                    </Anchor>
+                </Anchors>
+                <Layers>
+                    <Layer level="ARTWORK">
+                        <FontString name="$parent_Header" inherits="GameFontNormal" text="Manage item categories and their display order:">
+                            <Anchors>
+                                <Anchor point="TOPLEFT">
+                                    <Offset>
+                                        <AbsDimension x="5" y="-5"/>
+                                    </Offset>
+                                </Anchor>
+                            </Anchors>
+                        </FontString>
+                    </Layer>
+                </Layers>
+                <Frames>
+                    <!-- Scroll Frame for Category List -->
+                    <ScrollFrame name="Guda_SettingsPopup_CategoriesScrollFrame" inherits="FauxScrollFrameTemplate">
+                        <Size>
+                            <AbsDimension x="440" y="320"/>
+                        </Size>
+                        <Anchors>
+                            <Anchor point="TOPLEFT">
+                                <Offset>
+                                    <AbsDimension x="5" y="-25"/>
+                                </Offset>
+                            </Anchor>
+                        </Anchors>
+                        <Scripts>
+                            <OnVerticalScroll>
+                                FauxScrollFrame_OnVerticalScroll(18, Guda_SettingsPopup_CategoriesTab_Update)
+                            </OnVerticalScroll>
+                            <OnShow>
+                                Guda_SettingsPopup_CategoriesTab_Update()
+                            </OnShow>
+                        </Scripts>
+                    </ScrollFrame>
+
+                    <!-- Category Row Container -->
+                    <Frame name="Guda_SettingsPopup_CategoryListContainer">
+                        <Size>
+                            <AbsDimension x="420" y="320"/>
+                        </Size>
+                        <Anchors>
+                            <Anchor point="TOPLEFT" relativeTo="Guda_SettingsPopup_CategoriesScrollFrame" relativePoint="TOPLEFT"/>
+                        </Anchors>
+                    </Frame>
+
+                    <!-- Reset to Defaults Button -->
+                    <Button name="Guda_SettingsPopup_ResetCategoriesButton" inherits="UIPanelButtonTemplate">
+                        <Size>
+                            <AbsDimension x="140" y="25"/>
+                        </Size>
+                        <Anchors>
+                            <Anchor point="BOTTOMLEFT" relativeTo="$parent" relativePoint="BOTTOMLEFT">
+                                <Offset>
+                                    <AbsDimension x="5" y="10"/>
+                                </Offset>
+                            </Anchor>
+                        </Anchors>
+                        <Scripts>
+                            <OnClick>
+                                Guda_SettingsPopup_ResetCategories_OnClick()
+                            </OnClick>
+                        </Scripts>
+                        <NormalText>
+                            <Anchors>
+                                <Anchor point="CENTER"/>
+                            </Anchors>
+                        </NormalText>
+                    </Button>
                 </Frames>
             </Frame>
 

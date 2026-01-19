@@ -52,19 +52,23 @@ function Guda_SettingsPopup_SelectTab(tabName)
     -- Hide all tab content frames
     local generalTab = getglobal("Guda_SettingsPopup_GeneralTab")
     local iconsTab = getglobal("Guda_SettingsPopup_IconsTab")
+    local categoriesTab = getglobal("Guda_SettingsPopup_CategoriesTab")
     local guideTab = getglobal("Guda_SettingsPopup_GuideTab")
 
     if generalTab then generalTab:Hide() end
     if iconsTab then iconsTab:Hide() end
+    if categoriesTab then categoriesTab:Hide() end
     if guideTab then guideTab:Hide() end
 
     -- Reset all tab button backgrounds to inactive (0.1 alpha)
     local generalBg = getglobal("Guda_SettingsPopup_GeneralTabButton_Bg")
     local iconsBg = getglobal("Guda_SettingsPopup_IconsTabButton_Bg")
+    local categoriesBg = getglobal("Guda_SettingsPopup_CategoriesTabButton_Bg")
     local guideBg = getglobal("Guda_SettingsPopup_GuideTabButton_Bg")
 
     if generalBg then generalBg:SetTexture(1, 1, 1, 0.1) end
     if iconsBg then iconsBg:SetTexture(1, 1, 1, 0.1) end
+    if categoriesBg then categoriesBg:SetTexture(1, 1, 1, 0.1) end
     if guideBg then guideBg:SetTexture(1, 1, 1, 0.1) end
 
     -- Show selected tab and highlight its button
@@ -74,6 +78,10 @@ function Guda_SettingsPopup_SelectTab(tabName)
     elseif tabName == "icons" then
         if iconsTab then iconsTab:Show() end
         if iconsBg then iconsBg:SetTexture(1, 1, 1, 0.3) end
+    elseif tabName == "categories" then
+        if categoriesTab then categoriesTab:Show() end
+        if categoriesBg then categoriesBg:SetTexture(1, 1, 1, 0.3) end
+        Guda_SettingsPopup_CategoriesTab_Update()
     elseif tabName == "guide" then
         if guideTab then guideTab:Show() end
         if guideBg then guideBg:SetTexture(1, 1, 1, 0.3) end
@@ -1158,6 +1166,234 @@ function Guda_SettingsPopup_ReverseStackSortCheckbox_OnClick(self)
 
     -- Note: Sorting will use the new setting on next sort operation
     -- No immediate UI update needed
+end
+
+-------------------------------------------
+-- Categories Tab Functions
+-------------------------------------------
+
+-- Number of visible rows in the category list
+local CATEGORY_ROW_HEIGHT = 22
+local CATEGORY_VISIBLE_ROWS = 14
+local categoryRowFrames = {}
+
+-- Create or get a category row frame
+local function GetCategoryRowFrame(index)
+    if categoryRowFrames[index] then
+        return categoryRowFrames[index]
+    end
+
+    local container = getglobal("Guda_SettingsPopup_CategoryListContainer")
+    if not container then return nil end
+
+    local rowName = "Guda_SettingsPopup_CategoryRow" .. index
+    local row = CreateFrame("Frame", rowName, container)
+    row:SetHeight(CATEGORY_ROW_HEIGHT)
+    row:SetWidth(420)
+    row:SetPoint("TOPLEFT", container, "TOPLEFT", 0, -((index - 1) * CATEGORY_ROW_HEIGHT))
+
+    -- Background highlight
+    local bg = row:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints(row)
+    bg:SetTexture(1, 1, 1, 0)
+    row.bg = bg
+
+    -- Enable checkbox
+    local checkbox = CreateFrame("CheckButton", rowName .. "_Checkbox", row, "UICheckButtonTemplate")
+    checkbox:SetWidth(20)
+    checkbox:SetHeight(20)
+    checkbox:SetPoint("LEFT", row, "LEFT", 0, 0)
+    checkbox:SetScript("OnClick", function()
+        local catId = this:GetParent().categoryId
+        if catId and Guda.Modules.CategoryManager then
+            Guda.Modules.CategoryManager:ToggleCategory(catId)
+            Guda_SettingsPopup_CategoriesTab_Update()
+            Guda_SettingsPopup_RefreshBagFrames()
+        end
+    end)
+    row.checkbox = checkbox
+
+    -- Category name
+    local nameText = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    nameText:SetPoint("LEFT", checkbox, "RIGHT", 5, 0)
+    nameText:SetWidth(200)
+    nameText:SetJustifyH("LEFT")
+    row.nameText = nameText
+
+    -- Move Up button
+    local upBtn = CreateFrame("Button", rowName .. "_UpBtn", row)
+    upBtn:SetWidth(20)
+    upBtn:SetHeight(20)
+    upBtn:SetPoint("LEFT", nameText, "RIGHT", 10, 0)
+    upBtn:SetNormalTexture("Interface\\Buttons\\UI-ScrollBar-ScrollUpButton-Up")
+    upBtn:SetPushedTexture("Interface\\Buttons\\UI-ScrollBar-ScrollUpButton-Down")
+    upBtn:SetHighlightTexture("Interface\\Buttons\\UI-ScrollBar-ScrollUpButton-Highlight")
+    upBtn:SetScript("OnClick", function()
+        local catId = this:GetParent().categoryId
+        if catId and Guda.Modules.CategoryManager then
+            Guda.Modules.CategoryManager:MoveCategoryUp(catId)
+            Guda_SettingsPopup_CategoriesTab_Update()
+            Guda_SettingsPopup_RefreshBagFrames()
+        end
+    end)
+    row.upBtn = upBtn
+
+    -- Move Down button
+    local downBtn = CreateFrame("Button", rowName .. "_DownBtn", row)
+    downBtn:SetWidth(20)
+    downBtn:SetHeight(20)
+    downBtn:SetPoint("LEFT", upBtn, "RIGHT", 2, 0)
+    downBtn:SetNormalTexture("Interface\\Buttons\\UI-ScrollBar-ScrollDownButton-Up")
+    downBtn:SetPushedTexture("Interface\\Buttons\\UI-ScrollBar-ScrollDownButton-Down")
+    downBtn:SetHighlightTexture("Interface\\Buttons\\UI-ScrollBar-ScrollDownButton-Highlight")
+    downBtn:SetScript("OnClick", function()
+        local catId = this:GetParent().categoryId
+        if catId and Guda.Modules.CategoryManager then
+            Guda.Modules.CategoryManager:MoveCategoryDown(catId)
+            Guda_SettingsPopup_CategoriesTab_Update()
+            Guda_SettingsPopup_RefreshBagFrames()
+        end
+    end)
+    row.downBtn = downBtn
+
+    -- Delete button (only for custom categories)
+    local deleteBtn = CreateFrame("Button", rowName .. "_DeleteBtn", row, "UIPanelCloseButton")
+    deleteBtn:SetWidth(20)
+    deleteBtn:SetHeight(20)
+    deleteBtn:SetPoint("LEFT", downBtn, "RIGHT", 5, 0)
+    deleteBtn:SetScript("OnClick", function()
+        local catId = this:GetParent().categoryId
+        if catId and Guda.Modules.CategoryManager then
+            local def = Guda.Modules.CategoryManager:GetCategory(catId)
+            if def and not def.isBuiltIn then
+                Guda.Modules.CategoryManager:DeleteCategory(catId)
+                Guda_SettingsPopup_CategoriesTab_Update()
+                Guda_SettingsPopup_RefreshBagFrames()
+            end
+        end
+    end)
+    row.deleteBtn = deleteBtn
+
+    -- Built-in indicator
+    local builtInText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    builtInText:SetPoint("LEFT", deleteBtn, "RIGHT", 5, 0)
+    builtInText:SetText("(Built-in)")
+    builtInText:SetTextColor(0.5, 0.5, 0.5)
+    row.builtInText = builtInText
+
+    -- Hover highlight
+    row:EnableMouse(true)
+    row:SetScript("OnEnter", function()
+        this.bg:SetTexture(1, 1, 1, 0.1)
+    end)
+    row:SetScript("OnLeave", function()
+        this.bg:SetTexture(1, 1, 1, 0)
+    end)
+
+    categoryRowFrames[index] = row
+    return row
+end
+
+-- Update the category list display
+function Guda_SettingsPopup_CategoriesTab_Update()
+    if not Guda.Modules.CategoryManager then return end
+
+    local scrollFrame = getglobal("Guda_SettingsPopup_CategoriesScrollFrame")
+    if not scrollFrame then return end
+
+    local categoryOrder = Guda.Modules.CategoryManager:GetCategoryOrder()
+    local totalCategories = table.getn(categoryOrder)
+
+    -- Update scroll frame
+    FauxScrollFrame_Update(scrollFrame, totalCategories, CATEGORY_VISIBLE_ROWS, CATEGORY_ROW_HEIGHT)
+
+    local offset = FauxScrollFrame_GetOffset(scrollFrame)
+
+    for i = 1, CATEGORY_VISIBLE_ROWS do
+        local row = GetCategoryRowFrame(i)
+        if row then
+            local dataIndex = i + offset
+            if dataIndex <= totalCategories then
+                local categoryId = categoryOrder[dataIndex]
+                local categoryDef = Guda.Modules.CategoryManager:GetCategory(categoryId)
+
+                if categoryDef then
+                    row.categoryId = categoryId
+                    row.nameText:SetText(categoryDef.name or categoryId)
+                    row.checkbox:SetChecked(categoryDef.enabled and 1 or 0)
+
+                    -- Show/hide delete button based on whether it's built-in
+                    if categoryDef.isBuiltIn then
+                        row.deleteBtn:Hide()
+                        row.builtInText:Show()
+                    else
+                        row.deleteBtn:Show()
+                        row.builtInText:Hide()
+                    end
+
+                    -- Enable/disable move buttons based on position
+                    if dataIndex == 1 then
+                        row.upBtn:Disable()
+                    else
+                        row.upBtn:Enable()
+                    end
+
+                    if dataIndex == totalCategories then
+                        row.downBtn:Disable()
+                    else
+                        row.downBtn:Enable()
+                    end
+
+                    -- Set text color based on enabled state
+                    if categoryDef.enabled then
+                        row.nameText:SetTextColor(1, 1, 1)
+                    else
+                        row.nameText:SetTextColor(0.5, 0.5, 0.5)
+                    end
+
+                    row:Show()
+                else
+                    row:Hide()
+                end
+            else
+                row:Hide()
+            end
+        end
+    end
+
+    -- Set reset button text
+    local resetBtn = getglobal("Guda_SettingsPopup_ResetCategoriesButton")
+    if resetBtn then
+        resetBtn:SetText("Reset to Defaults")
+    end
+end
+
+-- Reset categories to defaults
+function Guda_SettingsPopup_ResetCategories_OnClick()
+    if Guda.Modules.CategoryManager then
+        Guda.Modules.CategoryManager:ResetToDefaults()
+        Guda_SettingsPopup_CategoriesTab_Update()
+        Guda_SettingsPopup_RefreshBagFrames()
+        Guda:Print("Categories reset to defaults.")
+    end
+end
+
+-- Refresh bag and bank frames after category changes
+function Guda_SettingsPopup_RefreshBagFrames()
+    -- Refresh category list
+    Guda_RefreshCategoryList()
+
+    -- Update bag frame if visible
+    local bagFrame = getglobal("Guda_BagFrame")
+    if bagFrame and bagFrame:IsShown() then
+        Guda.Modules.BagFrame:Update()
+    end
+
+    -- Update bank frame if visible
+    local bankFrame = getglobal("Guda_BankFrame")
+    if bankFrame and bankFrame:IsShown() then
+        Guda.Modules.BankFrame:Update()
+    end
 end
 
 -- Initialize

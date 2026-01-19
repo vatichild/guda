@@ -5,9 +5,17 @@ local FrameHelpers = {}
 addon.Modules.FrameHelpers = FrameHelpers
 
 -- Standard category list used by both Bag and Bank frames
+-- Now dynamically built from CategoryManager if available
 Guda_CategoryList = {
     "BoE", "Weapon", "Armor", "Consumable", "Food", "Drink", "Trade Goods", "Reagent", "Recipe", "Quiver", "Container", "Soul Bag", "Miscellaneous", "Quest", "Junk", "Class Items", "Keyring"
 }
+
+-- Rebuild category list from CategoryManager
+function Guda_RefreshCategoryList()
+    if addon.Modules.CategoryManager then
+        Guda_CategoryList = addon.Modules.CategoryManager:BuildCategoryList()
+    end
+end
 
 -- Categorize a single item into categories and specialItems tables
 -- Returns nothing, modifies tables in place
@@ -25,6 +33,7 @@ function Guda_CategorizeItem(itemData, bagID, slotID, categories, specialItems, 
     end
 
     -- Priority 1: Special items (Hearthstone, Mounts, Tools)
+    -- These are handled separately and go into specialItems table, not categories
     if string.find(itemName, "Hearthstone") then
         table.insert(specialItems.Hearthstone, {bagID = bagID, slotID = slotID, itemData = itemData})
         return
@@ -44,22 +53,28 @@ function Guda_CategorizeItem(itemData, bagID, slotID, categories, specialItems, 
         return
     end
 
+    -- Use CategoryManager rule engine if available, otherwise fall back to legacy logic
+    if addon.Modules.CategoryManager then
+        cat = addon.Modules.CategoryManager:CategorizeItem(itemData, bagID, slotID, isOtherChar)
+        if not categories[cat] then cat = "Miscellaneous" end
+        table.insert(categories[cat], {bagID = bagID, slotID = slotID, itemData = itemData})
+        return
+    end
+
+    -- Legacy categorization logic (fallback if CategoryManager not available)
     -- Priority 2: Class Items (Soul Shards, Arrows, Bullets)
-    if addon.Modules.Utils:IsSoulShard(itemData.link) or 
-       itemData.class == "Projectile" or 
-       itemData.subclass == "Arrow" or 
+    if addon.Modules.Utils:IsSoulShard(itemData.link) or
+       itemData.class == "Projectile" or
+       itemData.subclass == "Arrow" or
        itemData.subclass == "Bullet" then
         table.insert(categories["Class Items"], {bagID = bagID, slotID = slotID, itemData = itemData})
         return
     end
 
     -- Priority 3: Quest Items
-    -- Check multiple sources: tooltip scan, itemClass, itemType, and QuestItemsDB
     local isQuestItem = false
     local itemCategory = itemData.class or itemData.category or ""
     local itemType = itemData.type or ""
-    
-    -- If it's a Weapon or Armor, it shouldn't be a QuestItem unless it's specifically categorized as Quest
     local isEquipment = (itemCategory == "Weapon" or itemCategory == "Armor" or itemType == "Weapon" or itemType == "Armor")
     local isQuestCategory = (itemCategory == "Quest" or itemType == "Quest")
 
@@ -67,12 +82,10 @@ function Guda_CategorizeItem(itemData, bagID, slotID, categories, specialItems, 
         isQuestItem = true
     elseif not isOtherChar then
         isQuestItem = addon.Modules.Utils:IsQuestItemTooltip(bagID, slotID)
-        -- If tooltip said it is quest, but it is equipment and not quest category, reject it
         if isQuestItem and isEquipment and not isQuestCategory then
             isQuestItem = false
         end
     end
-    -- Also check the QuestItemsDB for known faction-specific quest items
     if not isQuestItem and itemData.link then
         local itemID = addon.Modules.Utils:ExtractItemID(itemData.link)
         if itemID and addon.IsQuestItemByID then
@@ -106,7 +119,7 @@ function Guda_CategorizeItem(itemData, bagID, slotID, categories, specialItems, 
         return
     end
 
-    -- Priority 6: BoE Equipment (Armor/Weapons that bind when equipped)
+    -- Priority 6: BoE Equipment
     if (itemData.class == "Weapon" or itemData.class == "Armor") and not isOtherChar then
         local isBoE = addon.Modules.Utils:IsBindOnEquip(bagID, slotID, itemData.link)
         if isBoE then
@@ -117,7 +130,7 @@ function Guda_CategorizeItem(itemData, bagID, slotID, categories, specialItems, 
         return
     end
 
-    -- Priority 7: Equipment for other characters (can't scan tooltip)
+    -- Priority 7: Equipment for other characters
     if (itemData.class == "Weapon" or itemData.class == "Armor") and isOtherChar then
         table.insert(categories[itemData.class], {bagID = bagID, slotID = slotID, itemData = itemData})
         return
@@ -131,10 +144,36 @@ end
 
 -- Initialize empty category tables
 function Guda_InitCategories()
+    -- Refresh category list from CategoryManager (enabled categories only for display)
+    Guda_RefreshCategoryList()
+
+    -- Create tables for ALL categories (not just enabled) so items can be categorized
+    -- Items in disabled categories simply won't be displayed
     local categories = {}
-    for _, cat in ipairs(Guda_CategoryList) do 
-        categories[cat] = {} 
+
+    if addon.Modules.CategoryManager then
+        -- Get full category order (all categories, not just enabled)
+        local allCategories = addon.Modules.CategoryManager:GetCategoryOrder()
+        for _, cat in ipairs(allCategories) do
+            categories[cat] = {}
+        end
+    else
+        -- Fallback: use the display list
+        for _, cat in ipairs(Guda_CategoryList) do
+            categories[cat] = {}
+        end
     end
+
+    -- Always ensure Miscellaneous exists as fallback
+    if not categories["Miscellaneous"] then
+        categories["Miscellaneous"] = {}
+    end
+
+    -- Always ensure Keyring exists (handled specially in BagFrame)
+    if not categories["Keyring"] then
+        categories["Keyring"] = {}
+    end
+
     local specialItems = {
         Hearthstone = {},
         Mount = {},

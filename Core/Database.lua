@@ -122,6 +122,11 @@ function DB:Initialize()
 		Guda_CharDB.settings.markUnusableItems = true
 	end
 
+	-- Initialize CategoryManager for custom categories
+	if addon.Modules.CategoryManager then
+		addon.Modules.CategoryManager:Initialize()
+	end
+
 	-- Initialize this character's data
 	if not Guda_DB.characters[fullName] then
 		local localizedClass, englishClass = UnitClass("player")
