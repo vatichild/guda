@@ -82,28 +82,8 @@ function Guda_CategorizeItem(itemData, bagID, slotID, categories, specialItems, 
         return
     end
 
-    -- Priority 3: Quest Items
-    local isQuestItem = false
-    local itemCategory = itemData.class or itemData.category or ""
-    local itemType = itemData.type or ""
-    local isEquipment = (itemCategory == "Weapon" or itemCategory == "Armor" or itemType == "Weapon" or itemType == "Armor")
-    local isQuestCategory = (itemCategory == "Quest" or itemType == "Quest")
-
-    if isQuestCategory then
-        isQuestItem = true
-    elseif not isOtherChar then
-        isQuestItem = addon.Modules.Utils:IsQuestItemTooltip(bagID, slotID)
-        if isQuestItem and isEquipment and not isQuestCategory then
-            isQuestItem = false
-        end
-    end
-    if not isQuestItem and itemData.link then
-        local itemID = addon.Modules.Utils:ExtractItemID(itemData.link)
-        if itemID and addon.IsQuestItemByID then
-            local playerFaction = UnitFactionGroup("player")
-            isQuestItem = addon:IsQuestItemByID(itemID, playerFaction)
-        end
-    end
+    -- Priority 3: Quest Items (use consolidated detection)
+    local isQuestItem, _ = addon.Modules.Utils:IsQuestItem(bagID, slotID, itemData, isOtherChar, false)
     if isQuestItem then
         table.insert(categories["Quest"], {bagID = bagID, slotID = slotID, itemData = itemData})
         return

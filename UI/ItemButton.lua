@@ -8,90 +8,13 @@ local nextButtonID = 1
 local scanTooltip = CreateFrame("GameTooltip", "Guda_QuestScanTooltip", nil, "GameTooltipTemplate")
 scanTooltip:SetOwner(WorldFrame, "ANCHOR_NONE")
 
--- Check if an item is a quest item by scanning its tooltip
--- Check if an item is a quest item by scanning its tooltip and determine type
+-- Helper function to check if an item is a quest item
+-- Delegates to consolidated Utils:IsQuestItem() function
 local function IsQuestItem(bagID, slotID, isBank)
-    bagID = tonumber(bagID)
-    slotID = tonumber(slotID)
-	if not bagID or not slotID then return false end
-
-	scanTooltip:ClearLines()
-    if isBank and bagID == -1 then
-        if scanTooltip.SetInventoryItem then
-            scanTooltip:SetInventoryItem("player", 39 + slotID)
-        else
-            scanTooltip:SetBagItem(bagID, slotID)
-        end
-    else
-	    scanTooltip:SetBagItem(bagID, slotID)
+    if addon and addon.Modules and addon.Modules.Utils and addon.Modules.Utils.IsQuestItem then
+        return addon.Modules.Utils:IsQuestItem(bagID, slotID, nil, false, isBank)
     end
-
-	local isQuestItem = false
-	local isQuestStarter = false
-
-	-- Check all tooltip lines for quest-related text
-	for i = 1, scanTooltip:NumLines() do
-		local line = getglobal("Guda_QuestScanTooltipTextLeft" .. i)
-		if line then
-			local text = line:GetText()
-			if text then
-			-- Check for quest starter patterns
-				if string.find(text, "Quest Starter") or
-				string.find(text, "This Item Begins a Quest") or
-				string.find(text, "Use: Starts a Quest") then
-					isQuestItem = true
-					isQuestStarter = true
-					break
-				-- Check for regular quest item patterns
-				elseif string.find(text, "Quest Item") or
-				string.find(text, "Manual") then
-					isQuestItem = true
-				-- Don't break, might still find a quest starter pattern
-				end
-			end
-		end
-	end
-
-	-- Also check item category/type via GetItemInfo for "Quest"
-	-- Turtle WoW GetItemInfo returns: name, link, rarity, level, itemCategory, itemType, stack, subType, texture, equipLoc, sellPrice
-	local link = GetContainerItemLink(bagID, slotID)
-	local itemID
-	local itemCategory, itemType
-	
-	if link and addon and addon.Modules and addon.Modules.Utils and addon.Modules.Utils.ExtractItemID and addon.Modules.Utils.GetItemInfoSafe then
-		itemID = addon.Modules.Utils:ExtractItemID(link)
-		if itemID then
-			_, _, _, _, itemCategory, itemType = addon.Modules.Utils:GetItemInfoSafe(itemID)
-		end
-	end
-
-	-- If it's a Weapon or Armor, it shouldn't be a QuestItem unless it's specifically categorized as Quest
-	-- This avoids "Use:" equipment showing up in the quest bar
-	if itemCategory == "Weapon" or itemCategory == "Armor" or itemType == "Weapon" or itemType == "Armor" then
-		if itemCategory ~= "Quest" and itemType ~= "Quest" then
-			isQuestItem = false
-			isQuestStarter = false
-		end
-	end
-
-	if not isQuestItem then
-		if itemCategory == "Quest" or itemType == "Quest" then
-			isQuestItem = true
-		end
-	end
-
-	-- Check the QuestItemsDB for known faction-specific quest items
-	if not isQuestItem then
-		if itemID and addon.IsQuestItemByID then
-			local playerFaction = UnitFactionGroup("player")
-			local isDBQuestItem = addon:IsQuestItemByID(itemID, playerFaction)
-			if isDBQuestItem then
-				isQuestItem = true
-			end
-		end
-	end
-
-	return isQuestItem, isQuestStarter
+    return false, false
 end
 
 --=====================================================
@@ -466,50 +389,31 @@ function Guda_ItemButton_UpdateCooldown(self)
     end
 end
 
--- Set item data
-function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCharName, matchesFilter, isReadOnly)
-    -- Proactively convert to number to avoid comparisons with strings in downstream functions
-    bagID = tonumber(bagID)
-    slotID = tonumber(slotID)
-    
-    -- Proactively clear any previous cooldown overlay state before reassigning this pooled button
-    do
-        local cd = getglobal(self:GetName().."Cooldown") or self.cooldown
-        if cd then
-            if CooldownFrame_SetTimer then
-                CooldownFrame_SetTimer(cd, 0, 0, 0)
-            elseif CooldownFrame_Set then
-                CooldownFrame_Set(cd, 0, 0, 0)
-            end
-            if cd.Hide then cd:Hide() end
-        end
-    end
+--=====================================================
+-- Helper functions for SetItem (extracted for clarity)
+--=====================================================
 
-    -- Reset all visual state before reassigning pooled button
+-- Reset all visual state on a button (for reuse from pool)
+local function ResetButtonVisualState(self)
     if self.questBorder then self.questBorder:Hide() end
     if self.questIcon then self.questIcon:Hide() end
     if self.qualityBorder then self.qualityBorder:Hide() end
     if self.unusableOverlay then self.unusableOverlay:Hide() end
 
-    self.bagID = bagID
-    self.slotID = slotID
-    -- Also set the Blizzard slot ID for compatibility with ContainerFrameItemButtonTemplate behavior
-    -- ALWAYS set ID to something (0 if nil) to avoid leaking old IDs when button is reused
-    if self.SetID then
-        self:SetID(slotID or 0)
+    -- Clear cooldown overlay
+    local cd = getglobal(self:GetName().."Cooldown") or self.cooldown
+    if cd then
+        if CooldownFrame_SetTimer then
+            CooldownFrame_SetTimer(cd, 0, 0, 0)
+        elseif CooldownFrame_Set then
+            CooldownFrame_Set(cd, 0, 0, 0)
+        end
+        if cd.Hide then cd:Hide() end
     end
-    -- Explicitly set bag index to avoid Blizzard's ContainerFrameItemButton_OnEnter logic
-    -- from picking up this button as part of a real bag.
-    self.bagIndex = bagID or -100 -- Use an invalid bag index for non-bag buttons
-    self.itemData = itemData
-    self.isBank = isBank or false
-    self.otherChar = otherCharName
-    self.isReadOnly = isReadOnly or false  -- Track if this is read-only mode
-    self.isMail = false -- Clear mailbox flag by default
-    self.mailIndex = nil
-    self.mailItemIndex = nil
+end
 
-    -- Re-register for drag/drop every time (crucial for button reuse in Classic/Vanilla)
+-- Configure drag/drop registration based on read-only state
+local function SetupDragDrop(self)
     if not self.isReadOnly and not self.otherChar then
         if self.RegisterForDrag then
             self:RegisterForDrag("LeftButton")
@@ -529,137 +433,364 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
             self:EnableMouse(true)  -- Still enable mouse for tooltips
         end
     end
+end
 
-    -- Default to true if not specified (for non-filtered displays)
+-- Get display texture and count for an item slot
+-- Returns: texture, count, hasItem (boolean)
+local function GetItemDisplayInfo(bagID, slotID, itemData, isReadOnly)
+    local displayTexture, displayCount
+    local hasItem = false
+
+    if not isReadOnly then
+        -- LIVE MODE: Query game state directly
+        local liveTexture, liveCount = GetContainerItemInfo(bagID, slotID)
+        if liveTexture then
+            displayTexture = liveTexture
+            displayCount = liveCount
+            hasItem = true
+        elseif bagID == -2 then
+            -- Fallback for keyring in 1.12.1
+            local link = GetContainerItemLink(bagID, slotID)
+            if link then
+                hasItem = true
+                local _, _, _, _, _, _, _, _, itemTexture = GetItemInfo(link)
+                displayTexture = itemTexture
+                displayCount = 1
+            end
+        end
+    else
+        -- READ-ONLY MODE: Use cached itemData
+        if itemData and itemData.texture then
+            displayTexture = itemData.texture
+            displayCount = itemData.count
+            hasItem = true
+        end
+    end
+
+    return displayTexture, displayCount, hasItem
+end
+
+-- Update the tracking checkmark on an item button
+local function UpdateTrackingCheckmark(self, Utils)
+    local check = getglobal(self:GetName().."_Check")
+    if not check then return end
+
+    local isTracked = false
+    if self.hasItem and self.itemData and self.itemData.link then
+        local itemID = Utils and Utils.ExtractItemID and Utils:ExtractItemID(self.itemData.link)
+        if itemID then
+            local trackedItems = Utils and Utils.SafeCall and Utils:SafeCall("DB", "GetSetting", "trackedItems") or {}
+            if trackedItems[itemID] then
+                isTracked = true
+            end
+        end
+    end
+
+    if isTracked then
+        check:Show()
+    else
+        check:Hide()
+    end
+end
+
+-- Resize empty slot background to match icon size
+local function UpdateEmptySlotBackground(self, emptySlotBg, iconSize)
+    if not emptySlotBg then return end
+
+    emptySlotBg:ClearAllPoints()
+    -- Use smaller padding for small icons
+    local bgPadding = iconSize < 44 and 1 or 2
+    emptySlotBg:SetPoint("TOPLEFT", self, "TOPLEFT", -bgPadding, bgPadding)
+    emptySlotBg:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", bgPadding, -bgPadding)
+    emptySlotBg:SetTexCoord(0.1, 0.9, 0.1, 0.9)
+end
+
+-- Resize texture elements to match button size
+local function ResizeTextureElements(self, iconSize)
+    -- Pushed texture
+    local pushedTexture = getglobal(self:GetName().."PushedTexture")
+    if not pushedTexture and self.GetPushedTexture then
+        pushedTexture = self:GetPushedTexture()
+    end
+    if pushedTexture then
+        pushedTexture:ClearAllPoints()
+        pushedTexture:SetPoint("CENTER", self, "CENTER", 0, 0)
+        pushedTexture:SetWidth(iconSize)
+        pushedTexture:SetHeight(iconSize)
+    end
+
+    -- Highlight texture
+    local highlightTexture = getglobal(self:GetName().."HighlightTexture")
+    if not highlightTexture and self.GetHighlightTexture then
+        highlightTexture = self:GetHighlightTexture()
+    end
+    if highlightTexture then
+        highlightTexture:ClearAllPoints()
+        highlightTexture:SetPoint("CENTER", self, "CENTER", 0, 0)
+        highlightTexture:SetWidth(iconSize)
+        highlightTexture:SetHeight(iconSize)
+    end
+
+    -- Checked texture
+    local checkedTexture = getglobal(self:GetName().."CheckedTexture")
+    if not checkedTexture and self.GetCheckedTexture then
+        checkedTexture = self:GetCheckedTexture()
+    end
+    if checkedTexture then
+        checkedTexture:ClearAllPoints()
+        checkedTexture:SetPoint("CENTER", self, "CENTER", 0, 0)
+        checkedTexture:SetWidth(iconSize)
+        checkedTexture:SetHeight(iconSize)
+    end
+end
+
+-- Position icon and borders based on icon size
+local function PositionIconAndBorders(self, iconSize)
+    local iconTexture = getglobal(self:GetName().."IconTexture")
+    if not iconTexture then
+        iconTexture = getglobal(self:GetName().."Icon") or self.icon or self.Icon
+    end
+
+    if not iconTexture or not self.hasItem then return end
+
+    -- Calculate icon inset based on size
+    local iconInset = iconSize < 44 and 10 or 15
+    local iconDisplaySize = iconSize - iconInset
+
+    iconTexture:ClearAllPoints()
+    iconTexture:SetPoint("CENTER", self, "CENTER", -0.5, 0.5)
+    iconTexture:SetWidth(iconDisplaySize)
+    iconTexture:SetHeight(iconDisplaySize)
+    iconTexture:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    iconTexture:Show()
+
+    -- Position quality border around the icon
+    if self.qualityBorder then
+        self.qualityBorder:ClearAllPoints()
+        self.qualityBorder:SetPoint("TOPLEFT", iconTexture, "TOPLEFT", -5, 5)
+        self.qualityBorder:SetPoint("BOTTOMRIGHT", iconTexture, "BOTTOMRIGHT", 5, -5)
+    end
+
+    -- Position quest border around the icon
+    if self.questBorder then
+        self.questBorder:ClearAllPoints()
+        self.questBorder:SetPoint("TOPLEFT", iconTexture, "TOPLEFT", -5, 5)
+        self.questBorder:SetPoint("BOTTOMRIGHT", iconTexture, "BOTTOMRIGHT", 5, -5)
+    end
+
+    -- Position quest icon in top-right corner
+    if self.questIcon then
+        local questIconSize = math.max(12, math.min(20, iconSize * 0.35))
+        self.questIcon:SetWidth(questIconSize)
+        self.questIcon:SetHeight(questIconSize)
+        self.questIcon:ClearAllPoints()
+        self.questIcon:SetPoint("TOPRIGHT", self, "TOPRIGHT", 1, 0)
+    end
+end
+
+-- Update quality border display
+local function UpdateQualityBorder(self, itemQuality, itemLink, bagID, Utils)
+    if not self.qualityBorder then return end
+
+    if bagID == -2 then
+        -- Special border for keyring items (cyan/blue)
+        self.qualityBorder:SetBackdropBorderColor(0.2, 0.8, 1.0, 1)
+        self.qualityBorder:Show()
+        return
+    end
+
+    if not itemQuality then
+        self.qualityBorder:Hide()
+        return
+    end
+
+    -- Check settings
+    local showEquipmentBorder, showOtherBorder
+    if Utils and Utils.SafeCall then
+        showEquipmentBorder = Utils:SafeCall("DB", "GetSetting", "showQualityBorderEquipment")
+        showOtherBorder = Utils:SafeCall("DB", "GetSetting", "showQualityBorderOther")
+    end
+
+    if showEquipmentBorder == nil then showEquipmentBorder = true end
+    if showOtherBorder == nil then showOtherBorder = true end
+
+    -- Check if item is equipment
+    local isEquipment = false
+    if itemLink and Utils and Utils.IsEquipment then
+        isEquipment = Utils:IsEquipment(itemLink)
+    end
+
+    local shouldShowBorder = (isEquipment and showEquipmentBorder) or (not isEquipment and showOtherBorder)
+
+    if shouldShowBorder then
+        local r, g, b = 1, 1, 1
+        if Utils and Utils.GetQualityColor then
+            r, g, b = Utils:GetQualityColor(itemQuality)
+        end
+        self.qualityBorder:SetBackdropBorderColor(r, g, b, 1)
+        self.qualityBorder:Show()
+    else
+        self.qualityBorder:Hide()
+    end
+end
+
+-- Clear item button for empty slot
+local function ClearItemButton(self, emptySlotBg, countText, bagID)
+    self.hasItem = false
+
+    if SetItemButtonTexture then SetItemButtonTexture(self, nil) end
+    if SetItemButtonCount then SetItemButtonCount(self, 0) end
+    if SetItemButtonDesaturated then SetItemButtonDesaturated(self, false) end
+
+    -- Clear cooldown overlay
+    local cooldown = getglobal(self:GetName().."Cooldown") or self.cooldown
+    if cooldown and cooldown.Hide then cooldown:Hide() end
+
+    -- Clear icon texture
+    local iconTexture = getglobal(self:GetName().."IconTexture")
+    if not iconTexture then
+        iconTexture = getglobal(self:GetName().."Icon") or self.icon or self.Icon
+    end
+    if iconTexture then
+        iconTexture:SetTexture(nil)
+        iconTexture:Hide()
+    end
+
+    -- Clear unusable tint
+    if SetItemButtonTextureVertexColor then
+        SetItemButtonTextureVertexColor(self, 1.0, 1.0, 1.0)
+    end
+    if self.unusableOverlay and self.unusableOverlay.Hide then
+        self.unusableOverlay:Hide()
+    end
+
+    -- Hide normal texture
+    self:SetNormalTexture("")
+    local normalBorder = getglobal(self:GetName().."NormalTexture")
+    if normalBorder then normalBorder:SetTexture("") end
+
+    -- Show/hide empty slot background
+    if emptySlotBg then
+        emptySlotBg:Show()
+        emptySlotBg:SetAlpha(0.5)
+    end
+
+    if countText then countText:Hide() end
+
+    -- Handle quality border for empty keyring slots
+    if self.qualityBorder then
+        if bagID == -2 then
+            self.qualityBorder:SetBackdropBorderColor(0.2, 0.8, 1.0, 0.5)
+            self.qualityBorder:Show()
+        else
+            self.qualityBorder:Hide()
+        end
+    end
+
+    -- Hide quest elements
+    if self.questBorder then self.questBorder:Hide() end
+    if self.questIcon then self.questIcon:Hide() end
+end
+
+--=====================================================
+-- Main SetItem function (orchestrates helper functions)
+--=====================================================
+
+-- Set item data
+function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCharName, matchesFilter, isReadOnly)
+    -- Proactively convert to number to avoid comparisons with strings in downstream functions
+    bagID = tonumber(bagID)
+    slotID = tonumber(slotID)
+
+    -- Reset all visual state before reassigning pooled button
+    ResetButtonVisualState(self)
+
+    -- Set button properties
+    self.bagID = bagID
+    self.slotID = slotID
+    if self.SetID then
+        self:SetID(slotID or 0)
+    end
+    self.bagIndex = bagID or -100
+    self.itemData = itemData
+    self.isBank = isBank or false
+    self.otherChar = otherCharName
+    self.isReadOnly = isReadOnly or false
+    self.isMail = false
+    self.mailIndex = nil
+    self.mailItemIndex = nil
+    self.mailData = nil
+
+    -- Configure drag/drop
+    SetupDragDrop(self)
+
+    -- Default to true if not specified
     if matchesFilter == nil then
         matchesFilter = true
     end
 
-    self.mailData = nil -- Clear mail metadata by default
-    
-    -- Use Blizzard's default count fontstring (ContainerFrameItemButtonTemplate creates $parentCount)
+    -- Get UI elements
     local countText = getglobal(self:GetName().."Count")
     local emptySlotBg = getglobal(self:GetName().."_EmptySlotBg")
+    local Utils = addon and addon.Modules and addon.Modules.Utils
 
-    -- Apply icon size setting (nil-safe)
+    -- Get icon size setting
     local iconSize = 37
-    if addon and addon.Modules and addon.Modules.DB and addon.Modules.DB.GetSetting then
-        iconSize = addon.Modules.DB:GetSetting("iconSize") or iconSize
-    elseif Guda and Guda.Modules and Guda.Modules.DB and Guda.Modules.DB.GetSetting then
-        iconSize = Guda.Modules.DB:GetSetting("iconSize") or iconSize
+    if Utils and Utils.SafeCall then
+        iconSize = Utils:SafeCall("DB", "GetSetting", "iconSize") or iconSize
     end
-    if addon and addon.Constants and addon.Constants.BUTTON_SIZE then
+    if addon and addon.Constants then
         iconSize = iconSize or addon.Constants.BUTTON_SIZE
     end
     self:SetWidth(iconSize)
     self:SetHeight(iconSize)
 
-    -- In live mode (readOnly=false), query real-time game state instead of cached DB
-    -- In read-only mode (readOnly=true), use cached itemData from DB
-    local displayTexture, displayCount
+    -- Get item display info (texture, count, hasItem)
+    local displayTexture, displayCount, hasItem = GetItemDisplayInfo(bagID, slotID, itemData, self.isReadOnly)
+    self.hasItem = hasItem
 
-    if not self.isReadOnly then
-        -- LIVE MODE: Always query game state directly, never use cached itemData
-        local liveTexture, liveCount = GetContainerItemInfo(bagID, slotID)
-        if liveTexture then
-            displayTexture = liveTexture
-            displayCount = liveCount
-            self.hasItem = true
-        elseif bagID == -2 then
-            -- Fallback for keyring in 1.12.1
-            local link = GetContainerItemLink(bagID, slotID)
-            if link then
-                self.hasItem = true
-                -- We might not have the texture from GetContainerItemInfo, try to get it from GetItemInfo
-                local _, _, _, _, _, _, _, _, itemTexture = GetItemInfo(link)
-                displayTexture = itemTexture
-                displayCount = 1 -- Keyring items are usually unique anyway
-            else
-                self.hasItem = false
-            end
-        else
-            -- No item in this slot (even if itemData has cached data)
-            self.hasItem = false
-        end
-    else
-        -- READ-ONLY MODE: Use cached itemData from DB (can't query other characters)
-        if itemData and itemData.texture then
-            displayTexture = itemData.texture
-            displayCount = itemData.count
-            self.hasItem = true
-        else
-            self.hasItem = false
-        end
-    end
-
-    -- Apply the determined texture and count
+    -- Apply display based on whether slot has item
     if self.hasItem then
-        if SetItemButtonTexture then 
-            SetItemButtonTexture(self, displayTexture) 
+        -- Set texture
+        if SetItemButtonTexture then
+            SetItemButtonTexture(self, displayTexture)
         end
-        
-        -- Explicitly set and show icon texture as SetItemButtonTexture can be unreliable for custom paths in 1.12
         local iconTexture = getglobal(self:GetName().."IconTexture") or getglobal(self:GetName().."Icon") or self.icon or self.Icon
         if iconTexture and displayTexture then
             iconTexture:SetTexture(displayTexture)
             iconTexture:Show()
         end
 
+        -- Set count
         if SetItemButtonCount then SetItemButtonCount(self, displayCount or 1) end
         if emptySlotBg then emptySlotBg:Hide() end
+
         -- Update cooldown overlay for live items
         if not self.isReadOnly and not self.otherChar and Guda_ItemButton_UpdateCooldown then
             Guda_ItemButton_UpdateCooldown(self)
         else
-            -- Ensure cooldown is hidden for read-only/other character views
             local cd = getglobal(self:GetName().."Cooldown") or self.cooldown
             if cd and cd.Hide then cd:Hide() end
         end
+
         -- Update unusable red overlay tint
         if Guda_ItemButton_UpdateUsableTint then
-			Guda_ItemButton_UpdateUsableTint(self)
+            Guda_ItemButton_UpdateUsableTint(self)
         end
     else
-        -- Fully clear all item button state for empty slots
-        if SetItemButtonTexture then SetItemButtonTexture(self, nil) end
-        if SetItemButtonCount then SetItemButtonCount(self, 0) end
-        if SetItemButtonDesaturated then SetItemButtonDesaturated(self, false) end
-
-        -- Ensure cooldown overlay is hidden for empty slots
-        local cooldown = getglobal(self:GetName().."Cooldown") or self.cooldown
-        if cooldown and cooldown.Hide then cooldown:Hide() end
-
-        -- Also clear the icon texture directly
-        local iconTexture = getglobal(self:GetName().."IconTexture")
-        if not iconTexture then
-            iconTexture = getglobal(self:GetName().."Icon") or self.icon or self.Icon
-        end
-        if iconTexture then
-            iconTexture:SetTexture(nil)
-            iconTexture:Hide()
-        end
-
-        if emptySlotBg then emptySlotBg:Show() end
-
-        -- Ensure any unusable tint is cleared on empty
-        if SetItemButtonTextureVertexColor then
-            SetItemButtonTextureVertexColor(self, 1.0, 1.0, 1.0)
-        end
-
-		-- Clear unusable overlay for empty slots ✅ FIX: Clear red overlay when item is sold
-		if self.unusableOverlay and self.unusableOverlay.Hide then
-			self.unusableOverlay:Hide()
-		end
+        -- Clear empty slot
+        ClearItemButton(self, emptySlotBg, countText, bagID)
     end
 
     -- Update tracking checkmark
+    UpdateTrackingCheckmark(self, Utils)
     local check = getglobal(self:GetName().."_Check")
     if check then
         local isTracked = false
-        if self.hasItem then
-            local itemID = addon.Modules.Utils:ExtractItemID(self.itemData and self.itemData.link)
+        if self.hasItem and self.itemData and self.itemData.link then
+            local itemID = Utils and Utils.ExtractItemID and Utils:ExtractItemID(self.itemData.link)
             if itemID then
-                local trackedItems = addon.Modules.DB:GetSetting("trackedItems") or {}
+                local trackedItems = Utils and Utils.SafeCall and Utils:SafeCall("DB", "GetSetting", "trackedItems") or {}
                 if trackedItems[itemID] then
                     isTracked = true
                 end
@@ -735,10 +866,8 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
     if countText and countText.GetFont then
         local font, _, flags = countText:GetFont()
         local fontSize = 12
-        if addon and addon.Modules and addon.Modules.DB and addon.Modules.DB.GetSetting then
-            fontSize = addon.Modules.DB:GetSetting("iconFontSize") or fontSize
-        elseif Guda and Guda.Modules and Guda.Modules.DB and Guda.Modules.DB.GetSetting then
-            fontSize = Guda.Modules.DB:GetSetting("iconFontSize") or fontSize
+        if Utils and Utils.SafeCall then
+            fontSize = Utils:SafeCall("DB", "GetSetting", "iconFontSize") or fontSize
         end
         countText:SetFont(font, fontSize, flags)
 
@@ -814,14 +943,11 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
                 self.qualityBorder:SetBackdropBorderColor(0.2, 0.8, 1.0, 1)
                 self.qualityBorder:Show()
             elseif itemQuality then
-                -- Check settings to determine if we should show borders (nil-safe)
+                -- Check settings to determine if we should show borders
                 local showEquipmentBorder, showOtherBorder
-                if addon and addon.Modules and addon.Modules.DB and addon.Modules.DB.GetSetting then
-                    showEquipmentBorder = addon.Modules.DB:GetSetting("showQualityBorderEquipment")
-                    showOtherBorder = addon.Modules.DB:GetSetting("showQualityBorderOther")
-                elseif Guda and Guda.Modules and Guda.Modules.DB and Guda.Modules.DB.GetSetting then
-                    showEquipmentBorder = Guda.Modules.DB:GetSetting("showQualityBorderEquipment")
-                    showOtherBorder = Guda.Modules.DB:GetSetting("showQualityBorderOther")
+                if Utils and Utils.SafeCall then
+                    showEquipmentBorder = Utils:SafeCall("DB", "GetSetting", "showQualityBorderEquipment")
+                    showOtherBorder = Utils:SafeCall("DB", "GetSetting", "showQualityBorderOther")
                 end
 
                 -- Default to true if settings not found
@@ -832,14 +958,10 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
                     showOtherBorder = true
                 end
 
-                -- Check if item is equipment (nil-safe)
+                -- Check if item is equipment
                 local isEquipment = false
-                if itemLink then
-                    if addon and addon.Modules and addon.Modules.Utils and addon.Modules.Utils.IsEquipment then
-                        isEquipment = addon.Modules.Utils:IsEquipment(itemLink)
-                    elseif Guda and Guda.Modules and Guda.Modules.Utils and Guda.Modules.Utils.IsEquipment then
-                        isEquipment = Guda.Modules.Utils:IsEquipment(itemLink)
-                    end
+                if itemLink and Utils and Utils.IsEquipment then
+                    isEquipment = Utils:IsEquipment(itemLink)
                 end
 
                 -- Determine if we should show the border based on item type and settings
@@ -848,10 +970,8 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
                 if shouldShowBorder then
                     -- Show colored border for all items (Poor, Common, Uncommon, Rare, Epic, etc.)
                     local r, g, b = 1, 1, 1
-                    if addon and addon.Modules and addon.Modules.Utils and addon.Modules.Utils.GetQualityColor then
-                        r, g, b = addon.Modules.Utils:GetQualityColor(itemQuality)
-                    elseif Guda and Guda.Modules and Guda.Modules.Utils and Guda.Modules.Utils.GetQualityColor then
-                        r, g, b = Guda.Modules.Utils:GetQualityColor(itemQuality)
+                    if Utils and Utils.GetQualityColor then
+                        r, g, b = Utils:GetQualityColor(itemQuality)
                     end
                     self.qualityBorder:SetBackdropBorderColor(r, g, b, 1)
                     self.qualityBorder:Show()

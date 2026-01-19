@@ -4,261 +4,221 @@ local addon = Guda
 local Tooltip = {}
 addon.Modules.Tooltip = Tooltip
 
+--=============================================================================
+-- Item Counting Helper Functions (extracted for clarity and reuse)
+--=============================================================================
+
 -- Helper function to get item ID from link (Lua 5.0 compatible)
 local function GetItemIDFromLink(link)
-	if not link then return nil end
+    if not link then return nil end
     if type(link) == "number" then return link end
-    
-    -- Try to find itemID in a standard link or a raw item:ID string
-	local _, _, itemID = string.find(link, "item:(%d+)")
-	return itemID and tonumber(itemID) or nil
+    local _, _, itemID = string.find(link, "item:(%d+)")
+    return itemID and tonumber(itemID) or nil
 end
+
+-- Count items in saved bag/bank data structure
+-- Used for both bags and bank counting from saved character data
+local function CountFromSavedContainers(containersData, itemID)
+    local count = 0
+    if not containersData or type(containersData) ~= "table" then
+        return count
+    end
+
+    for bagID, bagData in pairs(containersData) do
+        if bagData and type(bagData) == "table" and bagData.slots and type(bagData.slots) == "table" then
+            for slotID, itemData in pairs(bagData.slots) do
+                if itemData and type(itemData) == "table" and itemData.link then
+                    local slotItemID = GetItemIDFromLink(itemData.link)
+                    if slotItemID == itemID then
+                        count = count + (itemData.count or 1)
+                    end
+                end
+            end
+        end
+    end
+
+    return count
+end
+
+-- Count items in saved mailbox data structure
+local function CountFromSavedMailbox(mailboxData, itemID)
+    local count = 0
+    if not mailboxData or type(mailboxData) ~= "table" then
+        return count
+    end
+
+    for _, mail in ipairs(mailboxData) do
+        local itemsToCheck = mail.items or (mail.item and {mail.item}) or {}
+        for _, item in ipairs(itemsToCheck) do
+            local slotItemID = item.link and GetItemIDFromLink(item.link)
+            if slotItemID == itemID then
+                count = count + (item.count or 1)
+            elseif not slotItemID and item.name then
+                -- Fallback to name matching if link is missing
+                local targetName = GetItemInfo(itemID)
+                if targetName == item.name then
+                    count = count + (item.count or 1)
+                end
+            end
+        end
+    end
+
+    return count
+end
+
+-- Count items in saved equipped data structure
+local function CountFromSavedEquipped(equippedData, itemID)
+    local count = 0
+    if not equippedData or type(equippedData) ~= "table" then
+        return count
+    end
+
+    for slotName, itemData in pairs(equippedData) do
+        if itemData and type(itemData) == "table" and itemData.link then
+            local slotItemID = GetItemIDFromLink(itemData.link)
+            if slotItemID == itemID then
+                count = count + 1
+            end
+        end
+    end
+
+    return count
+end
+
+-- Count items in live container (bags or bank)
+local function CountFromLiveContainer(bagIDs, itemID)
+    local count = 0
+
+    for _, bagID in ipairs(bagIDs) do
+        local numSlots = GetContainerNumSlots(bagID)
+        if numSlots and numSlots > 0 then
+            for slot = 1, numSlots do
+                local link = GetContainerItemLink(bagID, slot)
+                if link then
+                    local slotItemID = GetItemIDFromLink(link)
+                    if slotItemID == itemID then
+                        local _, itemCount = GetContainerItemInfo(bagID, slot)
+                        count = count + (itemCount or 1)
+                    end
+                end
+            end
+        end
+    end
+
+    return count
+end
+
+-- Count items in live mailbox
+local function CountFromLiveMailbox(itemID)
+    local count = 0
+
+    if not (addon.Modules.MailboxScanner and addon.Modules.MailboxScanner:IsMailboxOpen()) then
+        return count
+    end
+
+    local numInboxItems = GetInboxNumItems()
+    for i = 1, numInboxItems do
+        local _, _, _, _, _, _, _, hasItem = GetInboxHeaderInfo(i)
+        if hasItem then
+            local numAttachments = GetInboxNumAttachments and GetInboxNumAttachments(i) or 1
+            if numAttachments == 0 and hasItem then
+                numAttachments = 1
+            end
+
+            for j = 1, numAttachments do
+                local name, _, itemCount = GetInboxItem(i, j)
+                if name then
+                    local itemLink = addon.Modules.Utils:GetInboxItemLink(i, j)
+                    if itemLink then
+                        local slotItemID = GetItemIDFromLink(itemLink)
+                        if slotItemID == itemID then
+                            count = count + (itemCount or 1)
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return count
+end
+
+-- Count items in live equipment slots
+local function CountFromLiveEquipped(itemID)
+    local count = 0
+
+    for slotID = 1, 19 do
+        local link = GetInventoryItemLink("player", slotID)
+        if link then
+            local slotItemID = GetItemIDFromLink(link)
+            if slotItemID == itemID then
+                count = count + 1
+            end
+        end
+    end
+
+    return count
+end
+
+--=============================================================================
+-- Main Counting Functions
+--=============================================================================
+
+-- Count items for current character using live game data
 local function CountCurrentCharacterItems(itemID)
-	local bagCount = 0
-	local bankCount = 0
-	local mailCount = 0
-	local equippedCount = 0
+    local bagCount = 0
+    local bankCount = 0
+    local mailCount = 0
+    local equippedCount = 0
 
-	-- Count current character's bags in real-time
-	local bagsToCount = {0, 1, 2, 3, 4, -2}
-	for _, bagID in ipairs(bagsToCount) do
-		local numSlots = GetContainerNumSlots(bagID)
-		for slot = 1, numSlots do
-			local link = GetContainerItemLink(bagID, slot)
-			if link then
-				local slotItemID = GetItemIDFromLink(link)
-				if slotItemID == itemID then
-					local _, count = GetContainerItemInfo(bagID, slot)
-					bagCount = bagCount + (count or 1)
-				end
-			end
-		end
-	end
+    -- Count bags in real-time
+    bagCount = CountFromLiveContainer({0, 1, 2, 3, 4, -2}, itemID)
 
-	-- Count current character's bank in real-time if bank is open
-	local bankFrame = getglobal("BankFrame")
-	if bankFrame and bankFrame:IsVisible() then
-	-- Main bank slots (-1)
-		local numMainSlots = GetContainerNumSlots(-1) or 24
-		for slot = 1, numMainSlots do
-			local link = GetContainerItemLink(-1, slot)
-			if link then
-				local slotItemID = GetItemIDFromLink(link)
-				if slotItemID == itemID then
-					local _, count = GetContainerItemInfo(-1, slot)
-					bankCount = bankCount + (count or 1)
-				end
-			end
-		end
+    -- Count bank: live if open, otherwise from saved data
+    local bankFrame = getglobal("BankFrame")
+    if bankFrame and bankFrame:IsVisible() then
+        -- Main bank + bank bags
+        bankCount = CountFromLiveContainer({-1, 5, 6, 7, 8, 9, 10, 11}, itemID)
+    else
+        -- Use saved data
+        local playerName = addon.Modules.DB:GetPlayerFullName()
+        local charData = Guda_DB and Guda_DB.characters and Guda_DB.characters[playerName]
+        if charData then
+            bankCount = CountFromSavedContainers(charData.bank, itemID)
+        end
+    end
 
-		-- Bank bags (5-11)
-		for bagID = 5, 11 do
-			local numSlots = GetContainerNumSlots(bagID)
-			if numSlots and numSlots > 0 then
-				for slot = 1, numSlots do
-					local link = GetContainerItemLink(bagID, slot)
-					if link then
-						local slotItemID = GetItemIDFromLink(link)
-						if slotItemID == itemID then
-							local _, count = GetContainerItemInfo(bagID, slot)
-							bankCount = bankCount + (count or 1)
-						end
-					end
-				end
-			end
-		end
-	else
-	-- Bank not open - use saved data for bank counts
-		local playerName = addon.Modules.DB:GetPlayerFullName()
-		local charData = Guda_DB and Guda_DB.characters and Guda_DB.characters[playerName]
-		if charData and charData.bank and type(charData.bank) == "table" then
-			for bagID, bagData in pairs(charData.bank) do
-				if bagData and type(bagData) == "table" and bagData.slots and type(bagData.slots) == "table" then
-					for slotID, itemData in pairs(bagData.slots) do
-						if itemData and type(itemData) == "table" and itemData.link then
-							local slotItemID = GetItemIDFromLink(itemData.link)
-							if slotItemID == itemID then
-								bankCount = bankCount + (itemData.count or 1)
-							end
-						end
-					end
-				end
-			end
-		end
-	end
+    -- Count mailbox: live if open, otherwise from saved data
+    if addon.Modules.MailboxScanner and addon.Modules.MailboxScanner:IsMailboxOpen() then
+        mailCount = CountFromLiveMailbox(itemID)
+    else
+        local playerName = addon.Modules.DB:GetPlayerFullName()
+        local charData = Guda_DB and Guda_DB.characters and Guda_DB.characters[playerName]
+        if charData then
+            mailCount = CountFromSavedMailbox(charData.mailbox, itemID)
+        end
+    end
 
-	-- Count current character's mailbox in real-time if mailbox is open
-	if addon.Modules.MailboxScanner and addon.Modules.MailboxScanner:IsMailboxOpen() then
-		local numInboxItems = GetInboxNumItems()
-		for i = 1, numInboxItems do
-			local _, _, _, _, _, _, _, hasItem = GetInboxHeaderInfo(i)
-			if hasItem then
-				-- Turtle WoW supports up to 12 attachments per mail.
-				-- We use GetInboxNumAttachments if available to avoid over-scanning.
-				local numAttachments = 0
-				if GetInboxNumAttachments then
-					numAttachments = GetInboxNumAttachments(i) or 0
-				end
+    -- Count equipped items in real-time
+    equippedCount = CountFromLiveEquipped(itemID)
 
-				-- Fallback: if we don't have the count but header says there's an item, assume at least 1.
-				if numAttachments == 0 and hasItem then
-					numAttachments = 1
-				end
-
-				for j = 1, numAttachments do -- Turtle WoW supports up to 12 attachments
-					local name, _, count = GetInboxItem(i, j)
-					if name then
-						local itemLink = addon.Modules.Utils:GetInboxItemLink(i, j)
-						if itemLink then
-							local slotItemID = GetItemIDFromLink(itemLink)
-							if slotItemID == itemID then
-								mailCount = mailCount + (count or 1)
-							end
-						end
-					end
-				end
-			end
-		end
-	else
-		-- Mailbox not open - use saved data
-		local playerName = addon.Modules.DB:GetPlayerFullName()
-		local charData = Guda_DB and Guda_DB.characters and Guda_DB.characters[playerName]
-		if charData and charData.mailbox and type(charData.mailbox) == "table" then
-			for _, mail in ipairs(charData.mailbox) do
-				if mail.items then
-					for _, item in ipairs(mail.items) do
-						local slotItemID = item.link and GetItemIDFromLink(item.link)
-						if slotItemID == itemID then
-							mailCount = mailCount + (item.count or 1)
-						elseif not slotItemID and item.name then
-							-- Fallback to name matching if link is missing
-							local targetName = GetItemInfo(itemID)
-							if targetName == item.name then
-								mailCount = mailCount + (item.count or 1)
-							end
-						end
-					end
-				elseif mail.item then -- Fallback for single item data structure
-					local item = mail.item
-					local slotItemID = item.link and GetItemIDFromLink(item.link)
-					if slotItemID == itemID then
-						mailCount = mailCount + (item.count or 1)
-					elseif not slotItemID and item.name then
-						-- Fallback to name matching if link is missing
-						local targetName = GetItemInfo(itemID)
-						if targetName == item.name then
-							mailCount = mailCount + (item.count or 1)
-						end
-					end
-				end
-			end
-		end
-	end
-
-	-- Count equipped items in real-time
-	for slotID = 1, 19 do  -- All equipment slots
-		local link = GetInventoryItemLink("player", slotID)
-		if link then
-			local slotItemID = GetItemIDFromLink(link)
-			if slotItemID == itemID then
-				equippedCount = equippedCount + 1
-			end
-		end
-	end
-
-	return bagCount, bankCount, equippedCount, mailCount
+    return bagCount, bankCount, equippedCount, mailCount
 end
 
--- Count items for a specific character with real-time data for current character
+-- Count items for a specific character (current or other)
 local function CountItemsForCharacter(itemID, characterData, isCurrentChar)
--- For current character, use real-time counting to avoid database sync issues
-	if isCurrentChar then
-		return CountCurrentCharacterItems(itemID)
-	end
+    -- For current character, use real-time counting
+    if isCurrentChar then
+        return CountCurrentCharacterItems(itemID)
+    end
 
-	-- For other characters, use saved data
-	local bagCount = 0
-	local bankCount = 0
-	local mailCount = 0
-	local equippedCount = 0
+    -- For other characters, use saved data
+    local bagCount = CountFromSavedContainers(characterData.bags, itemID)
+    local bankCount = CountFromSavedContainers(characterData.bank, itemID)
+    local mailCount = CountFromSavedMailbox(characterData.mailbox, itemID)
+    local equippedCount = CountFromSavedEquipped(characterData.equipped, itemID)
 
-	-- Count bags from saved data
-	if characterData.bags and type(characterData.bags) == "table" then
-		for bagID, bagData in pairs(characterData.bags) do
-			if bagData and type(bagData) == "table" and bagData.slots and type(bagData.slots) == "table" then
-				for slotID, itemData in pairs(bagData.slots) do
-					if itemData and type(itemData) == "table" and itemData.link then
-						local slotItemID = GetItemIDFromLink(itemData.link)
-						if slotItemID == itemID then
-							bagCount = bagCount + (itemData.count or 1)
-						end
-					end
-				end
-			end
-		end
-	end
-
-	-- Count bank from saved data
-	if characterData.bank and type(characterData.bank) == "table" then
-		for bagID, bagData in pairs(characterData.bank) do
-			if bagData and type(bagData) == "table" and bagData.slots and type(bagData.slots) == "table" then
-				for slotID, itemData in pairs(bagData.slots) do
-					if itemData and type(itemData) == "table" and itemData.link then
-						local slotItemID = GetItemIDFromLink(itemData.link)
-						if slotItemID == itemID then
-							bankCount = bankCount + (itemData.count or 1)
-						end
-					end
-				end
-			end
-		end
-	end
-
-	-- Count mailbox from saved data
-	if characterData.mailbox and type(characterData.mailbox) == "table" then
-		for _, mail in ipairs(characterData.mailbox) do
-			if mail.items then
-				for _, item in ipairs(mail.items) do
-					local slotItemID = item.link and GetItemIDFromLink(item.link)
-					if slotItemID == itemID then
-						mailCount = mailCount + (item.count or 1)
-					elseif not slotItemID and item.name then
-						-- Fallback to name matching if link is missing
-						local targetName = GetItemInfo(itemID)
-						if targetName == item.name then
-							mailCount = mailCount + (item.count or 1)
-						end
-					end
-				end
-			elseif mail.item then -- Fallback for single item data structure
-				local item = mail.item
-				local slotItemID = item.link and GetItemIDFromLink(item.link)
-				if slotItemID == itemID then
-					mailCount = mailCount + (item.count or 1)
-				elseif not slotItemID and item.name then
-					-- Fallback to name matching if link is missing
-					local targetName = GetItemInfo(itemID)
-					if targetName == item.name then
-						mailCount = mailCount + (item.count or 1)
-					end
-				end
-			end
-		end
-	end
-
-	-- Count equipped items from saved data
-	if characterData.equipped and type(characterData.equipped) == "table" then
-		for slotName, itemData in pairs(characterData.equipped) do
-			if itemData and type(itemData) == "table" and itemData.link then
-				local slotItemID = GetItemIDFromLink(itemData.link)
-				if slotItemID == itemID then
-					equippedCount = equippedCount + 1
-				end
-			end
-		end
-	end
-
-	return bagCount, bankCount, equippedCount, mailCount
+    return bagCount, bankCount, equippedCount, mailCount
 end
 
 

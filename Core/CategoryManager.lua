@@ -562,30 +562,8 @@ function CategoryManager:EvaluateRule(rule, itemData, bagID, slotID, isOtherChar
         return isBoE == ruleValue
 
     elseif ruleType == "isQuestItem" then
-        local isQuestItem = false
-        local itemCategory = itemData.class or itemData.category or ""
-        local itemType = itemData.type or ""
-        local isEquipment = (itemCategory == "Weapon" or itemCategory == "Armor")
-        local isQuestCategory = (itemCategory == "Quest" or itemType == "Quest")
-
-        if isQuestCategory then
-            isQuestItem = true
-        elseif not isOtherChar then
-            isQuestItem = addon.Modules.Utils:IsQuestItemTooltip(bagID, slotID)
-            if isQuestItem and isEquipment and not isQuestCategory then
-                isQuestItem = false
-            end
-        end
-
-        -- Also check QuestItemsDB
-        if not isQuestItem and itemData.link then
-            local itemID = addon.Modules.Utils:ExtractItemID(itemData.link)
-            if itemID and addon.IsQuestItemByID then
-                local playerFaction = UnitFactionGroup("player")
-                isQuestItem = addon:IsQuestItemByID(itemID, playerFaction)
-            end
-        end
-
+        -- Use consolidated quest detection from Utils
+        local isQuestItem, _ = addon.Modules.Utils:IsQuestItem(bagID, slotID, itemData, isOtherChar, false)
         return isQuestItem == ruleValue
 
     elseif ruleType == "texturePattern" then

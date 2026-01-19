@@ -9,6 +9,7 @@
 Localization.lua
 
 Core\Init.lua
+Core\Constants.lua
 Core\Database.lua
 DB\QuestItems.lua
 Core\Events.lua

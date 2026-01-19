@@ -5,6 +5,64 @@ local addon = Guda
 local Utils = {}
 addon.Modules.Utils = Utils
 
+--=============================================================================
+-- SafeCall: Nil-safe module method invocation
+-- Replaces verbose nil-checks like:
+--   if addon and addon.Modules and addon.Modules.Utils and addon.Modules.Utils.Method then
+--       return addon.Modules.Utils:Method(arg1, arg2)
+--   end
+-- With:
+--   return Utils:SafeCall("Utils", "Method", arg1, arg2)
+--=============================================================================
+
+-- Call a method on a module safely, returns nil if module/method doesn't exist
+-- Parameters:
+--   moduleName: Name of the module in addon.Modules (e.g., "Utils", "DB", "BagFrame")
+--   methodName: Name of the method to call (e.g., "GetQualityColor", "GetSetting")
+--   ...: Arguments to pass to the method
+-- Returns: The return value(s) of the method, or nil if not callable
+function Utils:SafeCall(moduleName, methodName, ...)
+    if not addon or not addon.Modules then
+        return nil
+    end
+
+    local module = addon.Modules[moduleName]
+    if not module then
+        return nil
+    end
+
+    local method = module[methodName]
+    if not method or type(method) ~= "function" then
+        return nil
+    end
+
+    -- Call method with module as self (for : style calls)
+    return method(module, unpack(arg))
+end
+
+-- Check if a module method exists without calling it
+function Utils:HasMethod(moduleName, methodName)
+    if not addon or not addon.Modules then
+        return false
+    end
+
+    local module = addon.Modules[moduleName]
+    if not module then
+        return false
+    end
+
+    local method = module[methodName]
+    return method ~= nil and type(method) == "function"
+end
+
+-- Get a module reference safely
+function Utils:GetModule(moduleName)
+    if not addon or not addon.Modules then
+        return nil
+    end
+    return addon.Modules[moduleName]
+end
+
 -- Format money (copper to gold/silver/copper string) - WoW 1.12.1 version
 function Utils:FormatMoney(copper, showZero, useColors)
     if not copper or copper == 0 then
@@ -190,49 +248,123 @@ local function GetScanTooltip()
     return scanTooltip
 end
 
--- Check if an item is a quest item by scanning its tooltip
-function Utils:IsQuestItemTooltip(bagID, slotID)
-    if not bagID or not slotID then return false end
+-- Check if an item is a quest item by scanning its tooltip (internal helper)
+-- Returns: isQuestItem, isQuestStarter
+local function ScanTooltipForQuest(tooltip, tooltipName)
+    local isQuestItem = false
+    local isQuestStarter = false
 
-    local tooltip = GetScanTooltip()
-    tooltip:ClearLines()
-    tooltip:SetBagItem(bagID, slotID)
-
-    -- Check tooltip lines for explicit quest-related phrases (case-insensitive)
     for i = 1, tooltip:NumLines() do
-        local line = getglobal("GudaBagScanTooltipTextLeft" .. i)
+        local line = getglobal(tooltipName .. "TextLeft" .. i)
         if line then
             local text = line:GetText()
             if text then
                 local tl = string.lower(text)
-                -- Only match explicit quest markers to avoid misclassifying consumables/recipes
-                -- Include "manual" which some quest items use (same as ItemButton detection)
+                -- Check for quest starter patterns first
                 if string.find(tl, "quest starter") or
                    string.find(tl, "this item begins a quest") or
-                   string.find(tl, "starts a quest") or
-                   string.find(tl, "quest item") or
-                   string.find(tl, "manual") then
-                    
-                    -- Double check category to avoid misidentifying equipment with "Use:"
-                    local link = GetContainerItemLink(bagID, slotID)
-                    if link and self.ExtractItemID and self.GetItemInfoSafe then
-                        local itemID = self:ExtractItemID(link)
-                        if itemID then
-                            local _, _, _, _, itemCategory, itemType = self:GetItemInfoSafe(itemID)
-                            -- If it's Weapon or Armor, and NOT categorized as Quest, then it's not a Quest Item
-                            if (itemCategory == "Weapon" or itemCategory == "Armor" or itemType == "Weapon" or itemType == "Armor") and
-                               (itemCategory ~= "Quest" and itemType ~= "Quest") then
-                                return false
-                            end
-                        end
-                    end
-                    
-                    return true
+                   string.find(tl, "starts a quest") then
+                    isQuestItem = true
+                    isQuestStarter = true
+                    break
+                -- Check for regular quest item patterns
+                elseif string.find(tl, "quest item") or
+                       string.find(tl, "manual") then
+                    isQuestItem = true
+                    -- Don't break, might still find a quest starter pattern
                 end
             end
         end
     end
-    return false
+
+    return isQuestItem, isQuestStarter
+end
+
+-- Consolidated quest item detection function
+-- Handles tooltip scanning, category checks, equipment filtering, and QuestItemsDB lookup
+-- Parameters:
+--   bagID, slotID: Required for tooltip scanning (can be nil for other char items)
+--   itemData: Optional item data table with link, class/category, type fields
+--   isOtherChar: Boolean, true if checking an item from another character's saved data
+--   isBank: Boolean, true if the item is in the bank
+-- Returns: isQuestItem (boolean), isQuestStarter (boolean)
+function Utils:IsQuestItem(bagID, slotID, itemData, isOtherChar, isBank)
+    bagID = tonumber(bagID)
+    slotID = tonumber(slotID)
+
+    local isQuestItem = false
+    local isQuestStarter = false
+
+    -- Get item link and category info
+    local itemLink = itemData and itemData.link
+    local itemCategory = itemData and (itemData.class or itemData.category) or ""
+    local itemType = itemData and itemData.type or ""
+    local itemID
+
+    -- For live items, query the link directly
+    if not isOtherChar and bagID and slotID then
+        itemLink = GetContainerItemLink(bagID, slotID)
+    end
+
+    if itemLink then
+        itemID = self:ExtractItemID(itemLink)
+        if itemID then
+            local _, _, _, _, cat, typ = self:GetItemInfoSafe(itemID)
+            itemCategory = cat or itemCategory
+            itemType = typ or itemType
+        end
+    end
+
+    -- Check if item is equipment (should not be classified as quest unless explicitly Quest category)
+    local isEquipment = (itemCategory == "Weapon" or itemCategory == "Armor" or
+                         itemType == "Weapon" or itemType == "Armor")
+    local isQuestCategory = (itemCategory == "Quest" or itemType == "Quest")
+
+    -- Priority 1: If explicitly categorized as Quest, it's a quest item
+    if isQuestCategory then
+        return true, false
+    end
+
+    -- Priority 2: Tooltip scanning for current character items
+    if not isOtherChar and bagID and slotID then
+        local tooltip = GetScanTooltip()
+        tooltip:ClearLines()
+
+        -- Handle bank items differently
+        if isBank and bagID == -1 then
+            if tooltip.SetInventoryItem then
+                tooltip:SetInventoryItem("player", 39 + slotID)
+            else
+                tooltip:SetBagItem(bagID, slotID)
+            end
+        else
+            tooltip:SetBagItem(bagID, slotID)
+        end
+
+        isQuestItem, isQuestStarter = ScanTooltipForQuest(tooltip, "GudaBagScanTooltip")
+
+        -- Filter out equipment that has quest-like text but isn't categorized as Quest
+        if isQuestItem and isEquipment and not isQuestCategory then
+            isQuestItem = false
+            isQuestStarter = false
+        end
+    end
+
+    -- Priority 3: Check QuestItemsDB for known faction-specific quest items
+    if not isQuestItem and itemID and addon.IsQuestItemByID then
+        local playerFaction = UnitFactionGroup("player")
+        if addon:IsQuestItemByID(itemID, playerFaction) then
+            isQuestItem = true
+        end
+    end
+
+    return isQuestItem, isQuestStarter
+end
+
+-- Legacy compatibility wrapper - keep the old function name working
+function Utils:IsQuestItemTooltip(bagID, slotID)
+    local isQuest, _ = self:IsQuestItem(bagID, slotID, nil, false, false)
+    return isQuest
 end
 
 -- Check if an item has a gray title in its tooltip or link
@@ -296,129 +428,8 @@ function Utils:TruncateText(text, maxLen)
     return string.sub(text, 1, maxLen - 3) .. "..."
 end
 
-function Utils:IsAmmoQuiverBag(bagID)
-    -- Skip backpack, bank, and keyring
-    if bagID == 0 or bagID == -1 or bagID == -2 then
-        return false
-    end
-
-    -- Get the bag item
-    local invSlot = ContainerIDToInventoryID(bagID)
-    if not invSlot then
-        return false
-    end
-
-    local link = GetInventoryItemLink("player", invSlot)
-    if not link then
-        return false
-    end
-
-    -- Use tooltip scanning to get item class (more reliable in 1.12.1)
-    local tooltip = GetScanTooltip()
-    tooltip:ClearLines()
-    tooltip:SetInventoryItem("player", invSlot)
-
-    -- Scan tooltip lines for "Quiver" or "Ammo Pouch"
-    for i = 1, tooltip:NumLines() do
-        local line = getglobal("GudaBagScanTooltipTextLeft" .. i)
-        if line then
-            local text = line:GetText()
-            if text then
-                -- Check if the line contains "Quiver" or "Ammo Pouch"
-                if string.find(text, "Quiver") or string.find(text, "Ammo Pouch") then
-                    return true
-                end
-            end
-        end
-    end
-
-    return false
-end
-
--- Check if a bag is Herb Bag
-function Utils:IsHerbBag(bagID)
-    -- Skip backpack, bank, and keyring
-    if bagID == 0 or bagID == -1 or bagID == -2 then
-        return false
-    end
-
-    local invSlot = ContainerIDToInventoryID(bagID)
-    if not invSlot then return false end
-
-    local link = GetInventoryItemLink("player", invSlot)
-    if not link then return false end
-
-    -- Prefer specialized type detection
-    local bagType = self:GetSpecializedBagType(bagID)
-    if bagType == "herb" then return true end
-
-    -- Fallback: tooltip scan for "Herb Bag"
-    local tooltip = GetScanTooltip()
-    tooltip:ClearLines()
-    tooltip:SetInventoryItem("player", invSlot)
-
-    for i = 1, tooltip:NumLines() do
-        local line = getglobal("GudaBagScanTooltipTextLeft" .. i)
-        if line then
-            local text = line:GetText()
-            if text and string.find(string.lower(text), "herb bag") then
-                return true
-            end
-        end
-    end
-
-    return false
-end
-
--- Check if a bag is Soul Bag
-function Utils:IsSoulBag(bagID)
-    -- Skip backpack, bank, and keyring
-    if bagID == 0 or bagID == -1 or bagID == -2 then
-        return false
-    end
-
-    -- Get the bag item
-    local invSlot = ContainerIDToInventoryID(bagID)
-    if not invSlot then
-        return false
-    end
-
-    local link = GetInventoryItemLink("player", invSlot)
-    if not link then
-        return false
-    end
-
-    -- First try GetSpecializedBagType
-    local bagType = self:GetSpecializedBagType(bagID)
-    if bagType == "soul" then
-        return true
-    end
-
-    -- Fallback: Use tooltip scanning (more reliable in 1.12.1)
-    local tooltip = GetScanTooltip()
-    tooltip:ClearLines()
-    tooltip:SetInventoryItem("player", invSlot)
-
-    -- Scan tooltip lines for "Soul Bag" or "Soul Pouch"
-    for i = 1, tooltip:NumLines() do
-        local line = getglobal("GudaBagScanTooltipTextLeft" .. i)
-        if line then
-            local text = line:GetText()
-            if text then
-                -- Check if the line contains "Soul Bag" or "Soul Pouch" or just "Soul" in bag name
-                local textLower = string.lower(text)
-                if string.find(textLower, "soul bag") or string.find(textLower, "soul pouch") or
-                   (string.find(textLower, "soul") and (string.find(textLower, "bag") or string.find(textLower, "pouch"))) then
-                    return true
-                end
-            end
-        end
-    end
-
-    return false
-end
-
 -- Returns: "soul", "herb", "enchant", "quiver", "ammo", or nil
+-- This is the consolidated bag type detection function with tooltip fallback
 function Utils:GetSpecializedBagType(bagID)
     -- Skip backpack, bank, and keyring
     if bagID == 0 or bagID == -1 or bagID == -2 then
@@ -437,42 +448,92 @@ function Utils:GetSpecializedBagType(bagID)
     end
 
     local itemID = self:ExtractItemID(link)
-    if not itemID then
-        return nil
+
+    -- Try GetItemInfo first (more reliable when available)
+    if itemID then
+        local _, _, _, _, _, itemType = self:GetItemInfoSafe(itemID)
+        if itemType then
+            local typeLower = string.lower(itemType)
+
+            if string.find(typeLower, "soul bag") or string.find(typeLower, "soul pouch") then
+                return "soul"
+            end
+            if string.find(typeLower, "herb bag") then
+                return "herb"
+            end
+            if string.find(typeLower, "enchanting bag") then
+                return "enchant"
+            end
+            if string.find(typeLower, "quiver") then
+                return "quiver"
+            end
+            if string.find(typeLower, "ammo pouch") then
+                return "ammo"
+            end
+        end
     end
 
-    local itemName, _, itemRarity, itemLevel, itemCategory, itemType, itemStackCount, itemSubType = self:GetItemInfoSafe(itemID)
-    if itemType then
-        -- Check for exact subtype matches
-        local typeLower = string.lower(itemType)
+    -- Fallback: tooltip scanning for all bag types
+    local tooltip = GetScanTooltip()
+    tooltip:ClearLines()
+    tooltip:SetInventoryItem("player", invSlot)
 
-        -- Soul Bag / Soul Pouch
-        if string.find(typeLower, "soul bag") or string.find(typeLower, "soul pouch") then
-            return "soul"
-        end
+    for i = 1, tooltip:NumLines() do
+        local line = getglobal("GudaBagScanTooltipTextLeft" .. i)
+        if line then
+            local text = line:GetText()
+            if text then
+                local textLower = string.lower(text)
 
-        -- Herb Bag
-        if string.find(typeLower, "herb bag") then
-            return "herb"
-        end
+                -- Soul Bag / Soul Pouch
+                if string.find(textLower, "soul bag") or string.find(textLower, "soul pouch") or
+                   (string.find(textLower, "soul") and (string.find(textLower, "bag") or string.find(textLower, "pouch"))) then
+                    return "soul"
+                end
 
-        -- Enchanting Bag
-        if string.find(typeLower, "enchanting bag") then
-            return "enchant"
-        end
+                -- Herb Bag
+                if string.find(textLower, "herb bag") then
+                    return "herb"
+                end
 
-        -- Quiver
-        if string.find(typeLower, "quiver") then
-            return "quiver"
-        end
+                -- Enchanting Bag
+                if string.find(textLower, "enchanting bag") then
+                    return "enchant"
+                end
 
-        -- Ammo Pouch
-        if string.find(typeLower, "ammo pouch") then
-            return "ammo"
+                -- Quiver
+                if string.find(textLower, "quiver") then
+                    return "quiver"
+                end
+
+                -- Ammo Pouch
+                if string.find(textLower, "ammo pouch") then
+                    return "ammo"
+                end
+            end
         end
     end
 
     return nil
+end
+
+-- Simple helper to check if a bag is of a specific type
+function Utils:IsBagType(bagID, bagType)
+    return self:GetSpecializedBagType(bagID) == bagType
+end
+
+-- Convenience wrappers for common bag type checks
+function Utils:IsAmmoQuiverBag(bagID)
+    local bagType = self:GetSpecializedBagType(bagID)
+    return bagType == "quiver" or bagType == "ammo"
+end
+
+function Utils:IsHerbBag(bagID)
+    return self:IsBagType(bagID, "herb")
+end
+
+function Utils:IsSoulBag(bagID)
+    return self:IsBagType(bagID, "soul")
 end
 
 -- Get container priority for sorting (higher = more important)
@@ -727,37 +788,7 @@ function Utils:IsEnchantingItem(itemLink)
     return false
 end
 
--- Check if a bag is Enchanting Bag (parallel to IsHerbBag)
+-- Check if a bag is Enchanting Bag
 function Utils:IsEnchantBag(bagID)
-    -- Skip backpack, bank, and keyring
-    if bagID == 0 or bagID == -1 or bagID == -2 then
-        return false
-    end
-
-    local invSlot = ContainerIDToInventoryID(bagID)
-    if not invSlot then return false end
-
-    local link = GetInventoryItemLink("player", invSlot)
-    if not link then return false end
-
-    -- Prefer specialized type detection
-    local bagType = self:GetSpecializedBagType(bagID)
-    if bagType == "enchant" then return true end
-
-    -- Fallback: tooltip scan for "Enchanting Bag"
-    local tooltip = GetScanTooltip()
-    tooltip:ClearLines()
-    tooltip:SetInventoryItem("player", invSlot)
-
-    for i = 1, tooltip:NumLines() do
-        local line = getglobal("GudaBagScanTooltipTextLeft" .. i)
-        if line then
-            local text = line:GetText()
-            if text and string.find(string.lower(text), "enchanting bag") then
-                return true
-            end
-        end
-    end
-
-    return false
+    return self:IsBagType(bagID, "enchant")
 end
