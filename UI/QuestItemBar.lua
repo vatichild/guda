@@ -114,7 +114,7 @@ function QuestItemBar:ScanForQuestItems()
             if texture then
                 -- Single combined check instead of two separate tooltip scans
                 local isQuest, isStarter, isUsable = self:CheckQuestItemUsable(bagID, slotID)
-                if isQuest and isUsable then
+                if isQuest and isUsable and not isStarter then
                     table.insert(questItems, {
                         bagID = bagID,
                         slotID = slotID,
