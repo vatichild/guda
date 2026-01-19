@@ -507,9 +507,16 @@ function BagFrame:DisplayItemsByCategory(bagData, isOtherChar, charName)
             headerIdx = headerIdx + 1
             header:SetPoint("TOPLEFT", itemContainer, "TOPLEFT", startX + currentX, startY - currentY)
             header:SetWidth(blockWidth)
-            
+
+            -- Get display name from category definition
             local displayName = catName
-            header.fullName = catName
+            if addon.Modules.CategoryManager then
+                local catDef = addon.Modules.CategoryManager:GetCategory(catName)
+                if catDef and catDef.name then
+                    displayName = catDef.name
+                end
+            end
+            header.fullName = displayName
             header.isShortened = false
             if string.len(displayName) > 8 and numItems < 2 then
                 displayName = string.sub(displayName, 1, 6) .. "..."
@@ -573,6 +580,10 @@ function BagFrame:DisplayItemsByCategory(bagData, isOtherChar, charName)
             hasAnyBottom = true
             break
         end
+    end
+    -- Also check if Empty section should show
+    if totalFreeSlots > 0 then
+        hasAnyBottom = true
     end
 
     if hasAnyBottom then

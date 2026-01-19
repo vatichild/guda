@@ -35,8 +35,19 @@ function Guda_CategorizeItem(itemData, bagID, slotID, categories, specialItems, 
     -- Priority 1: Special items (Hearthstone, Mounts, Tools)
     -- These are handled separately and go into specialItems table, not categories
     if string.find(itemName, "Hearthstone") then
-        table.insert(specialItems.Hearthstone, {bagID = bagID, slotID = slotID, itemData = itemData})
-        return
+        -- Only show in Home section if Home category is enabled
+        local showHome = true
+        if addon.Modules.CategoryManager then
+            local homeCat = addon.Modules.CategoryManager:GetCategory("Home")
+            if homeCat then
+                showHome = homeCat.enabled
+            end
+        end
+        if showHome then
+            table.insert(specialItems.Hearthstone, {bagID = bagID, slotID = slotID, itemData = itemData})
+            return
+        end
+        -- If Home is disabled, fall through to normal categorization
     elseif addon.Modules.SortEngine and addon.Modules.SortEngine.IsMount and addon.Modules.SortEngine.IsMount(itemData.texture) then
         table.insert(specialItems.Mount, {bagID = bagID, slotID = slotID, itemData = itemData})
         return

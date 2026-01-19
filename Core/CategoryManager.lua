@@ -19,7 +19,7 @@ addon.Modules.CategoryManager = CategoryManager
 -- Default category definitions that replicate the existing hardcoded behavior
 local DEFAULT_CATEGORIES = {
     order = {
-        "BoE", "Weapon", "Armor", "Consumable", "Food", "Drink",
+        "Home", "BoE", "Weapon", "Armor", "Consumable", "Food", "Drink",
         "Trade Goods", "Reagent", "Recipe", "Quiver", "Container",
         "Soul Bag", "Miscellaneous", "Quest", "Junk", "Class Items", "Keyring"
     },
@@ -211,6 +211,16 @@ local DEFAULT_CATEGORIES = {
             priority = 40,
             enabled = true,
             isBuiltIn = true,
+        },
+        ["Home"] = {
+            name = "Home",
+            icon = "Interface\\Icons\\INV_Misc_Rune_01",
+            rules = {},
+            matchMode = "all",
+            priority = 0,
+            enabled = true,
+            isBuiltIn = true,
+            hideControls = true,
         },
     }
 }
@@ -590,11 +600,12 @@ function CategoryManager:EvaluateRule(rule, itemData, bagID, slotID, isOtherChar
         -- ruleValue can be a single ID or a table of IDs
         if type(ruleValue) == "table" then
             for _, id in ipairs(ruleValue) do
-                if itemID == id then return true end
+                if itemID == tonumber(id) then return true end
             end
             return false
         else
-            return itemID == ruleValue
+            -- Convert string to number if needed
+            return itemID == tonumber(ruleValue)
         end
 
     elseif ruleType == "isSoulShard" then

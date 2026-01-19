@@ -1345,17 +1345,37 @@ function Guda_SettingsPopup_CategoriesTab_Update()
                         row.builtInText:Hide()
                     end
 
-                    -- Enable/disable move buttons based on position
-                    if dataIndex == 1 then
-                        row.upBtn:Disable()
+                    -- Hide all controls for hideControls categories (only checkbox visible)
+                    if categoryDef.hideControls then
+                        row.editBtn:Hide()
+                        row.upBtn:Hide()
+                        row.downBtn:Hide()
+                        row.deleteBtn:Hide()
+                        row.builtInText:Hide()
                     else
-                        row.upBtn:Enable()
-                    end
+                        row.editBtn:Show()
+                        row.upBtn:Show()
+                        row.downBtn:Show()
 
-                    if dataIndex == totalCategories then
-                        row.downBtn:Disable()
-                    else
-                        row.downBtn:Enable()
+                        -- Enable/disable move buttons based on position
+                        if dataIndex == 1 then
+                            row.upBtn:Disable()
+                        else
+                            -- Check if category above has hideControls (can't move above it)
+                            local aboveCatId = categoryOrder[dataIndex - 1]
+                            local aboveCatDef = Guda.Modules.CategoryManager:GetCategory(aboveCatId)
+                            if aboveCatDef and aboveCatDef.hideControls then
+                                row.upBtn:Disable()
+                            else
+                                row.upBtn:Enable()
+                            end
+                        end
+
+                        if dataIndex == totalCategories then
+                            row.downBtn:Disable()
+                        else
+                            row.downBtn:Enable()
+                        end
                     end
 
                     -- Set text color based on enabled state
@@ -1404,11 +1424,11 @@ function Guda_SettingsPopup_AddCategory_OnClick()
 
     -- Create new category definition
     local newDef = {
-        name = "New Category " .. counter,
+        name = "Custom " .. counter,
         icon = "Interface\\Icons\\INV_Misc_QuestionMark",
         rules = {},
         matchMode = "any",
-        priority = 50,
+        priority = 80,
         enabled = true,
         isBuiltIn = false,
     }
@@ -1466,6 +1486,7 @@ local RULE_TYPE_OPTIONS = {
     { id = "itemType", name = "Item Type" },
     { id = "itemSubtype", name = "Item Subtype" },
     { id = "namePattern", name = "Name Contains" },
+    { id = "itemID", name = "Item ID" },
     { id = "quality", name = "Quality (exact)" },
     { id = "qualityMin", name = "Quality (min)" },
     { id = "isBoE", name = "Bind on Equip" },
