@@ -31,7 +31,7 @@ local DEFAULT_CATEGORIES = {
                 { type = "isBoE", value = true }
             },
             matchMode = "all",
-            priority = 60,
+            priority = 75,
             enabled = true,
             isBuiltIn = true,
         },
@@ -322,6 +322,13 @@ function CategoryManager:MigrateCategories()
             addon:Debug("CategoryManager: Migrated Drink category to use restoreTag")
         end
     end
+
+    -- Migrate BoE priority to be higher than Weapon/Armor (75 > 70)
+    local boeCat = cats.definitions["BoE"]
+    if boeCat and boeCat.isBuiltIn and boeCat.priority and boeCat.priority < 75 then
+        boeCat.priority = 75
+        addon:Debug("CategoryManager: Migrated BoE priority to 75")
+    end
 end
 
 -- Get all categories
@@ -491,6 +498,10 @@ function CategoryManager:EvaluateRule(rule, itemData, bagID, slotID, isOtherChar
 
     elseif ruleType == "quality" then
         return itemData.quality == ruleValue
+
+    elseif ruleType == "qualityMin" then
+        -- Minimum quality check (item quality >= ruleValue)
+        return (itemData.quality or 0) >= (ruleValue or 0)
 
     elseif ruleType == "isBoE" then
         if isOtherChar then return false end

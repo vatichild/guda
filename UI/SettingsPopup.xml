@@ -769,4 +769,246 @@
         </Scripts>
     </Frame>
 
+    <!-- Category Editor Popup -->
+    <Frame name="Guda_CategoryEditor" toplevel="true" movable="true" enableMouse="true" hidden="true" parent="UIParent" frameStrata="DIALOG">
+        <Size>
+            <AbsDimension x="400" y="380"/>
+        </Size>
+
+        <Anchors>
+            <Anchor point="CENTER" relativePoint="CENTER" relativeTo="UIParent">
+                <Offset>
+                    <AbsDimension x="0" y="50"/>
+                </Offset>
+            </Anchor>
+        </Anchors>
+
+        <Backdrop bgFile="Interface\DialogFrame\UI-DialogBox-Background" edgeFile="Interface\DialogFrame\UI-DialogBox-Border" tile="true">
+            <BackgroundInsets>
+                <AbsInset left="11" right="12" top="12" bottom="11"/>
+            </BackgroundInsets>
+            <TileSize>
+                <AbsValue val="32"/>
+            </TileSize>
+            <EdgeSize>
+                <AbsValue val="32"/>
+            </EdgeSize>
+        </Backdrop>
+
+        <Layers>
+            <Layer level="ARTWORK">
+                <!-- Title -->
+                <FontString name="$parent_Title" inherits="GameFontNormalLarge" text="Edit Category">
+                    <Anchors>
+                        <Anchor point="TOP">
+                            <Offset>
+                                <AbsDimension x="0" y="-15"/>
+                            </Offset>
+                        </Anchor>
+                    </Anchors>
+                    <Color r="1" g="0.82" b="0"/>
+                </FontString>
+
+                <!-- Name Label -->
+                <FontString name="$parent_NameLabel" inherits="GameFontNormal" text="Name:">
+                    <Anchors>
+                        <Anchor point="TOPLEFT">
+                            <Offset>
+                                <AbsDimension x="20" y="-45"/>
+                            </Offset>
+                        </Anchor>
+                    </Anchors>
+                </FontString>
+
+                <!-- Match Mode Label -->
+                <FontString name="$parent_MatchModeLabel" inherits="GameFontNormal" text="Match Mode:">
+                    <Anchors>
+                        <Anchor point="TOPLEFT">
+                            <Offset>
+                                <AbsDimension x="20" y="-80"/>
+                            </Offset>
+                        </Anchor>
+                    </Anchors>
+                </FontString>
+
+                <!-- Rules Label -->
+                <FontString name="$parent_RulesLabel" inherits="GameFontNormal" text="Rules:">
+                    <Anchors>
+                        <Anchor point="TOPLEFT">
+                            <Offset>
+                                <AbsDimension x="20" y="-115"/>
+                            </Offset>
+                        </Anchor>
+                    </Anchors>
+                </FontString>
+            </Layer>
+        </Layers>
+
+        <Frames>
+            <!-- Close Button -->
+            <Button name="$parent_CloseButton" inherits="UIPanelCloseButton">
+                <Anchors>
+                    <Anchor point="TOPRIGHT">
+                        <Offset>
+                            <AbsDimension x="-5" y="-5"/>
+                        </Offset>
+                    </Anchor>
+                </Anchors>
+                <Scripts>
+                    <OnClick>
+                        Guda_CategoryEditor:Hide()
+                    </OnClick>
+                </Scripts>
+            </Button>
+
+            <!-- Name EditBox -->
+            <EditBox name="Guda_CategoryEditor_NameEditBox" autoFocus="false" inherits="InputBoxTemplate">
+                <Size>
+                    <AbsDimension x="200" y="20"/>
+                </Size>
+                <Anchors>
+                    <Anchor point="TOPLEFT">
+                        <Offset>
+                            <AbsDimension x="80" y="-42"/>
+                        </Offset>
+                    </Anchor>
+                </Anchors>
+                <Scripts>
+                    <OnEscapePressed>
+                        this:ClearFocus()
+                    </OnEscapePressed>
+                    <OnEnterPressed>
+                        this:ClearFocus()
+                    </OnEnterPressed>
+                </Scripts>
+            </EditBox>
+
+            <!-- Match Mode: Any Radio -->
+            <CheckButton name="Guda_CategoryEditor_MatchAny" inherits="UIRadioButtonTemplate">
+                <Size>
+                    <AbsDimension x="20" y="20"/>
+                </Size>
+                <Anchors>
+                    <Anchor point="TOPLEFT">
+                        <Offset>
+                            <AbsDimension x="100" y="-77"/>
+                        </Offset>
+                    </Anchor>
+                </Anchors>
+                <Scripts>
+                    <OnClick>
+                        Guda_CategoryEditor_SetMatchMode("any")
+                    </OnClick>
+                </Scripts>
+            </CheckButton>
+
+            <!-- Match Mode: All Radio -->
+            <CheckButton name="Guda_CategoryEditor_MatchAll" inherits="UIRadioButtonTemplate">
+                <Size>
+                    <AbsDimension x="20" y="20"/>
+                </Size>
+                <Anchors>
+                    <Anchor point="LEFT" relativeTo="Guda_CategoryEditor_MatchAny" relativePoint="RIGHT">
+                        <Offset>
+                            <AbsDimension x="60" y="0"/>
+                        </Offset>
+                    </Anchor>
+                </Anchors>
+                <Scripts>
+                    <OnClick>
+                        Guda_CategoryEditor_SetMatchMode("all")
+                    </OnClick>
+                </Scripts>
+            </CheckButton>
+
+            <!-- Rules Container -->
+            <Frame name="Guda_CategoryEditor_RulesContainer">
+                <Size>
+                    <AbsDimension x="360" y="180"/>
+                </Size>
+                <Anchors>
+                    <Anchor point="TOPLEFT">
+                        <Offset>
+                            <AbsDimension x="20" y="-130"/>
+                        </Offset>
+                    </Anchor>
+                </Anchors>
+            </Frame>
+
+            <!-- Add Rule Button -->
+            <Button name="Guda_CategoryEditor_AddRuleButton" inherits="UIPanelButtonTemplate">
+                <Size>
+                    <AbsDimension x="100" y="22"/>
+                </Size>
+                <Anchors>
+                    <Anchor point="TOPRIGHT">
+                        <Offset>
+                            <AbsDimension x="-20" y="-112"/>
+                        </Offset>
+                    </Anchor>
+                </Anchors>
+                <Scripts>
+                    <OnClick>
+                        Guda_CategoryEditor_AddRule()
+                    </OnClick>
+                </Scripts>
+            </Button>
+
+            <!-- Save Button -->
+            <Button name="Guda_CategoryEditor_SaveButton" inherits="UIPanelButtonTemplate">
+                <Size>
+                    <AbsDimension x="100" y="25"/>
+                </Size>
+                <Anchors>
+                    <Anchor point="BOTTOMRIGHT">
+                        <Offset>
+                            <AbsDimension x="-20" y="15"/>
+                        </Offset>
+                    </Anchor>
+                </Anchors>
+                <Scripts>
+                    <OnClick>
+                        Guda_CategoryEditor_Save()
+                    </OnClick>
+                </Scripts>
+            </Button>
+
+            <!-- Cancel Button -->
+            <Button name="Guda_CategoryEditor_CancelButton" inherits="UIPanelButtonTemplate">
+                <Size>
+                    <AbsDimension x="100" y="25"/>
+                </Size>
+                <Anchors>
+                    <Anchor point="RIGHT" relativeTo="Guda_CategoryEditor_SaveButton" relativePoint="LEFT">
+                        <Offset>
+                            <AbsDimension x="-10" y="0"/>
+                        </Offset>
+                    </Anchor>
+                </Anchors>
+                <Scripts>
+                    <OnClick>
+                        Guda_CategoryEditor:Hide()
+                    </OnClick>
+                </Scripts>
+            </Button>
+        </Frames>
+
+        <Scripts>
+            <OnLoad>
+                Guda_CategoryEditor_OnLoad(this)
+            </OnLoad>
+            <OnShow>
+                Guda_CategoryEditor_OnShow(this)
+            </OnShow>
+            <OnMouseDown>
+                if (arg1 == "LeftButton") then
+                    this:StartMoving()
+                end
+            </OnMouseDown>
+            <OnMouseUp>
+                this:StopMovingOrSizing()
+            </OnMouseUp>
+        </Scripts>
+    </Frame>
+
 </Ui>
