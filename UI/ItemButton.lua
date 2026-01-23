@@ -960,21 +960,33 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
     local itemQuality, itemLink, isLocked
     if not self.isReadOnly and bagID and slotID and self.hasItem then
         -- Query live game state for metadata
-        local _, _, locked, quality = GetContainerItemInfo(bagID, slotID)
-        itemLink = GetContainerItemLink(bagID, slotID)
-        itemQuality = quality
-        isLocked = locked
+        -- Special handling for bank main bag (bagID == -1) which uses inventory slot API
+        if self.isBank and bagID == -1 then
+            local invSlot = 39 + slotID
+            itemLink = GetInventoryItemLink("player", invSlot)
+            isLocked = IsInventoryItemLocked(invSlot)
+            -- Quality will be determined from GetItemInfo below
+        else
+            local _, _, locked, quality = GetContainerItemInfo(bagID, slotID)
+            itemLink = GetContainerItemLink(bagID, slotID)
+            itemQuality = quality
+            isLocked = locked
+        end
 
         -- Ensure itemData is populated for live items (needed for ItemDetection)
         if itemLink then
             local itemName, _, itemRarity, itemLevel, itemMinLevel, itemType, itemSubType, itemStackCount, itemEquipLoc, itemTexture = GetItemInfo(itemLink)
+            -- For bank main bag, get quality from GetItemInfo
+            if self.isBank and bagID == -1 then
+                itemQuality = itemRarity
+            end
             if not itemData then
                 -- Create new itemData
                 if itemName then
                     itemData = {
                         link = itemLink,
                         name = itemName,
-                        quality = itemRarity or quality or 0,
+                        quality = itemRarity or itemQuality or 0,
                         class = itemType,
                         subclass = itemSubType,
                         texture = itemTexture,
@@ -983,12 +995,15 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
                     self.itemData = itemData
                 end
             else
-                -- Update existing itemData with missing fields
-                if not itemData.link then itemData.link = itemLink end
-                if itemData.quality == nil then itemData.quality = itemRarity or quality or 0 end
+                -- ALWAYS update itemData.link with live link to ensure correct detection after swaps
+                -- This is critical: cached itemData might have stale link from before a swap
+                itemData.link = itemLink
+                -- Update other fields only if missing
+                if itemData.quality == nil then itemData.quality = itemRarity or itemQuality or 0 end
                 if not itemData.class and itemType then itemData.class = itemType end
                 if not itemData.subclass and itemSubType then itemData.subclass = itemSubType end
                 if not itemData.name and itemName then itemData.name = itemName end
+                self.itemData = itemData
             end
         end
     elseif itemData then
