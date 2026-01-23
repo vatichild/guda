@@ -813,6 +813,9 @@ function Utils:IsQuestItem(bagID, slotID, itemData, isOtherChar, isBank)
             if isPermanent then
                 return false, false  -- Not a quest item, it's an enchant scroll
             end
+            -- Also scan for quest starter text
+            local _, starterDetected = ScanTooltipForQuest(tooltip, "GudaBagScanTooltip")
+            return true, starterDetected
         else
             addon:Debug("IsQuestItem: Skipping permanent enchant check (otherChar=%s, bagID=%s, slotID=%s)",
                 tostring(isOtherChar), tostring(bagID), tostring(slotID))
