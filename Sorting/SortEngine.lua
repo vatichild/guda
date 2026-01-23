@@ -9,8 +9,9 @@ addon.Modules.SortEngine = SortEngine
 -- Flag to track if sorting is currently in progress
 SortEngine.sortingInProgress = false
 
--- Performance: Max items to move per cycle (like Baganator's 5-item limit)
-local MAX_MOVES_PER_CYCLE = 5
+-- Performance: Max items to move per cycle
+-- Baganator uses 5 for manual transfers, but sorting needs more for smooth operation
+local MAX_MOVES_PER_CYCLE = 20
 
 -- Transfer status constants (like Baganator's SortStatus)
 local TransferStatus = {
@@ -1013,16 +1014,11 @@ end
 local function ApplySort(bagIDs, items, targetPositions)
 	ClearCursor()
 
-	-- Check if events are pending (like Baganator's IsBagEventPending)
-	-- If so, wait for them to complete before moving more items
-	if addon.Modules.BagScanner:IsEventPending() or
-	   (addon.Modules.BankScanner:IsBankOpen() and addon.Modules.BankScanner:IsEventPending()) then
-		-- Clear pending flags and return 0 - will retry on next pass
-		addon.Modules.BagScanner:ClearEventPending()
-		if addon.Modules.BankScanner:IsBankOpen() then
-			addon.Modules.BankScanner:ClearEventPending()
-		end
-		return 0
+	-- Clear any pending event flags before sorting
+	-- (Event pending check is for manual transfers, not sorting)
+	addon.Modules.BagScanner:ClearEventPending()
+	if addon.Modules.BankScanner:IsBankOpen() then
+		addon.Modules.BankScanner:ClearEventPending()
 	end
 
 	local moveToEmpty = {}
@@ -1659,7 +1655,7 @@ function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sort
 			local frame = CreateFrame("Frame")
 			local startTime = GetTime()
 			frame:SetScript("OnUpdate", function()
-				if GetTime() - startTime >= 0.7 then
+				if GetTime() - startTime >= 0.3 then
 					frame:SetScript("OnUpdate", nil)
 					SortEngine.sortingInProgress = false
 					SortEngine:UpdateSortButtonState(false)
@@ -1675,7 +1671,7 @@ function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sort
 			local frame = CreateFrame("Frame")
 			local startTime = GetTime()
 			frame:SetScript("OnUpdate", function()
-				if GetTime() - startTime >= 0.7 then
+				if GetTime() - startTime >= 0.3 then
 					frame:SetScript("OnUpdate", nil)
 					SortEngine.sortingInProgress = false
 					SortEngine:UpdateSortButtonState(false)
@@ -1698,7 +1694,7 @@ function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sort
                 local frame = CreateFrame("Frame")
                 local startTime = GetTime()
                 frame:SetScript("OnUpdate", function()
-                    if GetTime() - startTime >= 0.7 then
+                    if GetTime() - startTime >= 0.3 then
                         frame:SetScript("OnUpdate", nil)
                         SortEngine.sortingInProgress = false
                         SortEngine:UpdateSortButtonState(false)
@@ -1713,9 +1709,10 @@ function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sort
             addon:DebugSort("%s Pass %d: %d moves, %d/%d items remaining (%.1f%%)",
                 sortType, passCount, moveCount, currentAnalysis.itemsOutOfPlace, currentAnalysis.totalItems, remainingRatio * 100)
 
-			-- PROGRESSIVE DELAY: Calculate delay based on remaining complexity
-			local baseDelay = 0.9
-			local complexityDelay = math.min(currentAnalysis.itemsOutOfPlace * 0.06, 2.5) -- max 2.5 seconds
+			-- PROGRESSIVE DELAY: Short delay to let server process moves
+			-- Reduced from 0.9-3.4s to 0.2-0.5s for smoother sorting
+			local baseDelay = 0.2
+			local complexityDelay = math.min(currentAnalysis.itemsOutOfPlace * 0.01, 0.3) -- max 0.3 seconds
 			local totalDelay = baseDelay + complexityDelay
 
 			addon:DebugSort("Waiting %.1f seconds before next pass...", totalDelay)
