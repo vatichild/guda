@@ -11,16 +11,6 @@ end
 local buttons = {}
 local trackedItemsInfo = {}
 
--- Create a hidden tooltip for scanning if needed (though we mostly use itemID)
-local scanTooltip
-local function GetScanTooltip()
-    if not scanTooltip then
-        scanTooltip = CreateFrame("GameTooltip", "Guda_TrackedBarScanTooltip", nil, "GameTooltipTemplate")
-        scanTooltip:SetOwner(WorldFrame, "ANCHOR_NONE")
-    end
-    return scanTooltip
-end
-
 -- Check if an item is a quest item by scanning tooltip
 local function IsQuestItem(bagID, slotID)
     if addon.Modules.Utils and addon.Modules.Utils.IsQuestItem then

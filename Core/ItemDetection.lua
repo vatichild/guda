@@ -45,22 +45,13 @@ end
 
 --=====================================================
 -- Tooltip Scanning Helpers
+-- Uses shared tooltip from Utils module
 --=====================================================
-
--- Get or create the scanning tooltip
-local scanTooltip = nil
-local function GetScanTooltip()
-    if not scanTooltip then
-        scanTooltip = CreateFrame("GameTooltip", "GudaItemDetectionTooltip", nil, "GameTooltipTemplate")
-        scanTooltip:SetOwner(WorldFrame, "ANCHOR_NONE")
-    end
-    return scanTooltip
-end
 
 -- Scan tooltip and return all text lines
 local function ScanTooltipLines(bagID, slotID, itemLink)
-    local tooltip = GetScanTooltip()
-    local tooltipName = "GudaItemDetectionTooltip"
+    -- Use shared tooltip from Utils module
+    local tooltip, tooltipName = addon.Modules.Utils:GetScanTooltip()
 
     -- Ensure tooltip owner is set before each scan
     tooltip:SetOwner(WorldFrame, "ANCHOR_NONE")

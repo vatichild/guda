@@ -5,8 +5,7 @@ local addon = Guda
 local buttonPool = {}
 local nextButtonID = 1
 
-local scanTooltip = CreateFrame("GameTooltip", "Guda_QuestScanTooltip", nil, "GameTooltipTemplate")
-scanTooltip:SetOwner(WorldFrame, "ANCHOR_NONE")
+-- Use shared tooltip from Utils module (retrieved on-demand to ensure Utils is loaded)
 
 -- Helper function to check if an item is a quest item
 -- Uses centralized ItemDetection module
@@ -115,10 +114,14 @@ local function IsRedColor(r, g, b)
 end
 
 -- Scan tooltip for red text that is NOT a durability line
+-- Uses shared tooltip from Utils module
 local function IsItemUnusable(bagID, slotID, isBank)
     bagID = tonumber(bagID)
     slotID = tonumber(slotID)
     if not bagID or not slotID then return false end
+
+    -- Get shared tooltip from Utils
+    local scanTooltip, tooltipName = addon.Modules.Utils:GetScanTooltip()
 
     -- Some clients require SetOwner before every SetBagItem/SetInventoryItem to populate lines
     if scanTooltip.SetOwner then
@@ -143,7 +146,7 @@ local function IsItemUnusable(bagID, slotID, isBank)
     local num = scanTooltip:NumLines() or 0
     for i = 1, num do
         -- Scan LEFT column
-        local left = getglobal("Guda_QuestScanTooltipTextLeft" .. i)
+        local left = getglobal(tooltipName .. "TextLeft" .. i)
         if left and left:IsShown() then
             local text = left:GetText()
             local r, g, b = left:GetTextColor()
@@ -161,7 +164,7 @@ local function IsItemUnusable(bagID, slotID, isBank)
         end
 
         -- Scan RIGHT column as well (required level etc can appear here on some clients)
-        local right = getglobal("Guda_QuestScanTooltipTextRight" .. i)
+        local right = getglobal(tooltipName .. "TextRight" .. i)
         if right and right:IsShown() then
             local text = right:GetText()
             local r, g, b = right:GetTextColor()

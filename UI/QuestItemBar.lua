@@ -227,7 +227,7 @@ function QuestItemBar:Update()
                 if arg1 == "LeftButton" then
                     if CursorHasItem() then
                         -- Try to pin item on cursor
-                        local tooltip = GetScanTooltip()
+                        local tooltip = addon.Modules.Utils:GetScanTooltip()
                         tooltip:SetOwner(WorldFrame, "ANCHOR_NONE")
                         tooltip:SetCursorItem()
                         local link = nil

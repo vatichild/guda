@@ -127,11 +127,8 @@ local GEM_PATTERNS = {
 
 --===========================================================================
 -- UTILITY FUNCTIONS
+-- Uses shared tooltip from Utils module
 --===========================================================================
-
--- Tooltip for scanning item properties
-local scanTooltip = CreateFrame("GameTooltip", "Guda_SortScanTooltip", nil, "GameTooltipTemplate")
-scanTooltip:SetOwner(WorldFrame, "ANCHOR_NONE")
 
 -- Property cache to prevent race conditions during rapid moves
 local propertyCache = {}
@@ -166,13 +163,15 @@ local function GetItemProperties(bagID, slotID, itemLink)
 	end
 
 	if bagID and slotID then
+		-- Use shared tooltip from Utils module
+		local scanTooltip, tooltipName = addon.Modules.Utils:GetScanTooltip()
 		scanTooltip:ClearLines()
 		scanTooltip:SetBagItem(bagID, slotID)
-		
+
 		local numLines = scanTooltip:NumLines()
 		if numLines and numLines > 0 then
 			for i = 1, numLines do
-				local line = getglobal("Guda_SortScanTooltipTextLeft" .. i)
+				local line = getglobal(tooltipName .. "TextLeft" .. i)
 				if line then
 					local text = line:GetText()
 					if text then

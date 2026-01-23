@@ -415,9 +415,16 @@ function Utils:GetItemInfo(itemLink)
     return nil
 end
 
--- Create a hidden tooltip for scanning
-local scanTooltip = CreateFrame("GameTooltip", "GudaBagScanTooltip", nil, "GameTooltipTemplate")
+-- Create a single shared tooltip for all scanning operations
+-- This tooltip is used by: Utils, ItemDetection, SortEngine
+local scanTooltip = CreateFrame("GameTooltip", "GudaScanTooltip", nil, "GameTooltipTemplate")
 scanTooltip:SetOwner(WorldFrame, "ANCHOR_NONE")
+local SCAN_TOOLTIP_NAME = "GudaScanTooltip"
+
+-- Public getter for the shared scan tooltip (used by ItemDetection, SortEngine)
+function Utils:GetScanTooltip()
+    return scanTooltip, SCAN_TOOLTIP_NAME
+end
 
 -- Get item link from mailbox attachment (WoW 1.12.1 workaround)
 function Utils:GetInboxItemLink(index, itemIndex)
@@ -627,7 +634,7 @@ function Utils:HasSpecialTooltipText(bagID, slotID, itemLink)
 
     -- Scan tooltip lines for yellow or green text
     for i = 2, numLines do  -- Start from line 2 (skip item name on line 1)
-        local leftLine = getglobal("GudaBagScanTooltipTextLeft" .. i)
+        local leftLine = getglobal("GudaScanTooltipTextLeft" .. i)
         if leftLine and leftLine:IsShown() then
             local text = leftLine:GetText()
             local r, g, b = leftLine:GetTextColor()
@@ -674,7 +681,7 @@ function Utils:HasSpecialTooltipText(bagID, slotID, itemLink)
         end
 
         -- Also check right side of tooltip
-        local rightLine = getglobal("GudaBagScanTooltipTextRight" .. i)
+        local rightLine = getglobal("GudaScanTooltipTextRight" .. i)
         if rightLine and rightLine:IsShown() then
             local text = rightLine:GetText()
             local r, g, b = rightLine:GetTextColor()
@@ -799,11 +806,11 @@ function Utils:IsQuestItem(bagID, slotID, itemData, isOtherChar, isBank)
             local tooltip = GetScanTooltip()
             tooltip:ClearLines()
             tooltip:SetBagItem(bagID, slotID)
-            if IsPermanentEnchantItem(tooltip, "GudaBagScanTooltip") then
+            if IsPermanentEnchantItem(tooltip, "GudaScanTooltip") then
                 return false, false  -- Not a quest item, it's an enchant scroll
             end
             -- Also scan for quest starter text
-            local _, starterDetected = ScanTooltipForQuest(tooltip, "GudaBagScanTooltip")
+            local _, starterDetected = ScanTooltipForQuest(tooltip, "GudaScanTooltip")
             return true, starterDetected
         end
         return true, false
@@ -825,7 +832,7 @@ function Utils:IsQuestItem(bagID, slotID, itemData, isOtherChar, isBank)
             tooltip:SetBagItem(bagID, slotID)
         end
 
-        isQuestItem, isQuestStarter = ScanTooltipForQuest(tooltip, "GudaBagScanTooltip")
+        isQuestItem, isQuestStarter = ScanTooltipForQuest(tooltip, "GudaScanTooltip")
 
         -- Filter out equipment that has quest-like text but isn't categorized as Quest
         if isQuestItem and isEquipment and not isQuestCategory then
@@ -864,7 +871,7 @@ function Utils:IsItemGrayTooltip(bagID, slotID, itemLink)
     tooltip:ClearLines()
     tooltip:SetBagItem(bagID, slotID)
 
-    local line = getglobal("GudaBagScanTooltipTextLeft1")
+    local line = getglobal("GudaScanTooltipTextLeft1")
     if line then
         local text = line:GetText()
         if text then
@@ -963,7 +970,7 @@ function Utils:GetSpecializedBagType(bagID)
     tooltip:SetInventoryItem("player", invSlot)
 
     for i = 1, tooltip:NumLines() do
-        local line = getglobal("GudaBagScanTooltipTextLeft" .. i)
+        local line = getglobal("GudaScanTooltipTextLeft" .. i)
         if line then
             local text = line:GetText()
             if text then
@@ -1077,7 +1084,7 @@ function Utils:GetConsumableRestoreTag(bagID, slotID, itemLink)
     tooltip:SetBagItem(bagID, slotID)
     local tag = nil
     for i = 1, tooltip:NumLines() do
-        local line = getglobal("GudaBagScanTooltipTextLeft" .. i)
+        local line = getglobal("GudaScanTooltipTextLeft" .. i)
         if line then
             local text = line:GetText()
             if text then
@@ -1199,7 +1206,7 @@ function Utils:IsBindOnEquip(bagID, slotID, itemLink)
 
     -- Check tooltip lines for "Binds when equipped"
     for i = 1, numLines do
-        local line = getglobal("GudaBagScanTooltipTextLeft" .. i)
+        local line = getglobal("GudaScanTooltipTextLeft" .. i)
         if line then
             local text = line:GetText()
             if text and string.find(string.lower(text), "binds when equipped") then
@@ -1258,7 +1265,7 @@ function Utils:IsUniqueItem(bagID, slotID, itemLink)
 
     -- Check tooltip lines for "Unique" (but not "Unique-Equipped")
     for i = 1, numLines do
-        local line = getglobal("GudaBagScanTooltipTextLeft" .. i)
+        local line = getglobal("GudaScanTooltipTextLeft" .. i)
         if line then
             local text = line:GetText()
             if text then
