@@ -1337,28 +1337,6 @@ function Guda_ItemButton_OnEnter(self)
 
 	GameTooltip:Show()
 
-    -- Debug: Print item info including equipSlot when debug mode is enabled
-    if addon.DEBUG and self.hasItem and self.bagID and self.slotID then
-        local link = GetContainerItemLink(self.bagID, self.slotID)
-        if link then
-            local itemID = addon.Modules.Utils:ExtractItemID(link)
-            if itemID then
-                local name, _, itemQuality, iLevel, itemCategory, itemType, itemStackCount, itemSubType, itemTexture, itemEquipLoc, itemSellPrice = GetItemInfo(itemID)
-                addon:Print("=== Item Debug Info ===")
-                addon:Print("name: %s", tostring(name))
-                addon:Print("itemQuality: %s", tostring(itemQuality))
-                addon:Print("iLevel: %s", tostring(iLevel))
-                addon:Print("itemCategory: %s", tostring(itemCategory))
-                addon:Print("itemType: %s", tostring(itemType))
-                addon:Print("itemStackCount: %s", tostring(itemStackCount))
-                addon:Print("itemSubType: %s", tostring(itemSubType))
-                addon:Print("itemTexture: %s", tostring(itemTexture))
-                addon:Print("itemEquipLoc: %s", tostring(itemEquipLoc))
-                addon:Print("itemSellPrice: %s", tostring(itemSellPrice))
-            end
-        end
-    end
-
     -- Handle merchant sell cursor (same approach as BagShui)
 	if MerchantFrame:IsShown() and not self.isBank and not self.otherChar and self.hasItem then
 		ShowContainerSellCursor(self.bagID, self.slotID)

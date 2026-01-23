@@ -136,14 +136,7 @@ local function GetItemProperties(bagID, slotID, itemLink)
 	local cacheKey = baseLink or itemLink
 
 	if propertyCache[cacheKey] then
-		if addon.DEBUG then
-			addon:Print("GetItemProperties CACHE HIT for %s", cacheKey or "unknown")
-		end
 		return propertyCache[cacheKey]
-	end
-
-	if addon.DEBUG then
-		addon:Print("GetItemProperties CACHE MISS - scanning bagID=%s slotID=%s", tostring(bagID), tostring(slotID))
 	end
 
 	local props = {
@@ -201,9 +194,6 @@ local function GetItemProperties(bagID, slotID, itemLink)
 						-- Check for "permanently" anywhere in the line (green text doesn't have "Use:" prefix)
 						if string.find(tl, "permanently") then
 							props.isPermanentEnchant = true
-							if addon.DEBUG then
-								addon:Print("Detected permanent enchant: %s", tl)
-							end
 						end
 
 						-- Restore tag check (higher priority tags override lower ones)
@@ -227,10 +217,6 @@ local function GetItemProperties(bagID, slotID, itemLink)
 				end
 			end
 		end
-	end
-
-	if addon.DEBUG and props.isPermanentEnchant then
-		addon:Print("GetItemProperties RETURNING isPermanentEnchant=true for %s", cacheKey or "unknown")
 	end
 
 	propertyCache[cacheKey] = props
@@ -696,21 +682,10 @@ local function AddSortKeys(items)
 					local itemProps = GetItemProperties(item.bagID, item.slot, item.data.link)
 					local isPermanentEnchant = itemProps and itemProps.isPermanentEnchant or false
 
-					-- Debug: trace isPermanentEnchant value
-					if addon.DEBUG and (itemCategory == "Quest" or itemType == "Quest") then
-						addon:Print("GetItemProperties for %s: props=%s, isPermanentEnchant=%s",
-							item.itemName or "unknown",
-							itemProps and "exists" or "NIL",
-							itemProps and tostring(itemProps.isPermanentEnchant) or "N/A")
-					end
-
 					-- Permanent enchant items always sort BEFORE quest items (category 6)
 					-- regardless of their itemCategory or itemType
 					if isPermanentEnchant then
 						item.sortedClass = 6  -- Same as Tools, comes before Quest (7)
-						if addon.DEBUG then
-							addon:Print("PERMANENT ENCHANT: %s -> sortedClass=6", item.itemName or "unknown")
-						end
 					-- Heuristic: Detect items that should be in the Quest category (priority 7)
 					-- but aren't categorized as such by the game (e.g. some "Manual" items)
 					elseif item.sortedClass ~= (CATEGORY_ORDER["Quest"] or 7) then
@@ -728,12 +703,6 @@ local function AddSortKeys(items)
 						end
 					end
 					item.equipSlotOrder = 999
-
-					-- Debug: Show final sortedClass for quest-related items
-					if addon.DEBUG and (itemCategory == "Quest" or itemType == "Quest" or isPermanentEnchant) then
-						addon:Print("SORT CLASS: %s -> sortedClass=%d, isPermanentEnchant=%s",
-							item.itemName or "unknown", item.sortedClass, tostring(isPermanentEnchant))
-					end
 				end
 
 				-- Subclass ordering
