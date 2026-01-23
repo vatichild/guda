@@ -86,6 +86,9 @@ function Guda_BankFrame_OnHide(self)
     -- Close any open dropdown menus when the bank frame is hidden
     CloseDropDownMenus()
 
+    -- Clear any pending update
+    bankPendingUpdate = false
+
     -- Close the actual Blizzard bank too
     local blizzardBankFrame = getglobal("BankFrame")
     if blizzardBankFrame and blizzardBankFrame:IsShown() then
@@ -121,10 +124,41 @@ function BankFrame:UpdateLockStates()
     Guda_UpdateLockStates(bankBagParents)
 end
 
+-- Deferred update state for frame budgeting
+local bankPendingUpdate = false
+local bankUpdateDebounceFrame = nil
+local BANK_UPDATE_DEBOUNCE_TIME = 0.05  -- 50ms debounce for rapid updates
+
+-- Schedule an update with debouncing (prevents multiple updates in rapid succession)
+function BankFrame:ScheduleUpdate()
+    if bankPendingUpdate then return end
+    bankPendingUpdate = true
+
+    if not bankUpdateDebounceFrame then
+        bankUpdateDebounceFrame = CreateFrame("Frame")
+        bankUpdateDebounceFrame.elapsed = 0
+    end
+
+    bankUpdateDebounceFrame.elapsed = 0
+    bankUpdateDebounceFrame:SetScript("OnUpdate", function()
+        this.elapsed = this.elapsed + arg1
+        if this.elapsed >= BANK_UPDATE_DEBOUNCE_TIME then
+            this:SetScript("OnUpdate", nil)
+            bankPendingUpdate = false
+            BankFrame:Update()
+        end
+    end)
+end
+
 -- Update display
 function BankFrame:Update()
     if not Guda_BankFrame:IsShown() then
         return
+    end
+
+    -- Report entry for frame budget tracking
+    if addon.Modules.Utils and addon.Modules.Utils.ReportEntry then
+        addon.Modules.Utils:ReportEntry()
     end
 
     -- If cursor is holding an item (mid-drag), only update lock states, don't rebuild UI
@@ -244,6 +278,11 @@ function BankFrame:Update()
             end
         end
     end
+
+    -- Record performance metrics
+    if addon.Modules.Utils and addon.Modules.Utils.RecordUpdateEnd then
+        addon.Modules.Utils:RecordUpdateEnd()
+    end
 end
 
 -- Use centralized frame helpers for section headers and bag parents
@@ -307,7 +346,11 @@ function BankFrame:DisplayItemsByCategory(bankData, isOtherChar, charName)
     local rowMaxHeight = 0
     local headerIdx = 1
     local totalWidth = perRow * (buttonSize + spacing)
-    
+
+    -- Frame budget tracking for category item processing
+    local categoryItemsProcessed = 0
+    local CATEGORY_ITEMS_PER_BUDGET_CHECK = 8
+
     for _, catName in ipairs(categoryList) do
         local items = categories[catName]
         local numItems = items and table.getn(items) or 0
@@ -351,28 +394,37 @@ function BankFrame:DisplayItemsByCategory(bankData, isOtherChar, charName)
                 local bagID = item.bagID
                 local slot = item.slotID
                 local itemData = item.itemData
-                
+
                 local bagParent = self:GetBagParent(bagID)
                 local button = Guda_GetItemButton(bagParent)
-                
+
                 button:SetParent(bagParent)
                 button:SetWidth(buttonSize)
                 button:SetHeight(buttonSize)
                 button:ClearAllPoints()
                 button:SetPoint("TOPLEFT", itemContainer, "TOPLEFT", startX + currentX + (col * (buttonSize + spacing)), startY - (itemY + (row * (buttonSize + spacing))))
                 button:Show()
-                
+
                 local matchesFilter = self:PassesSearchFilter(itemData)
                 Guda_ItemButton_SetItem(button, bagID, slot, itemData, true, isOtherChar and charName or nil, matchesFilter, isOtherChar or isReadOnlyMode)
                 button.inUse = true
-                
+
                 col = col + 1
                 if col >= blockCols then
                     col = 0
                     row = row + 1
                 end
+
+                -- Frame budget check
+                categoryItemsProcessed = categoryItemsProcessed + 1
+                if categoryItemsProcessed >= CATEGORY_ITEMS_PER_BUDGET_CHECK then
+                    categoryItemsProcessed = 0
+                    if addon.Modules.Utils and addon.Modules.Utils.CheckTimeout and addon.Modules.Utils:CheckTimeout() then
+                        addon.Modules.Utils:ReportEntry()
+                    end
+                end
             end
-            
+
             if blockHeight > rowMaxHeight then rowMaxHeight = blockHeight end
             currentX = currentX + blockWidth + 20
         end
@@ -583,6 +635,10 @@ function BankFrame:DisplayItems(bankData, isOtherChar, charName)
         end
     end
 
+    -- Frame budget tracking for item processing
+    local itemsProcessed = 0
+    local ITEMS_PER_BUDGET_CHECK = 8  -- Check budget every N items
+
     for _, bagInfo in ipairs(bagsToShow) do
         local bagID = bagInfo.bagID
         local bag = bankData and bankData[bagID]
@@ -630,6 +686,16 @@ function BankFrame:DisplayItems(bankData, isOtherChar, charName)
                 if col >= perRow then
                     col = 0
                     row = row + 1
+                end
+
+                -- Frame budget check: periodically check if we've exceeded the frame budget
+                itemsProcessed = itemsProcessed + 1
+                if itemsProcessed >= ITEMS_PER_BUDGET_CHECK then
+                    itemsProcessed = 0
+                    if addon.Modules.Utils and addon.Modules.Utils.CheckTimeout and addon.Modules.Utils:CheckTimeout() then
+                        -- Budget exceeded - reset entry time and continue
+                        addon.Modules.Utils:ReportEntry()
+                    end
                 end
             end
         end

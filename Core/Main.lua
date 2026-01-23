@@ -149,6 +149,21 @@ function Main:SetupSlashCommands()
             -- Cleanup old characters
             addon.Modules.DB:CleanupOldCharacters()
 
+        elseif msg == "perf" or msg == "performance" then
+            -- Show performance statistics
+            if addon.Modules.Utils and addon.Modules.Utils.PrintPerformanceStats then
+                addon.Modules.Utils:PrintPerformanceStats()
+            else
+                addon:Print("Performance stats not available")
+            end
+
+        elseif msg == "perfreset" then
+            -- Reset performance statistics
+            if addon.Modules.Utils and addon.Modules.Utils.ResetPerformanceStats then
+                addon.Modules.Utils:ResetPerformanceStats()
+                addon:Print("Performance stats reset")
+            end
+
         elseif msg == "help" then
             -- Show help
             addon:Print("Commands:")
@@ -161,6 +176,8 @@ function Main:SetupSlashCommands()
             addon:Print("/guda debug - Toggle debug mode")
             addon:Print("/guda debugsort - Toggle sort debug output")
             addon:Print("/guda cleanup - Remove old characters")
+            addon:Print("/guda perf - Show performance stats")
+            addon:Print("/guda perfreset - Reset performance stats")
 
         else
             addon:Print("Unknown command. Type /guda help for commands")

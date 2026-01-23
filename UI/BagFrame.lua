@@ -130,6 +130,12 @@ function Guda_BagFrame_OnHide(self)
 	-- Close any open dropdown menus when the bag frame is hidden
 	CloseDropDownMenus()
 
+    -- Clear any pending update and work queue items
+    pendingUpdate = false
+    if addon.Modules.Utils and addon.Modules.Utils.ClearWorkQueue then
+        addon.Modules.Utils:ClearWorkQueue()
+    end
+
 	-- Clean up all buttons when frame is hidden (safe since we're not displaying)
 	for _, bagParent in pairs(bagParents) do
 		if bagParent then
@@ -275,11 +281,42 @@ function BagFrame:UpdateBaglineLayout()
 	end
 end
 
+-- Deferred update state for frame budgeting
+local pendingUpdate = false
+local updateDebounceFrame = nil
+local UPDATE_DEBOUNCE_TIME = 0.05  -- 50ms debounce for rapid updates
+
+-- Schedule an update with debouncing (prevents multiple updates in rapid succession)
+function BagFrame:ScheduleUpdate()
+    if pendingUpdate then return end
+    pendingUpdate = true
+
+    if not updateDebounceFrame then
+        updateDebounceFrame = CreateFrame("Frame")
+        updateDebounceFrame.elapsed = 0
+    end
+
+    updateDebounceFrame.elapsed = 0
+    updateDebounceFrame:SetScript("OnUpdate", function()
+        this.elapsed = this.elapsed + arg1
+        if this.elapsed >= UPDATE_DEBOUNCE_TIME then
+            this:SetScript("OnUpdate", nil)
+            pendingUpdate = false
+            BagFrame:Update()
+        end
+    end)
+end
+
 -- Update display
 function BagFrame:Update()
 	if not Guda_BagFrame:IsShown() then
 		return
 	end
+
+    -- Report entry for frame budget tracking
+    if addon.Modules.Utils and addon.Modules.Utils.ReportEntry then
+        addon.Modules.Utils:ReportEntry()
+    end
 
 	-- If cursor is holding an item (mid-drag), only update lock states, don't rebuild UI
 	-- BUT only if we already have items displayed - otherwise we need to do initial build
@@ -406,6 +443,11 @@ function BagFrame:Update()
 			end
 		end
 	end
+
+    -- Record performance metrics
+    if addon.Modules.Utils and addon.Modules.Utils.RecordUpdateEnd then
+        addon.Modules.Utils:RecordUpdateEnd()
+    end
 end
 
 -- Delegate to centralized helpers
@@ -482,6 +524,10 @@ function BagFrame:DisplayItemsByCategory(bagData, isOtherChar, charName)
     local headerIdx = 1
     local totalWidth = perRow * (buttonSize + spacing)
 
+    -- Frame budget tracking for category item processing
+    local categoryItemsProcessed = 0
+    local CATEGORY_ITEMS_PER_BUDGET_CHECK = 8
+
     for _, catName in ipairs(categoryList) do
         local items = categories[catName]
         local numItems = items and table.getn(items) or 0
@@ -524,7 +570,7 @@ function BagFrame:DisplayItemsByCategory(bagData, isOtherChar, charName)
             end
             header.text:SetText(displayName)
             header:Show()
-            
+
             local itemY = currentY + 20
             local col = 0
             local row = 0
@@ -532,17 +578,17 @@ function BagFrame:DisplayItemsByCategory(bagData, isOtherChar, charName)
                 local bagID = item.bagID
                 local slot = item.slotID
                 local itemData = item.itemData
-                
+
                 local bagParent = self:GetBagParent(bagID)
                 local button = Guda_GetItemButton(bagParent)
-                
+
                 button:SetParent(bagParent)
                 button:SetWidth(buttonSize)
                 button:SetHeight(buttonSize)
                 button:ClearAllPoints()
                 button:SetPoint("TOPLEFT", itemContainer, "TOPLEFT", startX + currentX + (col * (buttonSize + spacing)), startY - (itemY + (row * (buttonSize + spacing))))
                 button:Show()
-                
+
                 local matchesFilter = self:PassesSearchFilter(itemData)
                 Guda_ItemButton_SetItem(button, bagID, slot, itemData, false, isOtherChar and charName or nil, matchesFilter, isOtherChar)
                 button.inUse = true
@@ -553,8 +599,17 @@ function BagFrame:DisplayItemsByCategory(bagData, isOtherChar, charName)
                     col = 0
                     row = row + 1
                 end
+
+                -- Frame budget check
+                categoryItemsProcessed = categoryItemsProcessed + 1
+                if categoryItemsProcessed >= CATEGORY_ITEMS_PER_BUDGET_CHECK then
+                    categoryItemsProcessed = 0
+                    if addon.Modules.Utils and addon.Modules.Utils.CheckTimeout and addon.Modules.Utils:CheckTimeout() then
+                        addon.Modules.Utils:ReportEntry()
+                    end
+                end
             end
-            
+
             if blockHeight > rowMaxHeight then rowMaxHeight = blockHeight end
             currentX = currentX + blockWidth + 20
         end
@@ -783,6 +838,10 @@ function BagFrame:DisplayItems(bagData, isOtherChar, charName)
 		table.insert(bagsToShow, {bagID = -2, needsSpacing = true})
 	end
 
+    -- Frame budget tracking for item processing
+    local itemsProcessed = 0
+    local ITEMS_PER_BUDGET_CHECK = 8  -- Check budget every N items
+
 	for _, bagInfo in ipairs(bagsToShow) do
 		local bagID = bagInfo.bagID
 		local bag = bagData[bagID]
@@ -842,6 +901,18 @@ function BagFrame:DisplayItems(bagData, isOtherChar, charName)
 					col = 0
 					row = row + 1
 				end
+
+                -- Frame budget check: periodically check if we've exceeded the frame budget
+                itemsProcessed = itemsProcessed + 1
+                if itemsProcessed >= ITEMS_PER_BUDGET_CHECK then
+                    itemsProcessed = 0
+                    if addon.Modules.Utils and addon.Modules.Utils.CheckTimeout and addon.Modules.Utils:CheckTimeout() then
+                        -- Budget exceeded - reset entry time and continue
+                        -- (For full deferral, we would queue remaining work, but that requires
+                        -- more complex state management. For now, we just note the budget usage.)
+                        addon.Modules.Utils:ReportEntry()
+                    end
+                end
 			end
 		end
 	end

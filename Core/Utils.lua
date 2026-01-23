@@ -6,6 +6,220 @@ local Utils = {}
 addon.Modules.Utils = Utils
 
 --=============================================================================
+-- Frame Budget System (Baganator-inspired performance optimization)
+-- Prevents any single operation from causing frame lag by spreading work
+-- across multiple frames when operations exceed a time budget.
+--=============================================================================
+
+-- Frame budget configuration
+local FRAME_BUDGET_SECONDS = 0.1  -- 100ms budget per frame (same as Baganator)
+local lastEntryTime = 0
+local workQueue = {}
+local workQueueFrame = nil
+
+-- Report that we're starting work (call at the beginning of expensive operations)
+-- This resets the frame budget timer
+function Utils:ReportEntry()
+    lastEntryTime = GetTime()
+end
+
+-- Check if we've exceeded the frame budget
+-- Returns true if we should defer remaining work to the next frame
+function Utils:CheckTimeout()
+    return (GetTime() - lastEntryTime) > FRAME_BUDGET_SECONDS
+end
+
+-- Queue work to be executed in the next frame
+-- callback: function to call
+-- context: optional context/owner for the callback (for debugging/cleanup)
+function Utils:QueueWork(callback, context)
+    if type(callback) ~= "function" then
+        addon:Error("QueueWork: callback must be a function")
+        return
+    end
+
+    table.insert(workQueue, {callback = callback, context = context or "unknown"})
+
+    -- Create the work queue processor frame if it doesn't exist
+    if not workQueueFrame then
+        workQueueFrame = CreateFrame("Frame", "Guda_WorkQueueFrame", UIParent)
+        workQueueFrame.elapsed = 0
+        workQueueFrame:Hide()
+
+        workQueueFrame:SetScript("OnUpdate", function()
+            -- Process queued work with frame budget
+            Utils:ReportEntry()
+
+            local processedCount = 0
+            local maxPerFrame = 50  -- Safety limit to prevent infinite loops
+
+            while table.getn(workQueue) > 0 and processedCount < maxPerFrame do
+                -- Check if we've exceeded frame budget
+                if Utils:CheckTimeout() then
+                    -- Still have work but exceeded budget, continue next frame
+                    addon:Debug("Frame budget exceeded, deferring %d items to next frame", table.getn(workQueue))
+                    return
+                end
+
+                local work = table.remove(workQueue, 1)
+                if work and work.callback then
+                    local success, err = pcall(work.callback)
+                    if not success then
+                        addon:Error("QueueWork callback error [%s]: %s", tostring(work.context), tostring(err))
+                    end
+                end
+                processedCount = processedCount + 1
+            end
+
+            -- All work done, hide the frame to stop OnUpdate
+            if table.getn(workQueue) == 0 then
+                workQueueFrame:Hide()
+            end
+        end)
+    end
+
+    -- Show the frame to start processing
+    workQueueFrame:Show()
+end
+
+-- Clear all queued work (useful when frame is hidden)
+function Utils:ClearWorkQueue()
+    workQueue = {}
+    if workQueueFrame then
+        workQueueFrame:Hide()
+    end
+end
+
+-- Get the number of items in the work queue (for debugging)
+function Utils:GetWorkQueueSize()
+    return table.getn(workQueue)
+end
+
+-- Process items in batches with frame budget awareness
+-- items: table of items to process
+-- processor: function(item, index) called for each item
+-- onComplete: optional function called when all items are processed
+-- batchSize: optional number of items to process before checking timeout (default 10)
+function Utils:ProcessWithBudget(items, processor, onComplete, batchSize)
+    if not items or table.getn(items) == 0 then
+        if onComplete then onComplete() end
+        return
+    end
+
+    batchSize = batchSize or 10
+    local index = 1
+    local totalItems = table.getn(items)
+
+    local function processNextBatch()
+        Utils:ReportEntry()
+        local batchCount = 0
+
+        while index <= totalItems and batchCount < batchSize do
+            if Utils:CheckTimeout() then
+                -- Budget exceeded, queue continuation
+                Utils:QueueWork(processNextBatch, "ProcessWithBudget")
+                return
+            end
+
+            local item = items[index]
+            if item then
+                local success, err = pcall(processor, item, index)
+                if not success then
+                    addon:Error("ProcessWithBudget processor error at index %d: %s", index, tostring(err))
+                end
+            end
+
+            index = index + 1
+            batchCount = batchCount + 1
+        end
+
+        -- Check if we have more items
+        if index <= totalItems then
+            -- More items to process, queue next batch
+            Utils:QueueWork(processNextBatch, "ProcessWithBudget")
+        else
+            -- All done
+            if onComplete then
+                local success, err = pcall(onComplete)
+                if not success then
+                    addon:Error("ProcessWithBudget onComplete error: %s", tostring(err))
+                end
+            end
+        end
+    end
+
+    -- Start processing
+    processNextBatch()
+end
+
+-- Performance metrics tracking
+local performanceStats = {
+    budgetExceededCount = 0,
+    totalUpdates = 0,
+    lastUpdateDuration = 0,
+    averageUpdateDuration = 0,
+}
+
+-- Get the current frame budget setting (in seconds)
+function Utils:GetFrameBudget()
+    return FRAME_BUDGET_SECONDS
+end
+
+-- Set the frame budget (in seconds, min 0.016 = 60fps, max 0.5)
+function Utils:SetFrameBudget(seconds)
+    if type(seconds) ~= "number" then return end
+    FRAME_BUDGET_SECONDS = math.max(0.016, math.min(0.5, seconds))
+    addon:Debug("Frame budget set to %.3f seconds", FRAME_BUDGET_SECONDS)
+end
+
+-- Record the end of an update cycle for performance tracking
+function Utils:RecordUpdateEnd()
+    local duration = GetTime() - lastEntryTime
+    performanceStats.lastUpdateDuration = duration
+    performanceStats.totalUpdates = performanceStats.totalUpdates + 1
+
+    -- Update rolling average
+    local alpha = 0.1  -- Smoothing factor
+    performanceStats.averageUpdateDuration = performanceStats.averageUpdateDuration * (1 - alpha) + duration * alpha
+
+    if duration > FRAME_BUDGET_SECONDS then
+        performanceStats.budgetExceededCount = performanceStats.budgetExceededCount + 1
+    end
+end
+
+-- Get performance statistics
+function Utils:GetPerformanceStats()
+    return {
+        frameBudget = FRAME_BUDGET_SECONDS,
+        lastUpdateDuration = performanceStats.lastUpdateDuration,
+        averageUpdateDuration = performanceStats.averageUpdateDuration,
+        totalUpdates = performanceStats.totalUpdates,
+        budgetExceededCount = performanceStats.budgetExceededCount,
+        workQueueSize = table.getn(workQueue),
+    }
+end
+
+-- Reset performance statistics
+function Utils:ResetPerformanceStats()
+    performanceStats.budgetExceededCount = 0
+    performanceStats.totalUpdates = 0
+    performanceStats.lastUpdateDuration = 0
+    performanceStats.averageUpdateDuration = 0
+end
+
+-- Print current performance statistics (for debugging)
+function Utils:PrintPerformanceStats()
+    local stats = self:GetPerformanceStats()
+    addon:Print("=== Guda Performance Stats ===")
+    addon:Print("Frame Budget: %.0fms", stats.frameBudget * 1000)
+    addon:Print("Last Update: %.1fms", stats.lastUpdateDuration * 1000)
+    addon:Print("Avg Update: %.1fms", stats.averageUpdateDuration * 1000)
+    addon:Print("Total Updates: %d", stats.totalUpdates)
+    addon:Print("Budget Exceeded: %d times", stats.budgetExceededCount)
+    addon:Print("Work Queue: %d items", stats.workQueueSize)
+end
+
+--=============================================================================
 -- SafeCall: Nil-safe module method invocation
 -- Replaces verbose nil-checks like:
 --   if addon and addon.Modules and addon.Modules.Utils and addon.Modules.Utils.Method then
