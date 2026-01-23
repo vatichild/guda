@@ -18,6 +18,58 @@ local function IsQuestItem(bagID, slotID, isBank)
 end
 
 --=====================================================
+-- Junk Icon Helper Functions (reusable for all views)
+-- Shows a vendor sell icon on junk items
+--=====================================================
+
+-- Create junk icon for a button (parented to UIParent for full opacity)
+local function CreateJunkIcon(button)
+    if button.junkIcon then return button.junkIcon end
+
+    local junkFrame = CreateFrame("Frame", nil, UIParent)
+    junkFrame:SetFrameStrata("HIGH")
+    junkFrame:SetWidth(14)
+    junkFrame:SetHeight(14)
+
+    local texture = junkFrame:CreateTexture(nil, "OVERLAY")
+    texture:SetAllPoints(junkFrame)
+    texture:SetTexture("Interface\\GossipFrame\\VendorGossipIcon")
+    texture:SetTexCoord(0, 1, 0, 1)
+
+    junkFrame:Hide()
+    button.junkIcon = junkFrame
+    return junkFrame
+end
+
+-- Update junk icon visibility and position
+local function UpdateJunkIcon(button, isJunk, iconSize)
+    -- Create icon if it doesn't exist
+    if not button.junkIcon then
+        CreateJunkIcon(button)
+    end
+
+    if isJunk then
+        -- Scale icon size based on button size
+        local junkIconSize = math.max(10, math.min(14, iconSize * 0.30))
+        button.junkIcon:SetWidth(junkIconSize)
+        button.junkIcon:SetHeight(junkIconSize)
+        button.junkIcon:ClearAllPoints()
+        button.junkIcon:SetPoint("TOPLEFT", button, "TOPLEFT", 2, -2)
+        button.junkIcon:SetAlpha(1.0)
+        button.junkIcon:Show()
+    else
+        button.junkIcon:Hide()
+    end
+end
+
+-- Hide junk icon (for cleanup/reset)
+local function HideJunkIcon(button)
+    if button.junkIcon then
+        button.junkIcon:Hide()
+    end
+end
+
+--=====================================================
 -- Unusable item detection (pfUI-inspired implementation)
 -- Adds a red tint overlay to items that your character
 -- cannot use (class/race/skill restrictions), excluding
@@ -276,6 +328,9 @@ function Guda_ItemButton_OnLoad(self)
         self.questIcon = iconFrame
     end
 
+    -- Create junk icon overlay (vendor sell icon in top-left corner)
+    CreateJunkIcon(self)
+
     -- Ensure the item button sits above its container backdrop and is mouse-enabled
     local parent = self:GetParent()
     if parent and parent.GetFrameLevel then
@@ -296,7 +351,12 @@ function Guda_ItemButton_OnLoad(self)
     if self.RegisterForClicks then
         self:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     end
-    
+
+    -- Hide junk icon when button is hidden (since it's parented to UIParent)
+    self:SetScript("OnHide", function()
+        HideJunkIcon(this)
+    end)
+
     self:SetScript("OnClick", function()
         if IsAltKeyDown() and arg1 == "LeftButton" and this.hasItem and not this.otherChar and not this.isReadOnly then
             local link = GetContainerItemLink(this.bagID, this.slotID)
@@ -403,6 +463,7 @@ local function ResetButtonVisualState(self)
     if self.questIcon then self.questIcon:Hide() end
     if self.qualityBorder then self.qualityBorder:Hide() end
     if self.unusableOverlay then self.unusableOverlay:Hide() end
+    HideJunkIcon(self)
 
     -- Clear cooldown overlay
     local cd = getglobal(self:GetName().."Cooldown") or self.cooldown
@@ -667,6 +728,9 @@ local function ClearItemButton(self, emptySlotBg, countText, bagID)
     if self.unusableOverlay and self.unusableOverlay.Hide then
         self.unusableOverlay:Hide()
     end
+
+    -- Hide junk icon
+    HideJunkIcon(self)
 
     -- Hide normal texture
     self:SetNormalTexture("")
@@ -947,6 +1011,9 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
             -- Non-matching items: 25% opacity (0.25) - very dim
             self:SetAlpha(0.25)
         end
+
+        -- Show/hide junk icon (vendor sell icon in top-left corner)
+        UpdateJunkIcon(self, isJunk, iconSize)
 
         -- Set count (use displayCount which was determined above based on mode)
         if displayCount and displayCount > 1 then
