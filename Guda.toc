@@ -14,6 +14,7 @@ Core\Database.lua
 DB\QuestItems.lua
 Core\Events.lua
 Core\Utils.lua
+Core\ItemDetection.lua
 Core\CategoryManager.lua
 Core\Tooltip.lua
 

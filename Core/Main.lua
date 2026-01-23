@@ -15,6 +15,11 @@ function Main:Initialize()
         -- Initialize database
         addon.Modules.DB:Initialize()
 
+        -- Initialize item detection (before scanners, as they may use it)
+        if addon.Modules.ItemDetection then
+            addon.Modules.ItemDetection:Initialize()
+        end
+
         -- Initialize scanners
         addon.Modules.BagScanner:Initialize()
         addon.Modules.BankScanner:Initialize()
@@ -178,6 +183,12 @@ function Main:SetupSlashCommands()
                 addon:Print("Tooltip Cache: %d hits, %d misses (%.1f%% hit rate)",
                     stats.hits, stats.misses, stats.hitRate)
             end
+            -- Show item detection cache stats
+            if addon.Modules.ItemDetection and addon.Modules.ItemDetection.GetCacheStats then
+                local stats = addon.Modules.ItemDetection:GetCacheStats()
+                addon:Print("ItemDetection Cache: %d hits, %d misses (%.1f%% hit rate, %d items)",
+                    stats.hits, stats.misses, stats.hitRate, stats.size)
+            end
 
         elseif msg == "perfreset" then
             -- Reset performance statistics
@@ -192,6 +203,10 @@ function Main:SetupSlashCommands()
             -- Clear tooltip cache
             if addon.Modules.Utils and addon.Modules.Utils.ClearTooltipCache then
                 addon.Modules.Utils:ClearTooltipCache()
+            end
+            -- Clear item detection cache
+            if addon.Modules.ItemDetection and addon.Modules.ItemDetection.ClearCache then
+                addon.Modules.ItemDetection:ClearCache()
             end
 
         elseif msg == "help" then

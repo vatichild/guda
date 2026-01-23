@@ -78,6 +78,14 @@ function BankScanner:GetBankData()
             end
         end
         dirtySlots = {}
+
+        -- Check for invalidated bags (nil entries) and rescan them
+        for _, bagID in ipairs(addon.Constants.BANK_BAGS) do
+            if bankCache[bagID] == nil then
+                bankCache[bagID] = self:ScanBankBag(bagID)
+            end
+        end
+
         return bankCache
     end
 

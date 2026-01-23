@@ -600,7 +600,12 @@ function CategoryManager:EvaluateRule(rule, itemData, bagID, slotID, isOtherChar
         return isBoE == ruleValue
 
     elseif ruleType == "isQuestItem" then
-        -- Use consolidated quest detection from Utils
+        -- Use centralized ItemDetection for quest item detection
+        if addon.Modules.ItemDetection then
+            local props = addon.Modules.ItemDetection:GetItemProperties(itemData, bagID, slotID)
+            return props.isQuestItem == ruleValue
+        end
+        -- Fallback to Utils if ItemDetection not available
         local isQuestItem, _ = addon.Modules.Utils:IsQuestItem(bagID, slotID, itemData, isOtherChar, false)
         return isQuestItem == ruleValue
 
@@ -662,86 +667,13 @@ function CategoryManager:EvaluateRule(rule, itemData, bagID, slotID, isOtherChar
         return isProfessionTool == ruleValue
 
     elseif ruleType == "isJunk" then
-        -- Junk items: gray items (quality 0) OR white equippable items (quality 1 + Weapon/Armor)
-        -- EXCLUDES:
-        --   1. Trinkets, Rings, Necklaces (these typically have special effects)
-        --   2. Profession tools (skinning knife, mining pick, fishing poles, etc.)
-        --   3. Items with yellow description text (Use:, Equip:, Chance on hit: effects)
-        --   4. Items with green description text (set bonuses, special properties)
-        local quality = itemData.quality
-        local isGray = false
-        local isWhiteEquip = false
-
-        -- Check for gray items (quality 0)
-        if quality == 0 then
-            isGray = true
-        elseif not isOtherChar and addon.Modules.Utils and addon.Modules.Utils.IsItemGrayTooltip then
-            -- Tooltip fallback for gray detection
-            isGray = addon.Modules.Utils:IsItemGrayTooltip(bagID, slotID, itemData.link)
+        -- Use centralized ItemDetection for junk detection
+        if addon.Modules.ItemDetection then
+            local props = addon.Modules.ItemDetection:GetItemProperties(itemData, bagID, slotID)
+            return props.isJunk == ruleValue
         end
-
-        -- Check for white equippable items (quality 1 + Weapon/Armor)
-        if quality == 1 then
-            local itemClass = itemData.class or ""
-            local itemSubclass = itemData.subclass or ""
-
-            if itemClass == "Weapon" or itemClass == "Armor" then
-                -- In Turtle WoW, equip slot info is in itemSubType, not itemEquipLoc
-                local itemSubclass = itemData.subclass or ""
-                addon:Debug("isJunk check: name='%s', subclass='%s', class='%s'",
-                    tostring(itemData.name), tostring(itemSubclass), tostring(itemClass))
-
-                -- EXCLUDE: Trinkets, Rings, Necklaces, Tabards, Shirts - these typically have special effects or are cosmetic
-                -- Check by itemSubType which contains INVTYPE_* values in Turtle WoW
-                local isSpecialSlot = (itemSubclass == "INVTYPE_TRINKET" or
-                                       itemSubclass == "INVTYPE_FINGER" or
-                                       itemSubclass == "INVTYPE_NECK" or
-                                       itemSubclass == "INVTYPE_TABARD" or
-                                       itemSubclass == "INVTYPE_BODY")
-                if isSpecialSlot then
-                    addon:Debug("isJunk: EXCLUDED (trinket/ring/neck/tabard/shirt) - %s (subclass=%s)", tostring(itemData.name), tostring(itemSubclass))
-                    return false == ruleValue
-                end
-
-                -- Check if this is a profession tool (should NOT be junk)
-                local isProfessionTool = false
-
-                -- Check by item ID
-                if itemData.link then
-                    local itemID = addon.Modules.Utils:ExtractItemID(itemData.link)
-                    if itemID and addon.Constants.PROFESSION_TOOL_IDS and addon.Constants.PROFESSION_TOOL_IDS[itemID] then
-                        isProfessionTool = true
-                        addon:Debug("isJunk: PROFESSION TOOL (by ID) - %s", tostring(itemData.name))
-                    end
-                end
-
-                -- Check by subtype (e.g., Fishing Pole)
-                if not isProfessionTool and addon.Constants.PROFESSION_TOOL_SUBTYPES and addon.Constants.PROFESSION_TOOL_SUBTYPES[itemSubclass] then
-                    isProfessionTool = true
-                    addon:Debug("isJunk: PROFESSION TOOL (by subtype) - %s", tostring(itemData.name))
-                end
-
-                -- Check for special tooltip text (yellow/green descriptions)
-                -- These items have Use:, Equip:, or special effects and should NOT be junk
-                local hasSpecialText = false
-                if not isProfessionTool and not isOtherChar then
-                    if addon.Modules.Utils and addon.Modules.Utils.HasSpecialTooltipText then
-                        hasSpecialText = addon.Modules.Utils:HasSpecialTooltipText(bagID, slotID, itemData.link)
-                        if hasSpecialText then
-                            addon:Debug("isJunk: HAS SPECIAL TEXT (Use:/Equip:/green) - %s", tostring(itemData.name))
-                        end
-                    end
-                end
-
-                if not isProfessionTool and not hasSpecialText then
-                    isWhiteEquip = true
-                    addon:Debug("isJunk: WHITE EQUIP DETECTED - %s", tostring(itemData.name))
-                end
-            end
-        end
-
-        local isJunk = isGray or isWhiteEquip
-        return isJunk == ruleValue
+        -- Fallback: gray items are always junk
+        return (itemData.quality == 0) == ruleValue
     end
 
     return false

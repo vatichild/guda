@@ -236,24 +236,45 @@ local function GetItemProperties(bagID, slotID, itemLink)
 end
 
 -- Check if an item is a quest item by scanning its tooltip
-local function IsQuestItemTooltip(bagID, slotID)
+-- Uses centralized ItemDetection when available
+local function IsQuestItemTooltip(bagID, slotID, itemData)
 	if not bagID or not slotID then return false end
+	-- Use ItemDetection if available
+	if addon.Modules.ItemDetection and itemData then
+		local props = addon.Modules.ItemDetection:GetItemProperties(itemData, bagID, slotID)
+		return props.isQuestItem
+	end
+	-- Fallback to local GetItemProperties
 	local link = GetContainerItemLink(bagID, slotID)
 	local props = GetItemProperties(bagID, slotID, link)
 	return props and props.isQuest or false
 end
 
 -- Check if a quest item is usable (has 'Use:' or click to text)
-local function IsQuestItemUsable(bagID, slotID)
+-- Uses centralized ItemDetection when available
+local function IsQuestItemUsable(bagID, slotID, itemData)
 	if not bagID or not slotID then return false end
+	-- Use ItemDetection if available
+	if addon.Modules.ItemDetection and itemData then
+		local props = addon.Modules.ItemDetection:GetItemProperties(itemData, bagID, slotID)
+		return props.isQuestUsable
+	end
+	-- Fallback to local GetItemProperties
 	local link = GetContainerItemLink(bagID, slotID)
 	local props = GetItemProperties(bagID, slotID, link)
 	return props and props.isQuestUsable or false
 end
 
 -- Check if item is a quest starter (explicit 'Starts a Quest' or 'This Item Begins a Quest')
-local function IsQuestItemStarter(bagID, slotID)
+-- Uses centralized ItemDetection when available
+local function IsQuestItemStarter(bagID, slotID, itemData)
 	if not bagID or not slotID then return false end
+	-- Use ItemDetection if available
+	if addon.Modules.ItemDetection and itemData then
+		local props = addon.Modules.ItemDetection:GetItemProperties(itemData, bagID, slotID)
+		return props.isQuestStarter
+	end
+	-- Fallback to local GetItemProperties
 	local link = GetContainerItemLink(bagID, slotID)
 	local props = GetItemProperties(bagID, slotID, link)
 	return props and props.isQuestStarter or false
@@ -635,52 +656,42 @@ local function AddSortKeys(items)
 				item.isMount = isMount
 
 				-- Class and slot ordering
-				-- Check for items that should be treated as junk:
-				-- 1. Gray items (quality 0)
-				-- 2. Items with gray tooltip
-				-- 3. White equippable items (quality 1 Weapon/Armor) - vendor trash
-				-- EXCLUDES from junk:
-				--   - Trinkets, Rings, Necklaces (these typically have special effects)
-				--   - Profession tools (skinning knife, mining pick, fishing poles, etc.)
-				--   - Items with yellow description text (Use:, Equip:, Chance on hit: effects)
-				--   - Items with green description text (set bonuses, special properties)
-				local isGrayItem = itemRarity == 0 or IsItemGrayTooltip(item.bagID, item.slot, item.data.link)
-				local isWhiteEquip = false
+				-- Check for items that should be treated as junk
+				-- Use centralized ItemDetection when available
+				local isJunkItem = false
+				if addon.Modules.ItemDetection then
+					local props = addon.Modules.ItemDetection:GetItemProperties(item.data, item.bagID, item.slot)
+					isJunkItem = props.isJunk
+				else
+					-- Fallback: manual junk detection
+					local isGrayItem = itemRarity == 0 or IsItemGrayTooltip(item.bagID, item.slot, item.data.link)
+					local isWhiteEquip = false
 
-				if itemRarity == 1 and (itemCategory == "Weapon" or itemCategory == "Armor") then
-					-- In Turtle WoW, equip slot info is in itemSubType, not itemEquipLoc
-					addon:Debug("SortEngine isJunk: name='%s', subclass='%s', class='%s'",
-						tostring(itemName), tostring(itemSubType), tostring(itemCategory))
+					if itemRarity == 1 and (itemCategory == "Weapon" or itemCategory == "Armor") then
+						addon:Debug("SortEngine isJunk: name='%s', subclass='%s', class='%s'",
+							tostring(itemName), tostring(itemSubType), tostring(itemCategory))
 
-					-- EXCLUDE: Trinkets, Rings, Necklaces, Tabards, Shirts - these typically have special effects or are cosmetic
-					-- Check by itemSubType which contains INVTYPE_* values in Turtle WoW
-					local isSpecialSlot = (itemSubType == "INVTYPE_TRINKET" or
-					                       itemSubType == "INVTYPE_FINGER" or
-					                       itemSubType == "INVTYPE_NECK" or
-					                       itemSubType == "INVTYPE_TABARD" or
-					                       itemSubType == "INVTYPE_BODY")
+						local isSpecialSlot = (itemSubType == "INVTYPE_TRINKET" or
+						                       itemSubType == "INVTYPE_FINGER" or
+						                       itemSubType == "INVTYPE_NECK" or
+						                       itemSubType == "INVTYPE_TABARD" or
+						                       itemSubType == "INVTYPE_BODY")
 
-					if isSpecialSlot then
-						addon:Debug("SortEngine: EXCLUDED (special slot) - %s (subclass=%s)", tostring(itemName), tostring(itemSubType))
-					end
-
-					if not isSpecialSlot then
-						-- Check exclusions for white equippable items
-						local isProfTool = IsProfessionTool(item.data.link, itemSubType)
-						local hasSpecialText = false
-
-						if not isProfTool then
-							hasSpecialText = HasSpecialTooltipText(item.bagID, item.slot, item.data.link)
-						end
-
-						-- Only mark as junk if NOT a profession tool AND NOT has special text
-						if not isProfTool and not hasSpecialText then
-							isWhiteEquip = true
+						if not isSpecialSlot then
+							local isProfTool = IsProfessionTool(item.data.link, itemSubType)
+							local hasSpecialText = false
+							if not isProfTool then
+								hasSpecialText = HasSpecialTooltipText(item.bagID, item.slot, item.data.link)
+							end
+							if not isProfTool and not hasSpecialText then
+								isWhiteEquip = true
+							end
 						end
 					end
+					isJunkItem = isGrayItem or isWhiteEquip
 				end
 
-				if isGrayItem or isWhiteEquip then
+				if isJunkItem then
 					item.sortedClass = CATEGORY_ORDER["Junk"] or 99
 					item.equipSlotOrder = 999
 					item.isEquippable = false -- Treat junk gear as junk, not gear
@@ -704,7 +715,7 @@ local function AddSortKeys(items)
 						local nameLower = string.lower(item.itemName)
 						if string.find(nameLower, "manual") or string.find(nameLower, "quest") then
 							item.sortedClass = CATEGORY_ORDER["Quest"] or 7
-						elseif IsQuestItemTooltip(item.bagID, item.slot) then
+						elseif IsQuestItemTooltip(item.bagID, item.slot, item.data) then
 							item.sortedClass = CATEGORY_ORDER["Quest"] or 7
 						elseif addon.IsQuestItemByID then
 							-- Check QuestItemsDB for faction-specific quest items
@@ -739,10 +750,10 @@ local function AddSortKeys(items)
 				item.isPermanentEnchant = isPermanentEnchant  -- Store for potential use in sorting
 				local nameLower = string.lower(item.itemName)
 				if not isPermanentEnchant then
-					if itemCategory == "Quest" or string.find(nameLower, "quest") or item.data.class == "Quest" or IsQuestItemTooltip(item.bagID, item.slot) then
+					if itemCategory == "Quest" or string.find(nameLower, "quest") or item.data.class == "Quest" or IsQuestItemTooltip(item.bagID, item.slot, item.data) then
 						item.isQuest = true
-						if IsQuestItemStarter(item.bagID, item.slot) then item.isQuestStarter = true end
-						if IsQuestItemUsable(item.bagID, item.slot) then item.isQuestUsable = true end
+						if IsQuestItemStarter(item.bagID, item.slot, item.data) then item.isQuestStarter = true end
+						if IsQuestItemUsable(item.bagID, item.slot, item.data) then item.isQuestUsable = true end
 					elseif addon.IsQuestItemByID then
 						-- Check QuestItemsDB for faction-specific quest items
 						local playerFaction = UnitFactionGroup("player")
@@ -1167,57 +1178,47 @@ end
 
 -- Split a list of collected items into non-junk and junk items
 -- Junk includes: gray items (quality 0), gray tooltip items, white equippable items (quality 1 Weapon/Armor)
--- EXCLUDES from junk:
---   1. Trinkets, Rings, Necklaces (these typically have special effects)
---   2. Profession tools (skinning knife, mining pick, fishing poles, etc.)
---   3. Items with yellow description text (Use:, Equip:, Chance on hit: effects)
---   4. Items with green description text (set bonuses, special properties)
+-- Uses centralized ItemDetection when available
 local function SplitGreyItems(items)
     local nonGreys, greys = {}, {}
     for _, item in ipairs(items) do
-        -- Use same logic as AddSortKeys for determining Junk status (stability)
-        local quality = tonumber(item.quality or 0)
-        local isGray = quality == 0 or IsItemGrayTooltip(item.bagID, item.slot, item.data.link)
-        -- White equippable items (Weapon/Armor) are also treated as junk
-        local itemClass = item.class or ""
-        local itemSubclass = item.data and item.data.subclass or ""
-        local itemLink = item.data and item.data.link
-        local isWhiteEquip = false
+        local isJunk = false
 
-        if quality == 1 and (itemClass == "Weapon" or itemClass == "Armor") then
-            -- In Turtle WoW, equip slot info is in itemSubType (stored as subclass), not equipLoc
-            addon:Debug("SplitGreyItems isJunk: name='%s', subclass='%s', class='%s'",
-                tostring(item.data and item.data.name), tostring(itemSubclass), tostring(itemClass))
+        -- Use centralized ItemDetection when available
+        if addon.Modules.ItemDetection and item.data then
+            local props = addon.Modules.ItemDetection:GetItemProperties(item.data, item.bagID, item.slot)
+            isJunk = props.isJunk
+        else
+            -- Fallback: manual junk detection
+            local quality = tonumber(item.quality or 0)
+            local isGray = quality == 0 or IsItemGrayTooltip(item.bagID, item.slot, item.data and item.data.link)
+            local itemClass = item.class or ""
+            local itemSubclass = item.data and item.data.subclass or ""
+            local itemLink = item.data and item.data.link
+            local isWhiteEquip = false
 
-            -- EXCLUDE: Trinkets, Rings, Necklaces, Tabards, Shirts - these typically have special effects or are cosmetic
-            -- Check by subclass which contains INVTYPE_* values in Turtle WoW
-            local isSpecialSlot = (itemSubclass == "INVTYPE_TRINKET" or
-                                   itemSubclass == "INVTYPE_FINGER" or
-                                   itemSubclass == "INVTYPE_NECK" or
-                                   itemSubclass == "INVTYPE_TABARD" or
-                                   itemSubclass == "INVTYPE_BODY")
+            if quality == 1 and (itemClass == "Weapon" or itemClass == "Armor") then
+                local isSpecialSlot = (itemSubclass == "INVTYPE_TRINKET" or
+                                       itemSubclass == "INVTYPE_FINGER" or
+                                       itemSubclass == "INVTYPE_NECK" or
+                                       itemSubclass == "INVTYPE_TABARD" or
+                                       itemSubclass == "INVTYPE_BODY")
 
-            if isSpecialSlot then
-                addon:Debug("SplitGreyItems: EXCLUDED (special slot) - %s (subclass='%s')", tostring(item.data and item.data.name), tostring(itemSubclass))
-            end
-
-            if not isSpecialSlot then
-                -- Check exclusions for white equippable items
-                local isProfTool = IsProfessionTool(itemLink, itemSubclass)
-                local hasSpecialText = false
-
-                if not isProfTool then
-                    hasSpecialText = HasSpecialTooltipText(item.bagID, item.slot, itemLink)
-                end
-
-                -- Only mark as junk if NOT a profession tool AND NOT has special text
-                if not isProfTool and not hasSpecialText then
-                    isWhiteEquip = true
+                if not isSpecialSlot then
+                    local isProfTool = IsProfessionTool(itemLink, itemSubclass)
+                    local hasSpecialText = false
+                    if not isProfTool then
+                        hasSpecialText = HasSpecialTooltipText(item.bagID, item.slot, itemLink)
+                    end
+                    if not isProfTool and not hasSpecialText then
+                        isWhiteEquip = true
+                    end
                 end
             end
+            isJunk = isGray or isWhiteEquip
         end
 
-        if isGray or isWhiteEquip then
+        if isJunk then
             table.insert(greys, item)
         else
             table.insert(nonGreys, item)
@@ -1464,6 +1465,12 @@ function SortEngine:SortBags()
      end
  end
 
+	-- Clear caches after sorting to ensure fresh detection on next UI update
+	addon.Modules.BagScanner:ClearCache()
+	if addon.Modules.ItemDetection then
+		addon.Modules.ItemDetection:ClearCache()
+	end
+
 	-- Return total moves made
 	return routeCount + consolidateCount + specializedMoves + regularMoves
 end
@@ -1595,6 +1602,12 @@ function SortEngine:SortBank()
      end
  end
 
+	-- Clear caches after sorting to ensure fresh detection on next UI update
+	addon.Modules.BankScanner:ClearCache()
+	if addon.Modules.ItemDetection then
+		addon.Modules.ItemDetection:ClearCache()
+	end
+
 	-- Return total moves made
 	return routeCount + consolidateCount + specializedMoves + regularMoves
 end
@@ -1651,7 +1664,7 @@ function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sort
             -- Sorting is complete!
             addon:DebugSort("%s sort complete! (%d passes, %d total moves)", sortType, passCount, totalMoves)
 
-			-- Final update
+			-- Final update (cache clearing happens after delay)
 			local frame = CreateFrame("Frame")
 			local startTime = GetTime()
 			frame:SetScript("OnUpdate", function()
@@ -1659,6 +1672,15 @@ function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sort
 					frame:SetScript("OnUpdate", nil)
 					SortEngine.sortingInProgress = false
 					SortEngine:UpdateSortButtonState(false)
+					-- Clear caches after sorting to ensure fresh detection
+					if sortType == "bank" then
+						addon.Modules.BankScanner:ClearCache()
+					else
+						addon.Modules.BagScanner:ClearCache()
+					end
+					if addon.Modules.ItemDetection then
+						addon.Modules.ItemDetection:ClearCache()
+					end
 					updateFrame()
 				end
 			end)
@@ -1667,7 +1689,7 @@ function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sort
             addon:DebugSort("%s sort stopped at safety limit! (%d/%d items still need sorting after %d passes)",
                 sortType, currentAnalysis.itemsOutOfPlace, currentAnalysis.totalItems, passCount)
 
-			-- Final update
+			-- Final update (cache clearing happens after delay)
 			local frame = CreateFrame("Frame")
 			local startTime = GetTime()
 			frame:SetScript("OnUpdate", function()
@@ -1675,6 +1697,15 @@ function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sort
 					frame:SetScript("OnUpdate", nil)
 					SortEngine.sortingInProgress = false
 					SortEngine:UpdateSortButtonState(false)
+					-- Clear caches after sorting to ensure fresh detection
+					if sortType == "bank" then
+						addon.Modules.BankScanner:ClearCache()
+					else
+						addon.Modules.BagScanner:ClearCache()
+					end
+					if addon.Modules.ItemDetection then
+						addon.Modules.ItemDetection:ClearCache()
+					end
 					updateFrame()
 				end
 			end)
@@ -1690,7 +1721,7 @@ function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sort
                 addon:DebugSort("%s sort stopped due to no progress after %d passes (items remaining: %d/%d)",
                     sortType, passCount, currentAnalysis.itemsOutOfPlace, currentAnalysis.totalItems)
 
-                -- Final update
+                -- Final update (cache clearing happens after delay)
                 local frame = CreateFrame("Frame")
                 local startTime = GetTime()
                 frame:SetScript("OnUpdate", function()
@@ -1698,6 +1729,15 @@ function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sort
                         frame:SetScript("OnUpdate", nil)
                         SortEngine.sortingInProgress = false
                         SortEngine:UpdateSortButtonState(false)
+                        -- Clear caches after sorting to ensure fresh detection
+                        if sortType == "bank" then
+                            addon.Modules.BankScanner:ClearCache()
+                        else
+                            addon.Modules.BagScanner:ClearCache()
+                        end
+                        if addon.Modules.ItemDetection then
+                            addon.Modules.ItemDetection:ClearCache()
+                        end
                         updateFrame()
                     end
                 end)

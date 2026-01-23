@@ -1630,13 +1630,22 @@ function BankFrame:Initialize()
         if currentViewChar then return end
 
         if event == "PLAYERBANKSLOTS_CHANGED" and arg1 then
-            -- Mark specific slot as dirty in main bank (bagID = -1)
-            addon.Modules.BankScanner:MarkSlotDirty(-1, arg1)
+            -- Invalidate the entire main bank bag to ensure fresh data
+            -- (MarkSlotDirty was causing timing issues with item data)
+            addon.Modules.BankScanner:InvalidateBag(-1)
+            -- Clear ItemDetection cache to ensure fresh detection after item swap
+            if addon.Modules.ItemDetection then
+                addon.Modules.ItemDetection:ClearCache()
+            end
         elseif event == "BAG_UPDATE" and arg1 then
             -- Check if this is a bank bag (5-10)
             if arg1 >= 5 and arg1 <= 10 then
-                -- Invalidate the specific bank bag (we don't know which slot)
+                -- Invalidate the specific bank bag
                 addon.Modules.BankScanner:InvalidateBag(arg1)
+                -- Clear ItemDetection cache to ensure fresh detection after item swap
+                if addon.Modules.ItemDetection then
+                    addon.Modules.ItemDetection:ClearCache()
+                end
             else
                 -- Not a bank bag, ignore for bank frame
                 return
@@ -1645,9 +1654,13 @@ function BankFrame:Initialize()
             -- Bank container slot changed (bag added/removed)
             -- Must clear entire cache since bag structure changed
             addon.Modules.BankScanner:ClearCache()
+            if addon.Modules.ItemDetection then
+                addon.Modules.ItemDetection:ClearCache()
+            end
         end
 
-        ScheduleBankFrameUpdate(0.1)
+        -- Slightly longer delay to ensure WoW API has updated
+        ScheduleBankFrameUpdate(0.15)
     end)
 
 end

@@ -9,8 +9,14 @@ local scanTooltip = CreateFrame("GameTooltip", "Guda_QuestScanTooltip", nil, "Ga
 scanTooltip:SetOwner(WorldFrame, "ANCHOR_NONE")
 
 -- Helper function to check if an item is a quest item
--- Delegates to consolidated Utils:IsQuestItem() function
-local function IsQuestItem(bagID, slotID, isBank)
+-- Uses centralized ItemDetection module
+local function IsQuestItem(bagID, slotID, isBank, itemData)
+    -- Use ItemDetection if available
+    if addon and addon.Modules and addon.Modules.ItemDetection then
+        local props = addon.Modules.ItemDetection:GetItemProperties(itemData, bagID, slotID)
+        return props.isQuestItem, props.isQuestStarter
+    end
+    -- Fallback to Utils
     if addon and addon.Modules and addon.Modules.Utils and addon.Modules.Utils.IsQuestItem then
         return addon.Modules.Utils:IsQuestItem(bagID, slotID, nil, false, isBank)
     end
@@ -363,7 +369,7 @@ function Guda_ItemButton_OnLoad(self)
             if link and addon and addon.Modules and addon.Modules.Utils then
                 local itemID = addon.Modules.Utils:ExtractItemID(link)
                 if itemID then
-                    local isQuest = IsQuestItem(this.bagID, this.slotID, this.isBank)
+                    local isQuest = IsQuestItem(this.bagID, this.slotID, this.isBank, this.itemData)
                     local isUnique = addon.Modules.Utils:IsUniqueItem(this.bagID, this.slotID, link)
 
                     -- Only pin to QuestItemBar if it's a unique quest item
@@ -958,6 +964,33 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
         itemLink = GetContainerItemLink(bagID, slotID)
         itemQuality = quality
         isLocked = locked
+
+        -- Ensure itemData is populated for live items (needed for ItemDetection)
+        if itemLink then
+            local itemName, _, itemRarity, itemLevel, itemMinLevel, itemType, itemSubType, itemStackCount, itemEquipLoc, itemTexture = GetItemInfo(itemLink)
+            if not itemData then
+                -- Create new itemData
+                if itemName then
+                    itemData = {
+                        link = itemLink,
+                        name = itemName,
+                        quality = itemRarity or quality or 0,
+                        class = itemType,
+                        subclass = itemSubType,
+                        texture = itemTexture,
+                        count = 1,
+                    }
+                    self.itemData = itemData
+                end
+            else
+                -- Update existing itemData with missing fields
+                if not itemData.link then itemData.link = itemLink end
+                if itemData.quality == nil then itemData.quality = itemRarity or quality or 0 end
+                if not itemData.class and itemType then itemData.class = itemType end
+                if not itemData.subclass and itemSubType then itemData.subclass = itemSubType end
+                if not itemData.name and itemName then itemData.name = itemName end
+            end
+        end
     elseif itemData then
         -- Use cached metadata from database
         itemQuality = itemData.quality
@@ -1071,7 +1104,7 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
         end
 
 		if not self.otherChar and not self.isReadOnly then
-			local isQuest, isQuestStarter = IsQuestItem(bagID, slotID)
+			local isQuest, isQuestStarter = IsQuestItem(bagID, slotID, self.isBank, itemData)
 			-- Update quest icon with the appropriate texture
 			Guda_ItemButton_UpdateQuestIcon(self, isQuest, isQuestStarter)
 			if self.questBorder then

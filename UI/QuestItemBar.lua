@@ -14,103 +14,35 @@ local questItems = {}
 local flyoutButtons = {}
 local flyoutFrame
 
--- Create a hidden tooltip for scanning
-local scanTooltip
-local function GetScanTooltip()
-    if not scanTooltip then
-        scanTooltip = CreateFrame("GameTooltip", "Guda_QuestBarScanTooltip", nil, "GameTooltipTemplate")
-        scanTooltip:SetOwner(WorldFrame, "ANCHOR_NONE")
-    end
-    return scanTooltip
-end
+--=====================================================
+-- Quest Item Detection (using centralized ItemDetection)
+--=====================================================
 
--- Combined function to check if an item is a quest item AND usable in ONE tooltip scan
--- This avoids the expensive double-scan that was causing lag
+-- Combined function to check if an item is a quest item AND usable
+-- Uses centralized ItemDetection module for consistent detection
 function QuestItemBar:CheckQuestItemUsable(bagID, slotID)
     if not bagID or not slotID then return false, false, false end
 
-    local tooltip = GetScanTooltip()
-    tooltip:ClearLines()
-    tooltip:SetBagItem(bagID, slotID)
-
-    local isQuestItem = false
-    local isQuestStarter = false
-    local isUsable = false
-    local isPermanentEnchant = false  -- Track enchanting scrolls/vellums
-
-    for i = 1, tooltip:NumLines() do
-        local line = getglobal("Guda_QuestBarScanTooltipTextLeft" .. i)
-        if line then
-            local text = line:GetText()
-            if text then
-                local tl = string.lower(text)
-                -- Check for quest item indicators
-                if string.find(text, "Quest Starter") or
-                   string.find(text, "This Item Begins a Quest") or
-                   string.find(text, "Use: Starts a Quest") then
-                    isQuestItem = true
-                    isQuestStarter = true
-                    isUsable = true -- Quest starters are always usable
-                elseif string.find(text, "Quest Item") then
-                    isQuestItem = true
-                end
-                -- Check for usability (case-insensitive)
-                if string.find(tl, "use:") or string.find(tl, "begins a quest") or string.find(tl, "starts a quest") then
-                    isUsable = true
-                end
-                -- Check for permanent enchant items (should NOT be quest items)
-                -- Just check for "permanently" anywhere (green text doesn't have "Use:" prefix)
-                if string.find(tl, "permanently") then
-                    isPermanentEnchant = true
-                end
-            end
-        end
+    -- Get item data for ItemDetection
+    local itemData = nil
+    if addon.Modules.BagScanner then
+        itemData = addon.Modules.BagScanner:ScanSlot(bagID, slotID)
     end
 
-    -- Permanent enchant items are NOT quest items, even if categorized as Quest
-    if isPermanentEnchant then
-        return false, false, false
+    -- Use centralized ItemDetection
+    if addon.Modules.ItemDetection and itemData then
+        local props = addon.Modules.ItemDetection:GetItemProperties(itemData, bagID, slotID)
+        return props.isQuestItem, props.isQuestStarter, props.isQuestUsable
     end
 
-    -- Fallback check for quest category if not detected from tooltip
-    local link = GetContainerItemLink(bagID, slotID)
-    local itemID
-    local itemCategory, itemType
-    
-    if link and addon.Modules.Utils and addon.Modules.Utils.ExtractItemID and addon.Modules.Utils.GetItemInfoSafe then
-        itemID = addon.Modules.Utils:ExtractItemID(link)
-        if itemID then
-            _, _, _, _, itemCategory, itemType = addon.Modules.Utils:GetItemInfoSafe(itemID)
-        end
+    -- Fallback to Utils if ItemDetection not available
+    if addon.Modules.Utils and addon.Modules.Utils.IsQuestItem then
+        local isQuestItem, isQuestStarter = addon.Modules.Utils:IsQuestItem(bagID, slotID, nil, false, false)
+        -- For usability fallback, check if it's a quest item (assume usable)
+        return isQuestItem, isQuestStarter, isQuestItem
     end
 
-    -- If it's a Weapon or Armor, it shouldn't be a QuestItem unless it's specifically categorized as Quest
-    -- This avoids "Use:" equipment showing up in the quest bar
-    if itemCategory == "Weapon" or itemCategory == "Armor" or itemType == "Weapon" or itemType == "Armor" then
-        if itemCategory ~= "Quest" and itemType ~= "Quest" then
-            isQuestItem = false
-            isQuestStarter = false
-        end
-    end
-
-    if not isQuestItem then
-        if itemCategory == "Quest" or itemType == "Quest" then
-            isQuestItem = true
-        end
-    end
-
-    -- Check the QuestItemsDB for known faction-specific quest items
-    if not isQuestItem then
-        if itemID and addon.IsQuestItemByID then
-            local playerFaction = UnitFactionGroup("player")
-            local isDBQuestItem = addon:IsQuestItemByID(itemID, playerFaction)
-            if isDBQuestItem then
-                isQuestItem = true
-            end
-        end
-    end
-
-    return isQuestItem, isQuestStarter, isUsable
+    return false, false, false
 end
 
 -- Scan bags for quest items (optimized: single tooltip scan per item)
