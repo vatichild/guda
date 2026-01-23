@@ -173,9 +173,8 @@ function BankFrame:Update()
         -- Check if we have any displayed items
         local hasDisplayedItems = false
         for _, bankBagParent in pairs(bankBagParents) do
-            if bankBagParent then
-                local children = { bankBagParent:GetChildren() }
-                for _, button in ipairs(children) do
+            if bankBagParent and bankBagParent.itemButtons then
+                for button in pairs(bankBagParent.itemButtons) do
                     if button.hasItem and button:IsShown() then
                         hasDisplayedItems = true
                         break
@@ -194,9 +193,8 @@ function BankFrame:Update()
 
     -- Mark all existing buttons as not in use (we'll mark active ones during display)
     for _, bankBagParent in pairs(bankBagParents) do
-        if bankBagParent then
-            local buttons = { bankBagParent:GetChildren() }
-            for _, button in ipairs(buttons) do
+        if bankBagParent and bankBagParent.itemButtons then
+            for button in pairs(bankBagParent.itemButtons) do
                 if button.hasItem ~= nil then
                     button.inUse = false
                 end
@@ -274,9 +272,8 @@ function BankFrame:Update()
 
     -- Clean up unused buttons AFTER display is complete (prevents drag/drop issues)
     for _, bankBagParent in pairs(bankBagParents) do
-        if bankBagParent then
-            local buttons = { bankBagParent:GetChildren() }
-            for _, button in ipairs(buttons) do
+        if bankBagParent and bankBagParent.itemButtons then
+            for button in pairs(bankBagParent.itemButtons) do
                 if button.hasItem ~= nil and not button.inUse then
                     button:Hide()
                     button:ClearAllPoints()

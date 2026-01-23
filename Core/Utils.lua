@@ -482,20 +482,23 @@ function Utils:DeepCopy(orig)
     return copy
 end
 
--- Get class color
+-- Class colors (cached at module level to avoid table creation per call)
+local CLASS_COLORS = {
+    WARRIOR = {r = 0.78, g = 0.61, b = 0.43},
+    PALADIN = {r = 0.96, g = 0.55, b = 0.73},
+    HUNTER = {r = 0.67, g = 0.83, b = 0.45},
+    ROGUE = {r = 1.00, g = 0.96, b = 0.41},
+    PRIEST = {r = 1.00, g = 1.00, b = 1.00},
+    SHAMAN = {r = 0.00, g = 0.44, b = 0.87},
+    MAGE = {r = 0.41, g = 0.80, b = 0.94},
+    WARLOCK = {r = 0.58, g = 0.51, b = 0.79},
+    DRUID = {r = 1.00, g = 0.49, b = 0.04},
+    _default = {r = 0.5, g = 0.5, b = 0.5},
+}
+
+-- Get class color (uses cached table)
 function Utils:GetClassColor(class)
-    local colors = {
-        WARRIOR = {r = 0.78, g = 0.61, b = 0.43},
-        PALADIN = {r = 0.96, g = 0.55, b = 0.73},
-        HUNTER = {r = 0.67, g = 0.83, b = 0.45},
-        ROGUE = {r = 1.00, g = 0.96, b = 0.41},
-        PRIEST = {r = 1.00, g = 1.00, b = 1.00},
-        SHAMAN = {r = 0.00, g = 0.44, b = 0.87},
-        MAGE = {r = 0.41, g = 0.80, b = 0.94},
-        WARLOCK = {r = 0.58, g = 0.51, b = 0.79},
-        DRUID = {r = 1.00, g = 0.49, b = 0.04},
-    }
-    return colors[class] or {r = 0.5, g = 0.5, b = 0.5}
+    return CLASS_COLORS[class] or CLASS_COLORS._default
 end
 
 -- Format time ago
@@ -536,51 +539,64 @@ local function IsGreenColor(r, g, b)
     return r < 0.4 and g > 0.7 and b < 0.4
 end
 
--- Patterns that indicate an item has special functionality (not junk)
-local SPECIAL_TEXT_PATTERNS = {
-    -- Use effects
-    "use:",
-    "use :",
-    -- Equip effects
-    "equip:",
-    "equip :",
-    -- Proc effects
-    "chance on hit:",
-    "chance on hit :",
-    "chance to",
-    "chance on",
-    -- Stat effects
-    "increases",
-    "improves",
-    "restores",
-    "regenerate",
-    "generates",
-    "absorbs",
-    "reduces",
-    "grants",
-    "gives",
-    -- Learning
-    "teaches",
-    "learn",
-    -- Special actions
-    "creates",
-    "summons",
-    "teleports",
-    "opens",
-    "activates",
-    -- Resistance/stats
-    "resistance",
-    "armor",
-    "damage",
-    "healing",
-    "mana",
-    "health",
-    "spirit",
-    "intellect",
-    "stamina",
-    "strength",
-    "agility",
+-- Fast pattern lookup table for special text detection (Lua 5.0 optimized)
+-- Uses prefix-based lookup to avoid iterating all patterns
+local SPECIAL_TEXT_PREFIXES = {
+    ["use"] = true,      -- use:, use :
+    ["equ"] = true,      -- equip:, equip :
+    ["cha"] = true,      -- chance on hit, chance to
+    ["inc"] = true,      -- increases
+    ["imp"] = true,      -- improves
+    ["res"] = true,      -- restores, resistance
+    ["reg"] = true,      -- regenerate
+    ["gen"] = true,      -- generates
+    ["abs"] = true,      -- absorbs
+    ["red"] = true,      -- reduces
+    ["gra"] = true,      -- grants
+    ["giv"] = true,      -- gives
+    ["tea"] = true,      -- teaches
+    ["lea"] = true,      -- learn
+    ["cre"] = true,      -- creates
+    ["sum"] = true,      -- summons
+    ["tel"] = true,      -- teleports
+    ["ope"] = true,      -- opens
+    ["act"] = true,      -- activates
+    ["arm"] = true,      -- armor
+    ["dam"] = true,      -- damage
+    ["hea"] = true,      -- healing, health
+    ["man"] = true,      -- mana
+    ["spi"] = true,      -- spirit
+    ["int"] = true,      -- intellect
+    ["sta"] = true,      -- stamina
+    ["str"] = true,      -- strength
+    ["agi"] = true,      -- agility
 }
+
+-- Full patterns for validation after prefix match (only checked if prefix matches)
+local SPECIAL_TEXT_PATTERNS = {
+    "use:", "equip:", "chance on", "chance to",
+    "increases", "improves", "restores", "regenerate", "generates",
+    "absorbs", "reduces", "grants", "gives", "teaches", "learn",
+    "creates", "summons", "teleports", "opens", "activates",
+    "resistance", "armor", "damage", "healing", "mana", "health",
+    "spirit", "intellect", "stamina", "strength", "agility",
+}
+
+-- Fast check if text contains special patterns (uses prefix lookup first)
+local function HasSpecialTextPattern(textLower)
+    -- Quick prefix check (3 chars) to avoid full pattern scan
+    local prefix = string.sub(textLower, 1, 3)
+    if not SPECIAL_TEXT_PREFIXES[prefix] then
+        return false
+    end
+    -- Prefix matched - do full pattern check
+    for _, pattern in ipairs(SPECIAL_TEXT_PATTERNS) do
+        if string.find(textLower, pattern) then
+            return true
+        end
+    end
+    return false
+end
 
 -- Check if an item's tooltip contains yellow or green description text
 -- This indicates the item has a use effect, equip effect, or special property
@@ -644,16 +660,14 @@ function Utils:HasSpecialTooltipText(bagID, slotID, itemLink)
 
                 -- Check for yellow/gold text (Use:, Equip:, Chance on hit:, etc.)
                 if IsYellowColor(r, g, b) then
-                    -- Check if it matches any special text pattern
-                    for _, pattern in ipairs(SPECIAL_TEXT_PATTERNS) do
-                        if string.find(textLower, pattern) then
-                            addon:Debug("HasSpecialTooltipText: YELLOW match '%s' in: %s", pattern, text)
-                            -- Cache positive result
-                            if cacheKey then
-                                tooltipCache.specialText[cacheKey] = { hasSpecial = true, textType = "yellow" }
-                            end
-                            return true, "yellow"
+                    -- Use optimized prefix-based pattern check
+                    if HasSpecialTextPattern(textLower) then
+                        addon:Debug("HasSpecialTooltipText: YELLOW match in: %s", text)
+                        -- Cache positive result
+                        if cacheKey then
+                            tooltipCache.specialText[cacheKey] = { hasSpecial = true, textType = "yellow" }
                         end
+                        return true, "yellow"
                     end
                 end
 

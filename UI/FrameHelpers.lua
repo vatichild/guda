@@ -135,44 +135,77 @@ function Guda_CategorizeItem(itemData, bagID, slotID, categories, specialItems, 
     table.insert(categories[cat], {bagID = bagID, slotID = slotID, itemData = itemData})
 end
 
--- Initialize empty category tables
+--=====================================================
+-- Category Table Pooling (memory optimization)
+-- Reuses category tables instead of creating new ones
+--=====================================================
+local categoriesCache = nil
+local specialItemsCache = nil
+
+-- Clear a table without creating a new one (Lua 5.0 compatible)
+local function WipeTable(t)
+    if not t then return end
+    for k in pairs(t) do
+        t[k] = nil
+    end
+end
+
+-- Initialize empty category tables (reuses cached tables)
 function Guda_InitCategories()
     -- Refresh category list from CategoryManager (enabled categories only for display)
     Guda_RefreshCategoryList()
 
-    -- Create tables for ALL categories (not just enabled) so items can be categorized
-    -- Items in disabled categories simply won't be displayed
-    local categories = {}
+    -- Reuse or create categories table
+    if not categoriesCache then
+        categoriesCache = {}
+    end
+
+    -- Clear existing category arrays (don't recreate the main table)
+    for cat, items in pairs(categoriesCache) do
+        WipeTable(items)
+    end
 
     if addon.Modules.CategoryManager then
         -- Get full category order (all categories, not just enabled)
         local allCategories = addon.Modules.CategoryManager:GetCategoryOrder()
         for _, cat in ipairs(allCategories) do
-            categories[cat] = {}
+            if not categoriesCache[cat] then
+                categoriesCache[cat] = {}
+            end
         end
     else
         -- Fallback: use the display list
         for _, cat in ipairs(Guda_CategoryList) do
-            categories[cat] = {}
+            if not categoriesCache[cat] then
+                categoriesCache[cat] = {}
+            end
         end
     end
 
     -- Always ensure Miscellaneous exists as fallback
-    if not categories["Miscellaneous"] then
-        categories["Miscellaneous"] = {}
+    if not categoriesCache["Miscellaneous"] then
+        categoriesCache["Miscellaneous"] = {}
     end
 
     -- Always ensure Keyring exists (handled specially in BagFrame)
-    if not categories["Keyring"] then
-        categories["Keyring"] = {}
+    if not categoriesCache["Keyring"] then
+        categoriesCache["Keyring"] = {}
     end
 
-    local specialItems = {
-        Hearthstone = {},
-        Mount = {},
-        Tools = {}
-    }
-    return categories, specialItems
+    -- Reuse or create specialItems table
+    if not specialItemsCache then
+        specialItemsCache = {
+            Hearthstone = {},
+            Mount = {},
+            Tools = {}
+        }
+    else
+        WipeTable(specialItemsCache.Hearthstone)
+        WipeTable(specialItemsCache.Mount)
+        WipeTable(specialItemsCache.Tools)
+    end
+
+    return categoriesCache, specialItemsCache
 end
 
 -- Sort items within a category
@@ -254,17 +287,26 @@ function Guda_GetBagParent(framePrefix, parentsTable, bagID, containerName)
         if parentsTable[bagID].SetID then
             parentsTable[bagID]:SetID(bagID)
         end
+        -- Track item buttons to avoid GetChildren() table allocation
+        parentsTable[bagID].itemButtons = {}
     end
     return parentsTable[bagID]
 end
 
+-- Register an item button with its parent for tracking
+function Guda_RegisterItemButton(parent, button)
+    if parent and parent.itemButtons and button then
+        parent.itemButtons[button] = true
+    end
+end
+
 -- Update lock/desaturation states for a table of parent frames
+-- Uses itemButtons tracking to avoid GetChildren() table allocation
 function Guda_UpdateLockStates(parentsTable)
     if not parentsTable then return end
     for _, parent in pairs(parentsTable) do
-        if parent then
-            local buttons = { parent:GetChildren() }
-            for _, button in ipairs(buttons) do
+        if parent and parent.itemButtons then
+            for button in pairs(parent.itemButtons) do
                 if button.hasItem ~= nil and button:IsShown() and button.bagID and button.slotID then
                     -- GetContainerItemInfo returns: texture, itemCount, locked, quality, readable
                     -- The 3rd return value is the lock state (boolean or nil)

@@ -23,37 +23,45 @@ local function IsQuestItem(bagID, slotID, isBank, itemData)
 end
 
 --=====================================================
--- Junk Icon Helper Functions (reusable for all views)
--- Shows a vendor sell icon on junk items
+-- Junk Icon Pool (Baganator-inspired memory optimization)
+-- Uses frame pooling to avoid creating new frames per button
 --=====================================================
+local junkIconPool = {}
 
--- Create junk icon for a button (parented to UIParent for full opacity)
-local function CreateJunkIcon(button)
-    if button.junkIcon then return button.junkIcon end
+-- Get a junk icon from pool or create new one
+local function AcquireJunkIcon()
+    local icon = table.remove(junkIconPool)
+    if not icon then
+        icon = CreateFrame("Frame", nil, UIParent)
+        icon:SetFrameStrata("HIGH")
+        icon:SetWidth(14)
+        icon:SetHeight(14)
 
-    local junkFrame = CreateFrame("Frame", nil, UIParent)
-    junkFrame:SetFrameStrata("HIGH")
-    junkFrame:SetWidth(14)
-    junkFrame:SetHeight(14)
-
-    local texture = junkFrame:CreateTexture(nil, "OVERLAY")
-    texture:SetAllPoints(junkFrame)
-    texture:SetTexture("Interface\\GossipFrame\\VendorGossipIcon")
-    texture:SetTexCoord(0, 1, 0, 1)
-
-    junkFrame:Hide()
-    button.junkIcon = junkFrame
-    return junkFrame
+        local texture = icon:CreateTexture(nil, "OVERLAY")
+        texture:SetAllPoints(icon)
+        texture:SetTexture("Interface\\GossipFrame\\VendorGossipIcon")
+        texture:SetTexCoord(0, 1, 0, 1)
+        icon.texture = texture
+    end
+    return icon
 end
 
--- Update junk icon visibility and position
-local function UpdateJunkIcon(button, isJunk, iconSize)
-    -- Create icon if it doesn't exist
-    if not button.junkIcon then
-        CreateJunkIcon(button)
+-- Release a junk icon back to the pool
+local function ReleaseJunkIcon(icon)
+    if icon then
+        icon:Hide()
+        icon:ClearAllPoints()
+        table.insert(junkIconPool, icon)
     end
+end
 
+-- Update junk icon visibility and position (uses pooling)
+local function UpdateJunkIcon(button, isJunk, iconSize)
     if isJunk then
+        -- Acquire from pool if needed
+        if not button.junkIcon then
+            button.junkIcon = AcquireJunkIcon()
+        end
         -- Scale icon size based on button size
         local junkIconSize = math.max(10, math.min(14, iconSize * 0.30))
         button.junkIcon:SetWidth(junkIconSize)
@@ -63,14 +71,19 @@ local function UpdateJunkIcon(button, isJunk, iconSize)
         button.junkIcon:SetAlpha(1.0)
         button.junkIcon:Show()
     else
-        button.junkIcon:Hide()
+        -- Release back to pool when not needed
+        if button.junkIcon then
+            ReleaseJunkIcon(button.junkIcon)
+            button.junkIcon = nil
+        end
     end
 end
 
--- Hide junk icon (for cleanup/reset)
+-- Hide junk icon (releases to pool)
 local function HideJunkIcon(button)
     if button.junkIcon then
-        button.junkIcon:Hide()
+        ReleaseJunkIcon(button.junkIcon)
+        button.junkIcon = nil
     end
 end
 
@@ -250,6 +263,11 @@ function Guda_GetItemButton(parent)
     local button = CreateFrame("Button", "Guda_ItemButton" .. nextButtonID, parent, "Guda_ItemButtonTemplate")
     buttonPool[nextButtonID] = button
     nextButtonID = nextButtonID + 1
+
+    -- Register button with parent for tracking (avoids GetChildren() allocation)
+    if Guda_RegisterItemButton then
+        Guda_RegisterItemButton(parent, button)
+    end
 
     return button
 end

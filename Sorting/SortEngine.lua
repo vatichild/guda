@@ -12,6 +12,10 @@ SortEngine.sortingInProgress = false
 -- Performance: Max items to move per cycle
 -- Baganator uses 5 for manual transfers, but sorting needs more for smooth operation
 local MAX_MOVES_PER_CYCLE = 20
+local MAX_BANK_MOVES_PER_CYCLE = 30  -- Bank has 50% more slots, needs more moves per cycle
+
+-- Current sort context (set by ExecuteSort, used by ApplySort)
+local currentSortType = "bags"
 
 -- Transfer status constants (like Baganator's SortStatus)
 local TransferStatus = {
@@ -131,10 +135,22 @@ local GEM_PATTERNS = {
 --===========================================================================
 
 -- Property cache to prevent race conditions during rapid moves
+-- With size limits to prevent unbounded memory growth (Baganator pattern)
 local propertyCache = {}
+local propertyCacheSize = 0
+local PROPERTY_CACHE_MAX = 500  -- Prevent memory leaks from unbounded cache
 
 function SortEngine:ClearCache()
 	propertyCache = {}
+	propertyCacheSize = 0
+end
+
+-- Get cache statistics for performance monitoring
+function SortEngine:GetCacheStats()
+	return {
+		size = propertyCacheSize,
+		maxSize = PROPERTY_CACHE_MAX,
+	}
 end
 
 local function GetItemProperties(bagID, slotID, itemLink)
@@ -146,6 +162,12 @@ local function GetItemProperties(bagID, slotID, itemLink)
 
 	if propertyCache[cacheKey] then
 		return propertyCache[cacheKey]
+	end
+
+	-- Evict cache if it exceeds max size to prevent memory leaks
+	if propertyCacheSize >= PROPERTY_CACHE_MAX then
+		propertyCache = {}
+		propertyCacheSize = 0
 	end
 
 	local props = {
@@ -231,6 +253,7 @@ local function GetItemProperties(bagID, slotID, itemLink)
 	end
 
 	propertyCache[cacheKey] = props
+	propertyCacheSize = propertyCacheSize + 1
 	return props
 end
 
@@ -990,12 +1013,15 @@ local function BuildTargetPositions(bagIDs, itemCount)
 		})
 	end
 
-	table.sort(sortedBags, function(a, b)
-		if a.priority ~= b.priority then
-			return a.priority > b.priority
-		end
-		return a.bagID < b.bagID
-	end)
+	-- Only sort if we have more than one element
+	if table.getn(sortedBags) > 1 then
+		table.sort(sortedBags, function(a, b)
+			if a.priority ~= b.priority then
+				return a.priority > b.priority
+			end
+			return a.bagID < b.bagID
+		end)
+	end
 
 	-- Build positions in priority order
 	for _, bagInfo in ipairs(sortedBags) do
@@ -1034,6 +1060,9 @@ local function ApplySort(bagIDs, items, targetPositions)
 	local moveToEmpty = {}
 	local swapOccupied = {}
 
+	-- Use bank-specific move limit (bank has 50% more slots)
+	local maxMoves = (currentSortType == "bank") and MAX_BANK_MOVES_PER_CYCLE or MAX_MOVES_PER_CYCLE
+
 	-- Build move queues
 	for i, item in ipairs(items) do
 		local target = targetPositions[i]
@@ -1071,7 +1100,7 @@ local function ApplySort(bagIDs, items, targetPositions)
 
 	for _, move in ipairs(moveToEmpty) do
 		-- Limit moves per cycle to prevent slot locking (like Baganator)
-		if moveCount >= MAX_MOVES_PER_CYCLE then
+		if moveCount >= maxMoves then
 			break
 		end
 
@@ -1089,7 +1118,7 @@ local function ApplySort(bagIDs, items, targetPositions)
 	-- Execute swaps with occupied slots (if we haven't hit the limit)
 	for _, move in ipairs(swapOccupied) do
 		-- Limit moves per cycle
-		if moveCount >= MAX_MOVES_PER_CYCLE then
+		if moveCount >= maxMoves then
 			break
 		end
 
@@ -1137,12 +1166,15 @@ local function BuildGreyTailPositions(bagIDs, greyCount)
 		end
 	end
 
-	table.sort(ordered, function(a, b)
-		if a.priority ~= b.priority then
-			return a.priority < b.priority -- lowest first
-		end
-		return a.bagID > b.bagID -- higher bagID later (treated as further to the right)
-	end)
+	-- Only sort if we have more than one element
+	if table.getn(ordered) > 1 then
+		table.sort(ordered, function(a, b)
+			if a.priority ~= b.priority then
+				return a.priority < b.priority -- lowest first
+			end
+			return a.bagID > b.bagID -- higher bagID later (treated as further to the right)
+		end)
+	end
 
 	-- Collect tail slots from end to start, spilling to previous bags as needed.
 	local tailSlots = {}
@@ -1160,17 +1192,19 @@ local function BuildGreyTailPositions(bagIDs, greyCount)
 	-- STABILITY FIX: Sort the collected tail slots to match the ascending scan order.
 	-- This ensures that identical items don't swap places every pass.
 	-- Ascending order: Priority DESC, BagID ASC, Slot ASC (matching BuildTargetPositions)
-	table.sort(tailSlots, function(a, b)
-		local aPrio = tonumber(addon.Modules.Utils:GetContainerPriority(a.bag)) or 0
-		local bPrio = tonumber(addon.Modules.Utils:GetContainerPriority(b.bag)) or 0
-		if aPrio ~= bPrio then
-			return aPrio > bPrio
-		end
-		if a.bag ~= b.bag then
-			return a.bag < b.bag
-		end
-		return a.slot < b.slot
-	end)
+	if table.getn(tailSlots) > 1 then
+		table.sort(tailSlots, function(a, b)
+			local aPrio = tonumber(addon.Modules.Utils:GetContainerPriority(a.bag)) or 0
+			local bPrio = tonumber(addon.Modules.Utils:GetContainerPriority(b.bag)) or 0
+			if aPrio ~= bPrio then
+				return aPrio > bPrio
+			end
+			if a.bag ~= b.bag then
+				return a.bag < b.bag
+			end
+			return a.slot < b.slot
+		end)
+	end
 
 	return tailSlots
 end
@@ -1622,6 +1656,9 @@ function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sort
 		return false, "sorting in progress"
 	end
 
+	-- Set current sort context so ApplySort uses correct move limits
+	currentSortType = sortType or "bags"
+
 	-- Clear property cache at the start of a sort operation
 	self:ClearCache()
 
@@ -1630,6 +1667,7 @@ function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sort
 
 	-- Check if already sorted
 	if analysis.alreadySorted then
+		currentSortType = "bags"  -- Reset to default
 		return false, "already sorted"
 	end
 
@@ -1643,7 +1681,8 @@ function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sort
 
  local passCount = 0
  local maxPasses = math.max(analysis.passes, 1)  -- Use estimated passes, minimum 1
- local safetyLimit = math.max(maxPasses * 3, 10)  -- Reasonable upper bound
+ -- Bank has 50% more slots (240 vs 160), so needs higher safety limit
+ local safetyLimit = (sortType == "bank") and math.max(maxPasses * 4, 15) or math.max(maxPasses * 3, 10)
  local totalMoves = 0
  local noProgressPasses = 0
 
@@ -1671,6 +1710,7 @@ function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sort
 					frame:SetScript("OnUpdate", nil)
 					SortEngine.sortingInProgress = false
 					SortEngine:UpdateSortButtonState(false)
+					currentSortType = "bags"  -- Reset sort context
 					-- Clear caches after sorting to ensure fresh detection
 					if sortType == "bank" then
 						addon.Modules.BankScanner:ClearCache()
@@ -1696,6 +1736,7 @@ function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sort
 					frame:SetScript("OnUpdate", nil)
 					SortEngine.sortingInProgress = false
 					SortEngine:UpdateSortButtonState(false)
+					currentSortType = "bags"  -- Reset sort context
 					-- Clear caches after sorting to ensure fresh detection
 					if sortType == "bank" then
 						addon.Modules.BankScanner:ClearCache()
@@ -1728,6 +1769,7 @@ function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sort
                         frame:SetScript("OnUpdate", nil)
                         SortEngine.sortingInProgress = false
                         SortEngine:UpdateSortButtonState(false)
+                        currentSortType = "bags"  -- Reset sort context
                         -- Clear caches after sorting to ensure fresh detection
                         if sortType == "bank" then
                             addon.Modules.BankScanner:ClearCache()

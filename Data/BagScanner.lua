@@ -14,8 +14,55 @@ local cacheValid = false
 local eventPending = false
 local dirtySlots = {}  -- Track specific slots that changed: dirtySlots[bagID][slotID] = true
 
--- Clear the bag cache
+--=====================================================
+-- Item Data Pool (Baganator-inspired memory optimization)
+-- Reuses item data tables instead of creating new ones
+--=====================================================
+local itemDataPool = {}
+local ITEM_DATA_POOL_MAX = 200  -- Limit pool size to prevent unbounded growth
+
+-- Acquire item data table from pool
+local function AcquireItemData()
+    return table.remove(itemDataPool) or {}
+end
+
+-- Release item data table back to pool
+local function ReleaseItemData(data)
+    if data and table.getn(itemDataPool) < ITEM_DATA_POOL_MAX then
+        -- Clear all fields for reuse
+        data.link = nil
+        data.texture = nil
+        data.count = nil
+        data.quality = nil
+        data.name = nil
+        data.iLevel = nil
+        data.type = nil
+        data.class = nil
+        data.subclass = nil
+        data.equipSlot = nil
+        data.locked = nil
+        table.insert(itemDataPool, data)
+    end
+end
+
+-- Release all item data in a bag cache entry
+local function ReleaseBagCacheData(bagData)
+    if bagData and bagData.slots then
+        for slotID, itemData in pairs(bagData.slots) do
+            if itemData then
+                ReleaseItemData(itemData)
+            end
+        end
+    end
+end
+
+-- Clear the bag cache (releases pooled data)
 function BagScanner:ClearCache()
+    if bagCache then
+        for bagID, bagData in pairs(bagCache) do
+            ReleaseBagCacheData(bagData)
+        end
+    end
     bagCache = nil
     cacheValid = false
     dirtySlots = {}
@@ -142,7 +189,7 @@ function BagScanner:ScanBag(bagID)
     return bag
 end
 
--- Scan a single slot
+-- Scan a single slot (uses item data pooling)
 function BagScanner:ScanSlot(bagID, slot)
     -- Validate parameters to prevent API errors
     if bagID == nil or slot == nil or slot < 1 then
@@ -164,19 +211,20 @@ function BagScanner:ScanSlot(bagID, slot)
         name, link, itemQuality, iLevel, itemCategory, itemType, itemStackCount, itemSubType, itemTexture, itemEquipLoc, itemSellPrice = addon.Modules.Utils:GetItemInfo(itemLink)
     end
 
-    return {
-        link = itemLink,
-        texture = texture,
-        count = itemCount or 1,
-        quality = quality or itemQuality or 0,
-        name = name,
-        iLevel = iLevel,
-        type = itemType,
-        class = itemCategory,
-        subclass = itemSubType,
-        equipSlot = itemEquipLoc,
-        locked = locked,
-    }
+    -- Use pooled item data table instead of creating new one
+    local itemData = AcquireItemData()
+    itemData.link = itemLink
+    itemData.texture = texture
+    itemData.count = itemCount or 1
+    itemData.quality = quality or itemQuality or 0
+    itemData.name = name
+    itemData.iLevel = iLevel
+    itemData.type = itemType
+    itemData.class = itemCategory
+    itemData.subclass = itemSubType
+    itemData.equipSlot = itemEquipLoc
+    itemData.locked = locked
+    return itemData
 end
 
 -- Save current bags to database
