@@ -274,6 +274,33 @@ local function GetQualityFromLink(link)
 	return 1
 end
 
+-- Check if an item is a profession tool (should NOT be treated as junk)
+local function IsProfessionTool(itemLink, itemSubclass)
+    -- Check by item ID
+    if itemLink then
+        local itemID = GetItemID(itemLink)
+        if itemID and addon.Constants.PROFESSION_TOOL_IDS and addon.Constants.PROFESSION_TOOL_IDS[itemID] then
+            return true
+        end
+    end
+
+    -- Check by subtype (e.g., Fishing Pole)
+    if itemSubclass and addon.Constants.PROFESSION_TOOL_SUBTYPES and addon.Constants.PROFESSION_TOOL_SUBTYPES[itemSubclass] then
+        return true
+    end
+
+    return false
+end
+
+-- Check if an item has special tooltip text (Use:, Equip:, green text)
+-- These items should NOT be treated as junk
+local function HasSpecialTooltipText(bagID, slotID, itemLink)
+    if addon.Modules.Utils and addon.Modules.Utils.HasSpecialTooltipText then
+        return addon.Modules.Utils:HasSpecialTooltipText(bagID, slotID, itemLink)
+    end
+    return false
+end
+
 -- Extract texture pattern for grouping similar items
 local function GetTexturePattern(textureName)
 	if not textureName then return "" end
@@ -551,7 +578,6 @@ local function AddSortKeys(items)
 			local itemType = d.type
 			local itemSubType = d.subclass
 			local itemTexture = d.texture
-			local itemEquipLoc = d.equipLoc
 			local itemStackSize = d.stackSize or 1
 
 			item.itemName = itemName or ""
@@ -594,8 +620,46 @@ local function AddSortKeys(items)
 				-- 1. Gray items (quality 0)
 				-- 2. Items with gray tooltip
 				-- 3. White equippable items (quality 1 Weapon/Armor) - vendor trash
+				-- EXCLUDES from junk:
+				--   - Trinkets, Rings, Necklaces (these typically have special effects)
+				--   - Profession tools (skinning knife, mining pick, fishing poles, etc.)
+				--   - Items with yellow description text (Use:, Equip:, Chance on hit: effects)
+				--   - Items with green description text (set bonuses, special properties)
 				local isGrayItem = itemRarity == 0 or IsItemGrayTooltip(item.bagID, item.slot, item.data.link)
-				local isWhiteEquip = (itemRarity == 1) and (itemCategory == "Weapon" or itemCategory == "Armor")
+				local isWhiteEquip = false
+
+				if itemRarity == 1 and (itemCategory == "Weapon" or itemCategory == "Armor") then
+					-- In Turtle WoW, equip slot info is in itemSubType, not itemEquipLoc
+					addon:Debug("SortEngine isJunk: name='%s', subclass='%s', class='%s'",
+						tostring(itemName), tostring(itemSubType), tostring(itemCategory))
+
+					-- EXCLUDE: Trinkets, Rings, Necklaces, Tabards, Shirts - these typically have special effects or are cosmetic
+					-- Check by itemSubType which contains INVTYPE_* values in Turtle WoW
+					local isSpecialSlot = (itemSubType == "INVTYPE_TRINKET" or
+					                       itemSubType == "INVTYPE_FINGER" or
+					                       itemSubType == "INVTYPE_NECK" or
+					                       itemSubType == "INVTYPE_TABARD" or
+					                       itemSubType == "INVTYPE_BODY")
+
+					if isSpecialSlot then
+						addon:Debug("SortEngine: EXCLUDED (special slot) - %s (subclass=%s)", tostring(itemName), tostring(itemSubType))
+					end
+
+					if not isSpecialSlot then
+						-- Check exclusions for white equippable items
+						local isProfTool = IsProfessionTool(item.data.link, itemSubType)
+						local hasSpecialText = false
+
+						if not isProfTool then
+							hasSpecialText = HasSpecialTooltipText(item.bagID, item.slot, item.data.link)
+						end
+
+						-- Only mark as junk if NOT a profession tool AND NOT has special text
+						if not isProfTool and not hasSpecialText then
+							isWhiteEquip = true
+						end
+					end
+				end
 
 				if isGrayItem or isWhiteEquip then
 					item.sortedClass = CATEGORY_ORDER["Junk"] or 99
@@ -1051,6 +1115,11 @@ end
 
 -- Split a list of collected items into non-junk and junk items
 -- Junk includes: gray items (quality 0), gray tooltip items, white equippable items (quality 1 Weapon/Armor)
+-- EXCLUDES from junk:
+--   1. Trinkets, Rings, Necklaces (these typically have special effects)
+--   2. Profession tools (skinning knife, mining pick, fishing poles, etc.)
+--   3. Items with yellow description text (Use:, Equip:, Chance on hit: effects)
+--   4. Items with green description text (set bonuses, special properties)
 local function SplitGreyItems(items)
     local nonGreys, greys = {}, {}
     for _, item in ipairs(items) do
@@ -1059,7 +1128,42 @@ local function SplitGreyItems(items)
         local isGray = quality == 0 or IsItemGrayTooltip(item.bagID, item.slot, item.data.link)
         -- White equippable items (Weapon/Armor) are also treated as junk
         local itemClass = item.class or ""
-        local isWhiteEquip = (quality == 1) and (itemClass == "Weapon" or itemClass == "Armor")
+        local itemSubclass = item.data and item.data.subclass or ""
+        local itemLink = item.data and item.data.link
+        local isWhiteEquip = false
+
+        if quality == 1 and (itemClass == "Weapon" or itemClass == "Armor") then
+            -- In Turtle WoW, equip slot info is in itemSubType (stored as subclass), not equipLoc
+            addon:Debug("SplitGreyItems isJunk: name='%s', subclass='%s', class='%s'",
+                tostring(item.data and item.data.name), tostring(itemSubclass), tostring(itemClass))
+
+            -- EXCLUDE: Trinkets, Rings, Necklaces, Tabards, Shirts - these typically have special effects or are cosmetic
+            -- Check by subclass which contains INVTYPE_* values in Turtle WoW
+            local isSpecialSlot = (itemSubclass == "INVTYPE_TRINKET" or
+                                   itemSubclass == "INVTYPE_FINGER" or
+                                   itemSubclass == "INVTYPE_NECK" or
+                                   itemSubclass == "INVTYPE_TABARD" or
+                                   itemSubclass == "INVTYPE_BODY")
+
+            if isSpecialSlot then
+                addon:Debug("SplitGreyItems: EXCLUDED (special slot) - %s (subclass='%s')", tostring(item.data and item.data.name), tostring(itemSubclass))
+            end
+
+            if not isSpecialSlot then
+                -- Check exclusions for white equippable items
+                local isProfTool = IsProfessionTool(itemLink, itemSubclass)
+                local hasSpecialText = false
+
+                if not isProfTool then
+                    hasSpecialText = HasSpecialTooltipText(item.bagID, item.slot, itemLink)
+                end
+
+                -- Only mark as junk if NOT a profession tool AND NOT has special text
+                if not isProfTool and not hasSpecialText then
+                    isWhiteEquip = true
+                end
+            end
+        end
 
         if isGray or isWhiteEquip then
             table.insert(greys, item)

@@ -145,6 +145,16 @@ function Main:SetupSlashCommands()
                 end
             end
 
+        elseif msg == "settings" or msg == "options" or msg == "config" then
+            -- Open settings window
+            if Guda_OpenSettings then
+                Guda_OpenSettings()
+            elseif addon.Modules.SettingsPopup and addon.Modules.SettingsPopup.Toggle then
+                addon.Modules.SettingsPopup:Toggle()
+            else
+                addon:Print("Settings window not available")
+            end
+
         elseif msg == "cleanup" then
             -- Cleanup old characters
             addon.Modules.DB:CleanupOldCharacters()
@@ -170,6 +180,7 @@ function Main:SetupSlashCommands()
             addon:Print("/guda - Toggle bags")
             addon:Print("/guda bank - Toggle bank")
             addon:Print("/guda mail - Toggle mailbox")
+            addon:Print("/guda settings - Open settings")
             addon:Print("/guda sort - Sort bags")
             addon:Print("/guda sortbank - Sort bank")
             addon:Print("/guda track - Toggle item tracking")

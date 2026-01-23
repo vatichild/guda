@@ -1270,10 +1270,7 @@ function Guda_ItemButton_OnEnter(self)
 
 	GameTooltip:Show()
 
-    -- TESTING: Print item info to console for debugging
-    --local name, link, itemQuality, iLevel, itemCategory, itemType, itemStackCount, itemSubType, itemTexture, itemEquipLoc, itemSellPrice = addon.Modules.Utils:GetItemInfo(self.itemData.link)
-	--addon:Print("name:" .. tostring(name) .. " link:" .. tostring(link) .. " quality:" .. tostring(itemQuality) .. " iLevel:" .. tostring(iLevel) .. " category:" .. tostring(itemCategory) .. " type:" .. tostring(itemType) .. " subType:" .. tostring(itemSubType) .. " stackCount:" .. tostring(itemStackCount) .. " equipLoc:" .. tostring(itemEquipLoc) .. " sellPrice:" .. tostring(itemSellPrice))
-
+    -- Debug: Print item info including equipSlot when debug mode is enabled
     -- Handle merchant sell cursor (same approach as BagShui)
 	if MerchantFrame:IsShown() and not self.isBank and not self.otherChar and self.hasItem then
 		ShowContainerSellCursor(self.bagID, self.slotID)

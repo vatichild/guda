@@ -37,20 +37,48 @@ C.HEARTHSTONE_ID = 6948
 -- Profession tool item IDs that should NOT be marked as junk
 -- even though they are white quality equippable items
 C.PROFESSION_TOOL_IDS = {
+    -- Skinning
     [7005] = true,   -- Skinning Knife
     [7812] = true,   -- Simple Skinning Knife
+    [12709] = true,  -- Finkle's Skinner
+    [19901] = true,  -- Zulian Slicer
+
+    -- Mining
     [2901] = true,   -- Mining Pick
+    [778] = true,    -- Kobold Mining Shovel
+    [1959] = true,   -- Cold Iron Pick
+    [9465] = true,   -- Digmaster 5000
+
+    -- Blacksmithing
     [5956] = true,   -- Blacksmith Hammer
-    [6219] = true,   -- Arclight Spanner (Engineering)
-    [10498] = true,  -- Gyromatic Micro-Adjuster (Engineering)
-    [11590] = true,  -- Mechanical Repair Kit (Engineering)
-    [6218] = true,   -- Runed Copper Rod (Enchanting)
-    [6339] = true,   -- Runed Silver Rod (Enchanting)
-    [11130] = true,  -- Runed Golden Rod (Enchanting)
-    [11145] = true,  -- Runed Truesilver Rod (Enchanting)
-    [16207] = true,  -- Runed Arcanite Rod (Enchanting)
-    [55155] = true,  -- Jewelers Kit (Jewelcrafting)
-    [41328] = true,  -- Precision Jewelry Kit (Jewelcrafting)
+
+    -- Engineering
+    [6219] = true,   -- Arclight Spanner
+    [10498] = true,  -- Gyromatic Micro-Adjuster
+    [11590] = true,  -- Mechanical Repair Kit
+
+    -- Enchanting Rods
+    [6218] = true,   -- Runed Copper Rod
+    [6339] = true,   -- Runed Silver Rod
+    [11130] = true,  -- Runed Golden Rod
+    [11145] = true,  -- Runed Truesilver Rod
+    [16207] = true,  -- Runed Arcanite Rod
+
+    -- Fishing (by ID, in case subtype detection fails)
+    [6256] = true,   -- Fishing Pole
+    [6365] = true,   -- Strong Fishing Pole
+    [6366] = true,   -- Darkwood Fishing Pole
+    [6367] = true,   -- Big Iron Fishing Pole
+    [12225] = true,  -- Blump Family Fishing Pole
+    [19022] = true,  -- Nat Pagle's Extreme Angler FC-5000
+    [19970] = true,  -- Arcanite Fishing Pole
+    [84660] = true,  -- Pandaren Fishing Pole (Turtle WoW)
+
+    -- Jewelcrafting (if applicable)
+    [55155] = true,  -- Jewelers Kit
+    [41328] = true,  -- Precision Jewelry Kit
+    [20815] = true,  -- Jeweler's Kit
+    [20824] = true,  -- Simple Grinder
 }
 
 -- Weapon subtypes that should NOT be marked as junk

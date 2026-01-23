@@ -462,6 +462,154 @@ local function GetScanTooltip()
     return scanTooltip
 end
 
+-- Helper: Check if a color is yellow/gold (Use:, Equip:, Chance on hit: effects)
+-- Yellow in WoW tooltips can be various shades:
+--   Gold: RGB ~(1, 0.82, 0) or (255, 209, 0)
+--   Yellow: RGB ~(1, 1, 0)
+--   Light gold: RGB ~(1, 0.85, 0.1)
+local function IsYellowColor(r, g, b)
+    if not r or not g or not b then return false end
+    -- Yellow/Gold: high red (>0.8), medium-high green (>0.5), low blue (<0.4)
+    return r > 0.8 and g > 0.5 and b < 0.4
+end
+
+-- Helper: Check if a color is green (set bonuses, special properties)
+-- Green in WoW tooltips is typically RGB ~(0, 1, 0) or (0.12, 1, 0)
+local function IsGreenColor(r, g, b)
+    if not r or not g or not b then return false end
+    -- Green: low red (<0.4), high green (>0.7), low blue (<0.4)
+    return r < 0.4 and g > 0.7 and b < 0.4
+end
+
+-- Patterns that indicate an item has special functionality (not junk)
+local SPECIAL_TEXT_PATTERNS = {
+    -- Use effects
+    "use:",
+    "use :",
+    -- Equip effects
+    "equip:",
+    "equip :",
+    -- Proc effects
+    "chance on hit:",
+    "chance on hit :",
+    "chance to",
+    "chance on",
+    -- Stat effects
+    "increases",
+    "improves",
+    "restores",
+    "regenerate",
+    "generates",
+    "absorbs",
+    "reduces",
+    "grants",
+    "gives",
+    -- Learning
+    "teaches",
+    "learn",
+    -- Special actions
+    "creates",
+    "summons",
+    "teleports",
+    "opens",
+    "activates",
+    -- Resistance/stats
+    "resistance",
+    "armor",
+    "damage",
+    "healing",
+    "mana",
+    "health",
+    "spirit",
+    "intellect",
+    "stamina",
+    "strength",
+    "agility",
+}
+
+-- Check if an item's tooltip contains yellow or green description text
+-- This indicates the item has a use effect, equip effect, or special property
+-- Returns: hasSpecialText (boolean), textType ("yellow", "green", or nil)
+function Utils:HasSpecialTooltipText(bagID, slotID, itemLink)
+    bagID = tonumber(bagID)
+    slotID = tonumber(slotID)
+
+    local tooltip = GetScanTooltip()
+    if not tooltip then return false, nil end
+
+    tooltip:ClearLines()
+
+    -- Set the tooltip to the item
+    if bagID and slotID then
+        tooltip:SetBagItem(bagID, slotID)
+    elseif itemLink then
+        local _, _, itemString = string.find(itemLink, "(item:%d+:%d+:%d+:%d+)")
+        if itemString then
+            tooltip:SetHyperlink(itemString)
+        else
+            return false, nil
+        end
+    else
+        return false, nil
+    end
+
+    local numLines = tooltip:NumLines() or 0
+    if numLines == 0 then return false, nil end
+
+    -- Scan tooltip lines for yellow or green text
+    for i = 2, numLines do  -- Start from line 2 (skip item name on line 1)
+        local leftLine = getglobal("GudaBagScanTooltipTextLeft" .. i)
+        if leftLine and leftLine:IsShown() then
+            local text = leftLine:GetText()
+            local r, g, b = leftLine:GetTextColor()
+
+            if text and r and g and b then
+                local textLower = string.lower(text)
+
+                -- Check for yellow/gold text (Use:, Equip:, Chance on hit:, etc.)
+                if IsYellowColor(r, g, b) then
+                    -- Check if it matches any special text pattern
+                    for _, pattern in ipairs(SPECIAL_TEXT_PATTERNS) do
+                        if string.find(textLower, pattern) then
+                            addon:Debug("HasSpecialTooltipText: YELLOW match '%s' in: %s", pattern, text)
+                            return true, "yellow"
+                        end
+                    end
+                end
+
+                -- Check for green text (set bonuses, enchants, special properties)
+                -- Green text is ALWAYS considered special (no pattern check needed)
+                if IsGreenColor(r, g, b) then
+                    addon:Debug("HasSpecialTooltipText: Found GREEN text: %s (r=%.2f g=%.2f b=%.2f)", text, r, g, b)
+                    return true, "green"
+                end
+
+                -- Also check for "Use:" or "Equip:" regardless of color (some items may have different colors)
+                if string.find(textLower, "^use:") or string.find(textLower, "^equip:") then
+                    addon:Debug("HasSpecialTooltipText: Found Use/Equip text: %s", text)
+                    return true, "yellow"
+                end
+            end
+        end
+
+        -- Also check right side of tooltip
+        local rightLine = getglobal("GudaBagScanTooltipTextRight" .. i)
+        if rightLine and rightLine:IsShown() then
+            local text = rightLine:GetText()
+            local r, g, b = rightLine:GetTextColor()
+
+            if text and r and g and b then
+                if IsYellowColor(r, g, b) or IsGreenColor(r, g, b) then
+                    addon:Debug("HasSpecialTooltipText: Found special text (right): %s", text)
+                    return true, IsYellowColor(r, g, b) and "yellow" or "green"
+                end
+            end
+        end
+    end
+
+    return false, nil
+end
+
 -- Check if an item is a quest item by scanning its tooltip (internal helper)
 -- Returns: isQuestItem, isQuestStarter
 local function ScanTooltipForQuest(tooltip, tooltipName)
