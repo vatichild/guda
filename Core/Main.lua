@@ -166,12 +166,22 @@ function Main:SetupSlashCommands()
             else
                 addon:Print("Performance stats not available")
             end
+            -- Also show category cache stats
+            if addon.Modules.CategoryManager and addon.Modules.CategoryManager.GetCacheStats then
+                local stats = addon.Modules.CategoryManager:GetCacheStats()
+                addon:Print("Category Cache: %d hits, %d misses (%.1f%% hit rate)",
+                    stats.hits, stats.misses, stats.hitRate)
+            end
 
         elseif msg == "perfreset" then
             -- Reset performance statistics
             if addon.Modules.Utils and addon.Modules.Utils.ResetPerformanceStats then
                 addon.Modules.Utils:ResetPerformanceStats()
                 addon:Print("Performance stats reset")
+            end
+            -- Also clear category cache
+            if addon.Modules.CategoryManager and addon.Modules.CategoryManager.ClearCache then
+                addon.Modules.CategoryManager:ClearCache()
             end
 
         elseif msg == "help" then

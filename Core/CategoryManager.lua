@@ -6,6 +6,42 @@ local addon = Guda
 local CategoryManager = {}
 addon.Modules.CategoryManager = CategoryManager
 
+--=====================================================
+-- Category Result Caching
+-- Caches CategorizeItem results to avoid repeated evaluations
+--=====================================================
+local categoryCache = {}
+local cacheHits = 0
+local cacheMisses = 0
+
+-- Clear the category cache (call when categories change or on full refresh)
+function CategoryManager:ClearCache()
+    categoryCache = {}
+    cacheHits = 0
+    cacheMisses = 0
+    addon:Debug("CategoryManager cache cleared")
+end
+
+-- Get cache statistics (for debugging/performance monitoring)
+function CategoryManager:GetCacheStats()
+    local total = cacheHits + cacheMisses
+    local hitRate = total > 0 and (cacheHits / total * 100) or 0
+    return {
+        hits = cacheHits,
+        misses = cacheMisses,
+        total = total,
+        hitRate = hitRate,
+        size = 0, -- Will count below
+    }
+end
+
+-- Generate cache key for an item
+local function GetCacheKey(itemLink, isOtherChar)
+    if not itemLink then return nil end
+    -- Include isOtherChar flag since categorization may differ
+    return itemLink .. (isOtherChar and ":other" or ":current")
+end
+
 -- Rule Types:
 -- itemType: Match by GetItemInfo type (Armor, Weapon, Consumable, etc.)
 -- itemSubtype: Match by subtype (Cloth, Potion, Herb, etc.)
@@ -397,6 +433,8 @@ end
 function CategoryManager:SaveCategories(categories)
     if not Guda_CharDB then return end
     Guda_CharDB.categories = categories
+    -- Clear cache when categories change
+    self:ClearCache()
 end
 
 -- Add a new custom category
@@ -764,6 +802,14 @@ end
 -- Categorize an item using the rule engine
 -- Returns category ID or "Miscellaneous" as fallback
 function CategoryManager:CategorizeItem(itemData, bagID, slotID, isOtherChar)
+    -- Check cache first
+    local cacheKey = GetCacheKey(itemData and itemData.link, isOtherChar)
+    if cacheKey and categoryCache[cacheKey] then
+        cacheHits = cacheHits + 1
+        return categoryCache[cacheKey]
+    end
+    cacheMisses = cacheMisses + 1
+
     local sortedCats = self:GetCategoriesByPriority()
 
     -- Debug: show white item categorization
@@ -775,6 +821,7 @@ function CategoryManager:CategorizeItem(itemData, bagID, slotID, isOtherChar)
         end
     end
 
+    local result = "Miscellaneous"
     for _, entry in ipairs(sortedCats) do
         if not entry.def.isFallback then
             local matches = self:EvaluateCategoryRules(entry.def, itemData, bagID, slotID, isOtherChar)
@@ -783,12 +830,18 @@ function CategoryManager:CategorizeItem(itemData, bagID, slotID, isOtherChar)
                 addon:Debug("  -> MATCHED: %s", entry.id)
             end
             if matches then
-                return entry.id
+                result = entry.id
+                break
             end
         end
     end
 
-    return "Miscellaneous"
+    -- Cache the result
+    if cacheKey then
+        categoryCache[cacheKey] = result
+    end
+
+    return result
 end
 
 -- Build the Guda_CategoryList from current category order (for compatibility)
