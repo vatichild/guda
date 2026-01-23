@@ -381,8 +381,8 @@ function BagFrame:Update()
 			displayName = currentViewChar
 		end
 	else
-	-- Viewing current character
-		bagData = addon.Modules.BagScanner:ScanBags()
+	-- Viewing current character - use cached data for performance
+		bagData = addon.Modules.BagScanner:GetBagData()
 		displayName = UnitName("player") or "Character"
 	end
 
@@ -2580,12 +2580,21 @@ function BagFrame:Initialize()
  end
 
  -- Update on bag changes (debounced to prevent lag on rapid bag updates)
- addon.Modules.Events:OnBagUpdate(function()
+ -- Register directly to access arg1 (bagID that changed) for incremental cache updates
+ local bagUpdateFrame = CreateFrame("Frame")
+ bagUpdateFrame:RegisterEvent("BAG_UPDATE")
+ bagUpdateFrame:SetScript("OnEvent", function()
      if currentViewChar then return end
      if not Guda_BagFrame:IsShown() then return end
+
+     -- Invalidate only the specific bag that changed (arg1 = bagID)
+     if arg1 and arg1 >= 0 and arg1 <= 4 then
+         addon.Modules.BagScanner:InvalidateBag(arg1)
+     end
+
      -- Use standard delay, will auto-extend if sorting is in progress
      ScheduleBagFrameUpdate(0.1)
- end, "BagFrame")
+ end)
 
  -- Update item cooldown overlays when item cooldowns change
  addon.Modules.Events:Register("BAG_UPDATE_COOLDOWN", function()

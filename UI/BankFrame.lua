@@ -224,8 +224,8 @@ function BankFrame:Update()
     else
         -- Viewing current character's bank
         if bankIsOpen then
-            -- Bank is actually open - use live data (interactive mode)
-            bankData = addon.Modules.BankScanner:ScanBank()
+            -- Bank is actually open - use cached data for performance
+            bankData = addon.Modules.BankScanner:GetBankData()
             -- Use current character's name for the title
             local playerName = addon.Modules.DB:GetPlayerFullName()
             getglobal("Guda_BankFrame_Title"):SetText(playerName .. "'s Bank")
@@ -1620,14 +1620,34 @@ function BankFrame:Initialize()
         ScheduleBankFrameUpdate(0.15)
     end, "BankFrameUI")
 
-    -- Register bank-specific update events (pfUI style, debounced)
+    -- Register bank-specific update events with incremental slot tracking
     local updateFrame = CreateFrame("Frame")
     updateFrame:RegisterEvent("PLAYERBANKSLOTS_CHANGED")
     updateFrame:RegisterEvent("PLAYERBANKBAGSLOTS_CHANGED")
+    updateFrame:RegisterEvent("BAG_UPDATE")
     updateFrame:SetScript("OnEvent", function()
-        if addon.Modules.BankScanner:IsBankOpen() and not currentViewChar then
-            ScheduleBankFrameUpdate(0.1)
+        if not addon.Modules.BankScanner:IsBankOpen() then return end
+        if currentViewChar then return end
+
+        if event == "PLAYERBANKSLOTS_CHANGED" and arg1 then
+            -- Mark specific slot as dirty in main bank (bagID = -1)
+            addon.Modules.BankScanner:MarkSlotDirty(-1, arg1)
+        elseif event == "BAG_UPDATE" and arg1 then
+            -- Check if this is a bank bag (5-10)
+            if arg1 >= 5 and arg1 <= 10 then
+                -- Invalidate the specific bank bag (we don't know which slot)
+                addon.Modules.BankScanner:InvalidateBag(arg1)
+            else
+                -- Not a bank bag, ignore for bank frame
+                return
+            end
+        elseif event == "PLAYERBANKBAGSLOTS_CHANGED" then
+            -- Bank container slot changed (bag added/removed)
+            -- Must clear entire cache since bag structure changed
+            addon.Modules.BankScanner:ClearCache()
         end
+
+        ScheduleBankFrameUpdate(0.1)
     end)
 
 end

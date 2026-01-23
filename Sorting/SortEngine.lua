@@ -9,6 +9,17 @@ addon.Modules.SortEngine = SortEngine
 -- Flag to track if sorting is currently in progress
 SortEngine.sortingInProgress = false
 
+-- Performance: Max items to move per cycle (like Baganator's 5-item limit)
+local MAX_MOVES_PER_CYCLE = 5
+
+-- Transfer status constants (like Baganator's SortStatus)
+local TransferStatus = {
+    Complete = 0,       -- All moves done
+    WaitingMove = 1,    -- Waiting for item move to complete
+    WaitingUnlock = 2,  -- Item is locked, waiting
+    Partial = 3,        -- Some moves done, more pending
+}
+
 -- Update sort button appearance based on sorting state
 function SortEngine:UpdateSortButtonState(isDisabled)
 	local buttons = {
@@ -1002,6 +1013,18 @@ end
 local function ApplySort(bagIDs, items, targetPositions)
 	ClearCursor()
 
+	-- Check if events are pending (like Baganator's IsBagEventPending)
+	-- If so, wait for them to complete before moving more items
+	if addon.Modules.BagScanner:IsEventPending() or
+	   (addon.Modules.BankScanner:IsBankOpen() and addon.Modules.BankScanner:IsEventPending()) then
+		-- Clear pending flags and return 0 - will retry on next pass
+		addon.Modules.BagScanner:ClearEventPending()
+		if addon.Modules.BankScanner:IsBankOpen() then
+			addon.Modules.BankScanner:ClearEventPending()
+		end
+		return 0
+	end
+
 	local moveToEmpty = {}
 	local swapOccupied = {}
 
@@ -1036,9 +1059,16 @@ local function ApplySort(bagIDs, items, targetPositions)
 		end
 	end
 
-	-- Execute moves to empty slots first
+	-- Execute moves to empty slots first (with limit per cycle)
 	local moveCount = 0
+	local lockedCount = 0
+
 	for _, move in ipairs(moveToEmpty) do
+		-- Limit moves per cycle to prevent slot locking (like Baganator)
+		if moveCount >= MAX_MOVES_PER_CYCLE then
+			break
+		end
+
 		local _, _, locked = GetContainerItemInfo(move.sourceBag, move.sourceSlot)
 		if not locked then
 			PickupContainerItem(move.sourceBag, move.sourceSlot)
@@ -1046,13 +1076,17 @@ local function ApplySort(bagIDs, items, targetPositions)
 			ClearCursor()
 			moveCount = moveCount + 1
 		else
-			-- If item is locked, it might be due to server lag or another process.
-			-- We don't increment moveCount but the item will be picked up in next pass.
+			lockedCount = lockedCount + 1
 		end
 	end
 
-	-- Execute swaps with occupied slots
+	-- Execute swaps with occupied slots (if we haven't hit the limit)
 	for _, move in ipairs(swapOccupied) do
+		-- Limit moves per cycle
+		if moveCount >= MAX_MOVES_PER_CYCLE then
+			break
+		end
+
 		local _, _, sourceLocked = GetContainerItemInfo(move.sourceBag, move.sourceSlot)
 		local _, _, targetLocked = GetContainerItemInfo(move.targetBag, move.targetSlot)
 
@@ -1061,6 +1095,8 @@ local function ApplySort(bagIDs, items, targetPositions)
 			PickupContainerItem(move.targetBag, move.targetSlot)
 			ClearCursor()
 			moveCount = moveCount + 1
+		else
+			lockedCount = lockedCount + 1
 		end
 	end
 
