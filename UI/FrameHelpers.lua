@@ -210,7 +210,13 @@ end
 
 -- Sort items within a category
 function Guda_SortCategoryItems(items)
+    if not items then return end
     table.sort(items, function(a, b)
+        -- Nil guards for sort stability
+        if not a then return false end
+        if not b then return true end
+        if not a.itemData then return false end
+        if not b.itemData then return true end
         -- Rank Trade Goods: meat (name ends with 'meat') = 2, egg (contains 'egg') = 1, others = 0
         local function tgRank(d)
             if not d or not d.name then return 0 end
