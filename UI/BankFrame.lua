@@ -132,7 +132,7 @@ function BankFrame:UpdateLockStates()
 end
 
 -- Update a single slot without full frame redraw (used for manual item moves)
-function BankFrame:UpdateSingleSlot(bagID, slotID)
+function BankFrame:UpdateSingleSlot(bagID, slotID, passedButton)
     if not Guda_BankFrame:IsShown() then
         addon:DebugCategory("UpdateSingleSlot: frame not shown")
         return false
@@ -142,15 +142,22 @@ function BankFrame:UpdateSingleSlot(bagID, slotID)
         return false
     end
 
-    -- O(1) button lookup using hash table
-    if not bankSlotToButton[bagID] then
-        addon:DebugCategory("UpdateSingleSlot: no slotToButton for bag %d", bagID)
-        return false
-    end
-    local targetButton = bankSlotToButton[bagID][slotID]
+    -- Use passed button if available (from UpdateChangedSlots iteration)
+    -- This avoids type mismatch issues with slot ID keys (string vs number)
+    local targetButton = passedButton
+
     if not targetButton then
-        addon:DebugCategory("UpdateSingleSlot: no button for bag %d slot %d", bagID, slotID)
-        return false
+        -- Fallback to O(1) button lookup using hash table
+        if not bankSlotToButton[bagID] then
+            addon:DebugCategory("UpdateSingleSlot: no slotToButton for bag %d", bagID)
+            return false
+        end
+        -- Try both numeric and string keys to handle type mismatches
+        targetButton = bankSlotToButton[bagID][slotID] or bankSlotToButton[bagID][tonumber(slotID)]
+        if not targetButton then
+            addon:DebugCategory("UpdateSingleSlot: no button for bag %d slot %d", bagID, slotID)
+            return false
+        end
     end
 
     -- Get fresh item data for this slot
@@ -235,7 +242,8 @@ function BankFrame:UpdateChangedSlots(bagID)
             if needsUpdate then
                 addon:DebugCategory("  slot %d: needs update (had=%s, now=%s)", slotID,
                     cachedLink and "item" or "empty", currentLink and "item" or "empty")
-                if self:UpdateSingleSlot(bagID, slotID) then
+                -- Pass the button directly to avoid type mismatch lookup issues
+                if self:UpdateSingleSlot(bagID, slotID, targetButton) then
                     updatedCount = updatedCount + 1
                 else
                     addon:DebugCategory("  slot %d: UpdateSingleSlot failed -> full redraw", slotID)
@@ -248,12 +256,14 @@ function BankFrame:UpdateChangedSlots(bagID)
         -- Category View only has buttons for filled slots, so new items need full redraw
         local numSlots = addon.Modules.Utils:GetBagSlotCount(bagID)
         if numSlots and numSlots > 0 then
-            for slotID = 1, numSlots do
+            for checkSlotID = 1, numSlots do
                 -- If slot has an item but no button mapping -> new item arrived
-                if not bankSlotToButton[bagID][slotID] then
-                    local currentLink = GetContainerItemLink(bagID, slotID)
+                -- Check both numeric and potential string keys
+                local hasButton = bankSlotToButton[bagID][checkSlotID] or bankSlotToButton[bagID][tostring(checkSlotID)]
+                if not hasButton then
+                    local currentLink = GetContainerItemLink(bagID, checkSlotID)
                     if currentLink then
-                        addon:DebugCategory("  slot %d: NEW item arrived (no button) -> full redraw", slotID)
+                        addon:DebugCategory("  slot %d: NEW item arrived (no button) -> full redraw", checkSlotID)
                         return -1  -- Trigger full redraw to categorize new item
                     end
                 end
@@ -272,7 +282,8 @@ function BankFrame:UpdateChangedSlots(bagID)
 
         local updatedCount = 0
         for slotID = 1, numSlots do
-            local targetButton = bankSlotToButton[bagID][slotID]
+            -- Try both numeric and string keys to handle type mismatches
+            local targetButton = bankSlotToButton[bagID][slotID] or bankSlotToButton[bagID][tostring(slotID)]
 
             if not targetButton then
                 addon:DebugCategory("  slot %d: no button in single view -> full redraw", slotID)
@@ -296,7 +307,8 @@ function BankFrame:UpdateChangedSlots(bagID)
             if needsUpdate then
                 addon:DebugCategory("  slot %d: needs update (had=%s, now=%s)", slotID,
                     cachedLink and "item" or "empty", currentLink and "item" or "empty")
-                if self:UpdateSingleSlot(bagID, slotID) then
+                -- Pass the button directly to avoid type mismatch lookup issues
+                if self:UpdateSingleSlot(bagID, slotID, targetButton) then
                     updatedCount = updatedCount + 1
                 else
                     addon:DebugCategory("  slot %d: UpdateSingleSlot failed -> full redraw", slotID)
@@ -1811,7 +1823,11 @@ function BankFrame:Initialize()
     updateFrame:RegisterEvent("PLAYERBANKBAGSLOTS_CHANGED")
     updateFrame:RegisterEvent("BAG_UPDATE")
     updateFrame:SetScript("OnEvent", function()
-        if not addon.Modules.BankScanner:IsBankOpen() then return end
+        local bankOpen = addon.Modules.BankScanner:IsBankOpen()
+        if not bankOpen then
+            addon:DebugCategory("BankFrame event %s: bank not open, ignoring", event or "nil")
+            return
+        end
         if currentViewChar then return end
 
         -- Check if sorting is in progress - use full redraw with throttle
@@ -1829,6 +1845,12 @@ function BankFrame:Initialize()
                 local success = BankFrame:UpdateSingleSlot(-1, arg1)
                 addon:DebugCategory("  UpdateSingleSlot(-1, %d) = %s", arg1, tostring(success))
                 if success then
+                    -- Cancel any pending full redraw - incremental update succeeded
+                    if bankThrottle.pending and bankThrottle.frame then
+                        addon:DebugCategory("  Canceling pending full redraw")
+                        bankThrottle.pending = false
+                        bankThrottle.frame:Hide()
+                    end
                     return  -- Success, no full redraw needed
                 end
             end
@@ -1849,6 +1871,12 @@ function BankFrame:Initialize()
                     local result = BankFrame:UpdateChangedSlots(arg1)
                     addon:DebugCategory("  UpdateChangedSlots(%d) = %d", arg1, result)
                     if result >= 0 then
+                        -- Cancel any pending full redraw - incremental update succeeded
+                        if bankThrottle.pending and bankThrottle.frame then
+                            addon:DebugCategory("  Canceling pending full redraw")
+                            bankThrottle.pending = false
+                            bankThrottle.frame:Hide()
+                        end
                         return  -- Success, no full redraw needed
                     end
                     -- Fall through to full redraw

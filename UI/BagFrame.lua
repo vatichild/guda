@@ -185,16 +185,28 @@ end
 
 -- Update a single slot without full frame redraw (used for manual item moves)
 -- Returns true if successful, false if full redraw is needed
-function BagFrame:UpdateSingleSlot(bagID, slotID)
+function BagFrame:UpdateSingleSlot(bagID, slotID, passedButton)
     if not Guda_BagFrame:IsShown() then return false end
     if currentViewChar then return false end  -- Can't do single-slot for other characters
 
-    -- Find the button for this slot in itemButtons
-    local targetButton = nil
-    for _, button in ipairs(itemButtons) do
-        if button.bagID == bagID and button.slotID == slotID then
-            targetButton = button
-            break
+    -- Use passed button if available (from UpdateChangedSlots iteration)
+    -- This avoids type mismatch issues with slot ID keys (string vs number)
+    local targetButton = passedButton
+
+    if not targetButton then
+        -- Fallback: Find the button for this slot using lookup table
+        if slotToButton[bagID] then
+            -- Try both numeric and string keys to handle type mismatches
+            targetButton = slotToButton[bagID][slotID] or slotToButton[bagID][tonumber(slotID)]
+        end
+        -- Ultimate fallback: search itemButtons array
+        if not targetButton then
+            for _, button in ipairs(itemButtons) do
+                if button.bagID == bagID and button.slotID == slotID then
+                    targetButton = button
+                    break
+                end
+            end
         end
     end
 
@@ -267,7 +279,8 @@ function BagFrame:UpdateChangedSlots(bagID)
             end
 
             if needsUpdate then
-                if self:UpdateSingleSlot(bagID, slotID) then
+                -- Pass the button directly to avoid type mismatch lookup issues
+                if self:UpdateSingleSlot(bagID, slotID, targetButton) then
                     updatedCount = updatedCount + 1
                 else
                     return -1
@@ -279,10 +292,12 @@ function BagFrame:UpdateChangedSlots(bagID)
         -- Category View only has buttons for filled slots, so new items need full redraw
         local numSlots = GetContainerNumSlots(bagID)
         if numSlots and numSlots > 0 then
-            for slotID = 1, numSlots do
+            for checkSlotID = 1, numSlots do
                 -- If slot has an item but no button mapping -> new item arrived
-                if not slotToButton[bagID][slotID] then
-                    local currentLink = GetContainerItemLink(bagID, slotID)
+                -- Check both numeric and potential string keys
+                local hasButton = slotToButton[bagID][checkSlotID] or slotToButton[bagID][tostring(checkSlotID)]
+                if not hasButton then
+                    local currentLink = GetContainerItemLink(bagID, checkSlotID)
                     if currentLink then
                         return -1  -- Trigger full redraw to categorize new item
                     end
@@ -298,7 +313,8 @@ function BagFrame:UpdateChangedSlots(bagID)
 
         local updatedCount = 0
         for slotID = 1, numSlots do
-            local targetButton = slotToButton[bagID][slotID]
+            -- Try both numeric and string keys to handle type mismatches
+            local targetButton = slotToButton[bagID][slotID] or slotToButton[bagID][tostring(slotID)]
 
             if not targetButton then
                 return -1
@@ -319,7 +335,8 @@ function BagFrame:UpdateChangedSlots(bagID)
             end
 
             if needsUpdate then
-                if self:UpdateSingleSlot(bagID, slotID) then
+                -- Pass the button directly to avoid type mismatch lookup issues
+                if self:UpdateSingleSlot(bagID, slotID, targetButton) then
                     updatedCount = updatedCount + 1
                 else
                     return -1
@@ -2769,11 +2786,14 @@ function BagFrame:Initialize()
      if currentViewChar then return end
      if not Guda_BagFrame:IsShown() then return end
 
-     -- Only handle player bags (0-4)
-     if not arg1 or arg1 < 0 or arg1 > 4 then return end
+     -- Only handle player bags (0-4) - use tonumber for safe comparison
+     local bagID = tonumber(arg1)
+     if not bagID or bagID < 0 or bagID > 4 then
+         return  -- Skip bank bags (5-10) and invalid bags
+     end
 
      local viewType = addon.Modules.DB:GetSetting("bagViewType") or "single"
-     addon:DebugCategory("BAG_UPDATE: bagID=%s, viewType=%s", tostring(arg1), viewType)
+     addon:DebugCategory("BAG_UPDATE (BagFrame): bagID=%d, viewType=%s", bagID, viewType)
 
      -- Check if sorting is in progress - use full redraw with throttle
      local isSorting = addon.Modules.SortEngine and addon.Modules.SortEngine.sortingInProgress
@@ -2788,6 +2808,8 @@ function BagFrame:Initialize()
          addon:DebugCategory("BAG_UPDATE: UpdateChangedSlots result=%s", tostring(result))
          if result >= 0 then
              -- Success - updated slots without full redraw
+             -- Cancel any pending full redraw to preserve incremental update
+             CancelPendingUpdate()
              addon:DebugCategory("BAG_UPDATE: Incremental update succeeded, skipping full redraw")
              return
          end
