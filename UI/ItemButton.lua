@@ -355,8 +355,7 @@ function Guda_ItemButton_OnLoad(self)
         self.questIcon = iconFrame
     end
 
-    -- Create junk icon overlay (vendor sell icon in top-left corner)
-    CreateJunkIcon(self)
+    -- Note: Junk icon is acquired from pool on-demand in UpdateJunkIcon, not pre-created
 
     -- Ensure the item button sits above its container backdrop and is mouse-enabled
     local parent = self:GetParent()

@@ -141,7 +141,7 @@ function BankFrame:UpdateSingleSlot(bagID, slotID)
 
     local targetButton = nil
     for button in pairs(bankBagParent.itemButtons) do
-        if button.bagID == bagID and button.slot == slotID then
+        if button.bagID == bagID and button.slotID == slotID then
             targetButton = button
             break
         end

@@ -191,7 +191,7 @@ function BagFrame:UpdateSingleSlot(bagID, slotID)
     -- Find the button for this slot in itemButtons
     local targetButton = nil
     for _, button in ipairs(itemButtons) do
-        if button.bagID == bagID and button.slot == slotID then
+        if button.bagID == bagID and button.slotID == slotID then
             targetButton = button
             break
         end
@@ -248,7 +248,7 @@ function BagFrame:UpdateChangedSlots(bagID)
         -- Find button for this slot
         local targetButton = nil
         for _, button in ipairs(itemButtons) do
-            if button.bagID == bagID and button.slot == slotID then
+            if button.bagID == bagID and button.slotID == slotID then
                 targetButton = button
                 break
             end
