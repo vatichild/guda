@@ -1988,6 +1988,9 @@ function BankFrame:Initialize()
     updateFrame:RegisterEvent("PLAYERBANKBAGSLOTS_CHANGED")
     updateFrame:RegisterEvent("BAG_UPDATE")
     updateFrame:SetScript("OnEvent", function()
+        -- Debug: log ALL events received by this handler
+        addon:DebugCategory("BankFrame EVENT: %s arg1=%s", tostring(event), tostring(arg1))
+
         -- Check if we should process bank events:
         -- 1. Bank is officially open (IsBankOpen), OR
         -- 2. Our BankFrame is shown and we're viewing current character (for edge cases)
@@ -1996,38 +1999,126 @@ function BankFrame:Initialize()
         local viewingCurrent = not currentViewChar
 
         if not bankOpen and not (frameShown and viewingCurrent) then
-            addon:DebugCategory("BankFrame event %s: bank not open and frame not shown, ignoring", event or "nil")
+            addon:DebugCategory("  -> ignored (bank not open, frame not shown)")
             return
         end
-        if currentViewChar then return end
+        if currentViewChar then
+            addon:DebugCategory("  -> ignored (viewing other character)")
+            return
+        end
 
         -- Check if sorting is in progress - use full redraw with throttle
         local isSorting = addon.Modules.SortEngine and addon.Modules.SortEngine.sortingInProgress
 
-        if event == "PLAYERBANKSLOTS_CHANGED" and arg1 then
-            -- arg1 is the slot number (1-28 for main bank)
-            addon:DebugCategory("EVENT: PLAYERBANKSLOTS_CHANGED slot=%d, isSorting=%s", arg1, tostring(isSorting))
-            -- Try single-slot update if not sorting
-            if not isSorting then
-                -- Invalidate bag scanner cache for fresh slot data
-                -- NOTE: Don't clear ItemDetection cache - item properties don't change on move
-                addon.Modules.BankScanner:InvalidateBag(-1)
-                -- Try single-slot update
-                local success = BankFrame:UpdateSingleSlot(-1, arg1)
-                addon:DebugCategory("  UpdateSingleSlot(-1, %d) = %s", arg1, tostring(success))
-                if success then
-                    -- Incremental update succeeded - no need for full redraw for THIS slot
-                    -- But don't cancel pending redraws - other slots might need them
+        if event == "PLAYERBANKSLOTS_CHANGED" then
+            -- arg1 is the slot number (1-28 for main bank), but can be nil in some cases
+            local viewType = addon.Modules.DB:GetSetting("bankViewType") or "single"
+
+            if arg1 then
+                -- Specific slot changed
+                local rawTexture, rawCount = GetContainerItemInfo(-1, arg1)
+                local rawLink = GetContainerItemLink(-1, arg1)
+                local slotIsNowEmpty = (rawTexture == nil)
+                addon:DebugCategory("  PLAYERBANKSLOTS_CHANGED slot=%d, slotIsNowEmpty=%s, isSorting=%s",
+                    arg1, tostring(slotIsNowEmpty), tostring(isSorting))
+
+                -- Try single-slot update if not sorting
+                if not isSorting then
+                    -- Invalidate bag scanner cache for fresh slot data
+                    addon.Modules.BankScanner:InvalidateBag(-1)
+                    -- Try single-slot update
+                    local success = BankFrame:UpdateSingleSlot(-1, arg1)
+                    addon:DebugCategory("  UpdateSingleSlot(-1, %d) = %s", arg1, tostring(success))
+                    if success then
+                        -- Incremental update succeeded
+                        if slotIsNowEmpty then
+                            addon:DebugCategory("  -> slot emptied, incremental update done, no full redraw needed")
+                        else
+                            addon:DebugCategory("  -> item added, incremental update done")
+                        end
+                        return
+                    end
+                end
+
+                -- Fallback: full redraw needed
+                -- BUT if slot just became empty and we have no button, that's OK in Category View
+                if slotIsNowEmpty and viewType == "category" then
+                    addon:DebugCategory("  -> slot emptied in Category View, no button exists, updating cache only")
+                    addon.Modules.BankScanner:InvalidateBag(-1)
                     return
                 end
+
+                addon:DebugCategory("  -> falling through to full redraw")
+                addon.Modules.BankScanner:InvalidateBag(-1)
+            else
+                -- arg1 is nil - generic bank change notification
+                -- In Category View, check if items were removed (no need for full redraw)
+                addon:DebugCategory("  PLAYERBANKSLOTS_CHANGED arg1=nil (generic)")
+
+                if viewType == "category" then
+                    -- First, count items in the CURRENT API state (this is the "after" count)
+                    local realItems = 0
+                    local numSlots = GetContainerNumSlots(-1) or 0
+                    for slot = 1, numSlots do
+                        local texture = GetContainerItemInfo(-1, slot)
+                        if texture then realItems = realItems + 1 end
+                    end
+
+                    -- Get the cached count BEFORE updating (this is the "before" count)
+                    -- Use GetCachedItemCount to avoid triggering mismatch detection
+                    local cacheItems = addon.Modules.BankScanner:GetCachedItemCount(-1)
+
+                    addon:DebugCategory("  -> comparing cache=%d vs API=%d", cacheItems, realItems)
+
+                    if realItems < cacheItems then
+                        -- Items were REMOVED - update only the emptied slots, no full redraw
+                        addon:DebugCategory("  -> items removed (%d -> %d), updating emptied slots only", cacheItems, realItems)
+
+                        -- Find and update slots that became empty
+                        -- Use button's stored itemData (not cache, which may already be updated)
+                        if bankSlotToButton[-1] then
+                            for slotID, button in pairs(bankSlotToButton[-1]) do
+                                local buttonHadItem = button.itemData and button.itemData.link
+                                local currentTexture = GetContainerItemInfo(-1, slotID)
+
+                                -- If button had item but API doesn't, this slot was emptied
+                                if buttonHadItem and not currentTexture then
+                                    addon:DebugCategory("  -> slot %d emptied, updating button", slotID)
+                                    -- Mark slot as emptied for placeholder tracking
+                                    local category = button.itemCategory or "Miscellaneous"
+                                    self:MarkSlotAsEmptied(-1, slotID, category, button.itemData)
+                                    -- Update the button to show empty state
+                                    local matchesFilter = self:PassesSearchFilter(nil)
+                                    Guda_ItemButton_SetItem(button, -1, slotID, nil, true, nil, matchesFilter, isReadOnlyMode)
+                                end
+                            end
+                        end
+
+                        addon.Modules.BankScanner:InvalidateBag(-1)
+                        return
+                    elseif realItems == cacheItems then
+                        -- No change in item count - might be item swap, skip update
+                        addon:DebugCategory("  -> item count unchanged (%d), skipping", realItems)
+                        return
+                    end
+                    -- Items were added - need full redraw
+                    addon:DebugCategory("  -> items added (%d -> %d), need full redraw", cacheItems, realItems)
+                end
+
+                addon.Modules.BankScanner:InvalidateBag(-1)
             end
-            -- Fallback: full redraw (sorting or single-slot failed)
-            addon:DebugCategory("  -> falling through to full redraw")
-            addon.Modules.BankScanner:InvalidateBag(-1)
         elseif event == "BAG_UPDATE" and arg1 then
             -- Check if this is a bank bag (5-10)
             if arg1 >= 5 and arg1 <= 10 then
-                addon:DebugCategory("EVENT: BAG_UPDATE bankBag=%d, isSorting=%s", arg1, tostring(isSorting))
+                -- Debug: count items in this bank bag via raw API
+                local rawItemCount = 0
+                local numSlots = GetContainerNumSlots(arg1) or 0
+                for slot = 1, numSlots do
+                    local texture = GetContainerItemInfo(arg1, slot)
+                    if texture then rawItemCount = rawItemCount + 1 end
+                end
+                addon:DebugCategory("EVENT: BAG_UPDATE bankBag=%d, rawItems=%d, numSlots=%d, isSorting=%s",
+                    arg1, rawItemCount, numSlots, tostring(isSorting))
                 -- Invalidate bag scanner cache for fresh slot data
                 -- NOTE: Don't clear ItemDetection cache - item properties don't change on move
                 addon.Modules.BankScanner:InvalidateBag(arg1)
@@ -2056,8 +2147,8 @@ function BankFrame:Initialize()
             addon.Modules.BankScanner:ClearCache()
         end
 
-        -- Slightly longer delay to ensure WoW API has updated
-        ScheduleBankFrameUpdate(0.15)
+        -- Longer delay to ensure WoW API has fully updated after item moves
+        ScheduleBankFrameUpdate(0.2)
     end)
 
 end
