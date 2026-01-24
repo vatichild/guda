@@ -21,6 +21,68 @@ local recentlyEmptiedSlots = {}
 -- Global click catcher for clearing bank search focus
 local bankClickCatcher = nil
 
+--=====================================================
+-- Deferred Usability Tint System
+-- Prevents false positives when item data isn't fully loaded on bank open
+-- Uses debouncing to handle rapid open/close safely
+--=====================================================
+local bankUsabilityCheckFrame = nil
+local BANK_USABILITY_CHECK_DELAY = 0.25 -- Delay before re-checking usability (seconds)
+
+-- Cancel any pending deferred usability check
+local function CancelBankDeferredUsabilityCheck()
+    if bankUsabilityCheckFrame then
+        bankUsabilityCheckFrame:Hide()
+        bankUsabilityCheckFrame.pending = false
+    end
+end
+
+-- Update usability tints on all visible bank item buttons
+local function UpdateAllBankUsabilityTints()
+    if not Guda_BankFrame or not Guda_BankFrame:IsShown() then return end
+
+    for _, bagParent in pairs(bankBagParents) do
+        if bagParent and bagParent.itemButtons then
+            for button in pairs(bagParent.itemButtons) do
+                if button.hasItem and button:IsShown() and Guda_ItemButton_UpdateUsableTint then
+                    Guda_ItemButton_UpdateUsableTint(button)
+                end
+            end
+        end
+    end
+end
+
+-- Schedule a deferred usability check with debouncing
+local function ScheduleBankDeferredUsabilityCheck()
+    -- Create frame on first use
+    if not bankUsabilityCheckFrame then
+        bankUsabilityCheckFrame = CreateFrame("Frame")
+        bankUsabilityCheckFrame:Hide()
+        bankUsabilityCheckFrame.elapsed = 0
+        bankUsabilityCheckFrame.pending = false
+        bankUsabilityCheckFrame:SetScript("OnUpdate", function()
+            this.elapsed = this.elapsed + arg1
+            if this.elapsed >= BANK_USABILITY_CHECK_DELAY then
+                this:Hide()
+                this.pending = false
+                -- Only run if bank is still open
+                if Guda_BankFrame and Guda_BankFrame:IsShown() then
+                    -- Clear detection cache and re-check all items
+                    if addon.Modules.ItemDetection and addon.Modules.ItemDetection.ClearCache then
+                        addon.Modules.ItemDetection:ClearCache()
+                    end
+                    UpdateAllBankUsabilityTints()
+                end
+            end
+        end)
+    end
+
+    -- Reset timer (debounce behavior)
+    bankUsabilityCheckFrame.elapsed = 0
+    bankUsabilityCheckFrame.pending = true
+    bankUsabilityCheckFrame:Show()
+end
+
 -- Clear recently emptied slots (called when view is reset or frame hidden)
 function BankFrame:ClearRecentlyEmptiedSlots()
     for k in pairs(recentlyEmptiedSlots) do
@@ -125,7 +187,11 @@ function Guda_BankFrame_OnShow(self)
 	end
 
    	BankFrame:Update()
-   end
+
+    -- Schedule deferred usability check to fix false positives from uncached item data
+    -- This runs after a short delay when item info is fully loaded by the WoW client
+    ScheduleBankDeferredUsabilityCheck()
+end
 
 -- OnHide
 function Guda_BankFrame_OnHide(self)
@@ -140,6 +206,9 @@ function Guda_BankFrame_OnHide(self)
     if throttleFrame then
         throttleFrame:Hide()
     end
+
+    -- Cancel any pending deferred usability check (debounce safety)
+    CancelBankDeferredUsabilityCheck()
 
     -- Clear recently emptied slots tracking (reset placeholders)
     BankFrame:ClearRecentlyEmptiedSlots()
@@ -1412,7 +1481,7 @@ function Guda_BankFrame_Sort()
 		return
 	end
 
-	-- Check if we're in category view - only merge stacks
+	-- Check if we're in category view - restack and clean
 	local sortBtn = getglobal("Guda_BankFrame_SortButton")
 	if sortBtn and sortBtn.isCategoryView then
 		Guda_BankFrame_MergeStacks()
@@ -1431,15 +1500,16 @@ function Guda_BankFrame_Sort()
 	end
 end
 
--- Merge stacks only (for category view) - queue-based approach like BagShui
+-- Restack and Clean (for category view) - merges stacks and refreshes view
+-- Queue-based approach like BagShui
 function Guda_BankFrame_MergeStacks()
 	if isReadOnlyMode or currentViewChar then
-		addon:Print("Cannot merge stacks in read-only mode!")
+		addon:Print("Cannot restack in read-only mode!")
 		return
 	end
 
 	if not addon.Modules.BankScanner:IsBankOpen() then
-		addon:Print("Bank must be open to merge stacks!")
+		addon:Print("Bank must be open to restack!")
 		return
 	end
 
@@ -1539,7 +1609,15 @@ function Guda_BankFrame_MergeStacks()
 	end
 
 	if table.getn(moveQueue) == 0 then
-		addon:Print("No stacks to merge")
+		-- No stacks to merge, just do a clean refresh
+		BankFrame:ClearRecentlyEmptiedSlots()
+		addon.Modules.BankScanner:InvalidateCache()
+		-- Clear item detection cache to force fresh tooltip scans
+		if addon.Modules.ItemDetection and addon.Modules.ItemDetection.ClearCache then
+			addon.Modules.ItemDetection:ClearCache()
+		end
+		BankFrame:Update()
+		addon:Print("View refreshed (no stacks to merge)")
 		return
 	end
 
@@ -1554,10 +1632,17 @@ function Guda_BankFrame_MergeStacks()
 
 	local function ProcessNextMove()
 		if queueIndex > table.getn(moveQueue) then
-			addon:Print("Merged " .. totalMoves .. " stack(s)")
 			addon.Modules.SortEngine.sortingInProgress = false
 			addon.Modules.SortEngine:UpdateSortButtonState(false)
+			-- Clear all caches for a clean view after restacking
+			BankFrame:ClearRecentlyEmptiedSlots()
+			addon.Modules.BankScanner:InvalidateCache()
+			-- Clear item detection cache to force fresh tooltip scans
+			if addon.Modules.ItemDetection and addon.Modules.ItemDetection.ClearCache then
+				addon.Modules.ItemDetection:ClearCache()
+			end
 			BankFrame:Update()
+			addon:Print("Restacked " .. totalMoves .. " stack(s)")
 			return
 		end
 		

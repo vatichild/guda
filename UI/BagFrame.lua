@@ -30,6 +30,68 @@ local isMerchantOpen = false -- Track whether a vendor window is currently open 
 -- Global click catcher for clearing search focus
 local clickCatcher = nil
 
+--=====================================================
+-- Deferred Usability Tint System
+-- Prevents false positives when item data isn't fully loaded on bag open
+-- Uses debouncing to handle rapid open/close safely
+--=====================================================
+local usabilityCheckFrame = nil
+local USABILITY_CHECK_DELAY = 0.25 -- Delay before re-checking usability (seconds)
+
+-- Cancel any pending deferred usability check
+local function CancelDeferredUsabilityCheck()
+    if usabilityCheckFrame then
+        usabilityCheckFrame:Hide()
+        usabilityCheckFrame.pending = false
+    end
+end
+
+-- Update usability tints on all visible item buttons
+local function UpdateAllUsabilityTints()
+    if not Guda_BagFrame or not Guda_BagFrame:IsShown() then return end
+
+    for _, bagParent in pairs(bagParents) do
+        if bagParent and bagParent.itemButtons then
+            for button in pairs(bagParent.itemButtons) do
+                if button.hasItem and button:IsShown() and Guda_ItemButton_UpdateUsableTint then
+                    Guda_ItemButton_UpdateUsableTint(button)
+                end
+            end
+        end
+    end
+end
+
+-- Schedule a deferred usability check with debouncing
+local function ScheduleDeferredUsabilityCheck()
+    -- Create frame on first use
+    if not usabilityCheckFrame then
+        usabilityCheckFrame = CreateFrame("Frame")
+        usabilityCheckFrame:Hide()
+        usabilityCheckFrame.elapsed = 0
+        usabilityCheckFrame.pending = false
+        usabilityCheckFrame:SetScript("OnUpdate", function()
+            this.elapsed = this.elapsed + arg1
+            if this.elapsed >= USABILITY_CHECK_DELAY then
+                this:Hide()
+                this.pending = false
+                -- Only run if bag is still open
+                if Guda_BagFrame and Guda_BagFrame:IsShown() then
+                    -- Clear detection cache and re-check all items
+                    if addon.Modules.ItemDetection and addon.Modules.ItemDetection.ClearCache then
+                        addon.Modules.ItemDetection:ClearCache()
+                    end
+                    UpdateAllUsabilityTints()
+                end
+            end
+        end)
+    end
+
+    -- Reset timer (debounce behavior)
+    usabilityCheckFrame.elapsed = 0
+    usabilityCheckFrame.pending = true
+    usabilityCheckFrame:Show()
+end
+
 -- Get player race icon path (using racial ability icons)
 function Guda_GetPlayerRaceIcon()
 	local _, race = UnitRace("player")
@@ -121,6 +183,10 @@ function Guda_BagFrame_OnShow(self)
 	end
 
 	BagFrame:Update()
+
+	-- Schedule deferred usability check to fix false positives from uncached item data
+	-- This runs after a short delay when item info is fully loaded by the WoW client
+	ScheduleDeferredUsabilityCheck()
 end
 
 -- OnHide
@@ -142,6 +208,9 @@ function Guda_BagFrame_OnHide(self)
     if throttleFrame then
         throttleFrame:Hide()
     end
+
+    -- Cancel any pending deferred usability check (debounce safety)
+    CancelDeferredUsabilityCheck()
 
 	-- Clean up all buttons when frame is hidden (safe since we're not displaying)
 	-- Use itemButtons hash instead of GetChildren() to avoid table allocation
@@ -1774,7 +1843,7 @@ function Guda_BagFrame_Sort()
 		return
 	end
 
-	-- Check if we're in category view - only merge stacks
+	-- Check if we're in category view - restack and clean
 	local sortBtn = getglobal("Guda_BagFrame_SortButton")
 	if sortBtn and sortBtn.isCategoryView then
 		Guda_BagFrame_MergeStacks()
@@ -1793,10 +1862,11 @@ function Guda_BagFrame_Sort()
 	end
 end
 
--- Merge stacks only (for category view) - queue-based approach like BagShui
+-- Restack and Clean (for category view) - merges stacks and refreshes view
+-- Queue-based approach like BagShui
 function Guda_BagFrame_MergeStacks()
 	if currentViewChar then
-		addon:Print("Cannot merge stacks for another character!")
+		addon:Print("Cannot restack for another character!")
 		return
 	end
 
@@ -1896,7 +1966,13 @@ function Guda_BagFrame_MergeStacks()
 	end
 
 	if table.getn(moveQueue) == 0 then
-		addon:Print("No stacks to merge")
+		-- No stacks to merge, just do a clean refresh
+		-- Clear item detection cache to force fresh tooltip scans
+		if addon.Modules.ItemDetection and addon.Modules.ItemDetection.ClearCache then
+			addon.Modules.ItemDetection:ClearCache()
+		end
+		BagFrame:Update()
+		addon:Print("View refreshed (no stacks to merge)")
 		return
 	end
 
@@ -1911,10 +1987,15 @@ function Guda_BagFrame_MergeStacks()
 	
 	local function ProcessNextMove()
 		if queueIndex > table.getn(moveQueue) then
-			addon:Print("Merged " .. totalMoves .. " stack(s)")
 			addon.Modules.SortEngine.sortingInProgress = false
 			addon.Modules.SortEngine:UpdateSortButtonState(false)
+			-- Clear item detection cache to force fresh tooltip scans
+			if addon.Modules.ItemDetection and addon.Modules.ItemDetection.ClearCache then
+				addon.Modules.ItemDetection:ClearCache()
+			end
+			-- Refresh the view
 			BagFrame:Update()
+			addon:Print("Restacked " .. totalMoves .. " stack(s)")
 			return
 		end
 		

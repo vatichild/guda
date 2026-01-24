@@ -83,26 +83,37 @@ local function ScanTooltipLines(bagID, slotID, itemLink)
     tooltip:SetOwner(WorldFrame, "ANCHOR_NONE")
     tooltip:ClearLines()
 
+    -- Helper to safely call SetHyperlink (can fail with "Unknown link type")
+    local function SafeSetHyperlink(tip, link)
+        if not link then return false end
+        -- Extract just the item:XXXX portion for SetHyperlink
+        local _, _, itemString = string.find(link, "|H(item:[^|]+)|h")
+        if itemString then
+            local success = pcall(function() tip:SetHyperlink(itemString) end)
+            return success
+        end
+        return false
+    end
+
     -- Set tooltip based on what we have
     if bagID and slotID then
         if bagID == -1 then
-            -- Bank main bag: use SetInventoryItem (slot 39 + slotID)
-            if tooltip.SetInventoryItem then
-                tooltip:SetInventoryItem("player", 39 + slotID)
-            else
-                -- Fallback to hyperlink if SetInventoryItem not available
-                if itemLink then
-                    tooltip:SetHyperlink(itemLink)
-                else
-                    return {}
-                end
+            -- Bank main bag: SetInventoryItem doesn't work for bank slots
+            -- Use SetHyperlink with the item link instead
+            if not SafeSetHyperlink(tooltip, itemLink) then
+                return {}
             end
+        elseif bagID >= 5 and bagID <= 10 then
+            -- Bank bags: Try SetBagItem first, it should work for bank bags
+            tooltip:SetBagItem(bagID, slotID)
         else
-            -- Regular bags and bank bags (5-11)
+            -- Regular bags (0-4): SetBagItem works reliably
             tooltip:SetBagItem(bagID, slotID)
         end
     elseif itemLink then
-        tooltip:SetHyperlink(itemLink)
+        if not SafeSetHyperlink(tooltip, itemLink) then
+            return {}
+        end
     else
         return {}
     end
@@ -301,28 +312,84 @@ local function IsRedColor(r, g, b)
     return (dr < 0.15 and dg < 0.15 and db < 0.15)
 end
 
+-- Check if red text is a legitimate requirement (not just loading state or flavor text)
+-- Returns true if text appears to be an actual unmet requirement
+local function IsRequirementText(text)
+    if not text or text == "" then return false end
+    local lower = string.lower(text)
+
+    -- Known requirement patterns in vanilla WoW
+    if string.find(lower, "requires") then return true end      -- "Requires Level 60", "Requires Class:", etc.
+    if string.find(lower, "require") then return true end       -- Alternate forms
+    if string.find(lower, "classes:") then return true end      -- "Classes: Warrior, Paladin"
+    if string.find(lower, "races:") then return true end        -- "Races: Dwarf, Gnome"
+    if string.find(lower, "level %d") then return true end      -- "Level 60" (without Requires)
+    if string.find(lower, "skill:") then return true end        -- Profession requirements
+    if string.find(lower, "reputation") then return true end    -- Reputation requirements
+    if string.find(lower, "riding") then return true end        -- Riding skill
+    if string.find(lower, "already known") then return true end -- Recipe already known
+
+    -- Class names (when shown in red, indicates class restriction)
+    if string.find(lower, "warrior") then return true end
+    if string.find(lower, "paladin") then return true end
+    if string.find(lower, "hunter") then return true end
+    if string.find(lower, "rogue") then return true end
+    if string.find(lower, "priest") then return true end
+    if string.find(lower, "shaman") then return true end
+    if string.find(lower, "mage") then return true end
+    if string.find(lower, "warlock") then return true end
+    if string.find(lower, "druid") then return true end
+
+    -- Race names (when shown in red, indicates race restriction)
+    if string.find(lower, "human") then return true end
+    if string.find(lower, "dwarf") then return true end
+    if string.find(lower, "night elf") then return true end
+    if string.find(lower, "gnome") then return true end
+    if string.find(lower, "orc") then return true end
+    if string.find(lower, "undead") then return true end
+    if string.find(lower, "tauren") then return true end
+    if string.find(lower, "troll") then return true end
+    if string.find(lower, "goblin") then return true end        -- Turtle WoW
+    if string.find(lower, "high elf") then return true end      -- Turtle WoW
+
+    return false
+end
+
 -- Check if item is unusable (has red text indicating unmet requirements)
--- Excludes durability lines (broken items show red durability)
+-- Excludes: durability lines, item name (line 1), non-requirement text
 local function DetectUnusable(lines)
-    for _, line in ipairs(lines) do
-        if line.r and line.g and line.b then
+    local numLines = table.getn(lines)
+
+    -- If tooltip has very few lines, data might not be loaded - be conservative
+    if numLines < 2 then
+        return false
+    end
+
+    -- Start from line 2 to skip the item name (line 1)
+    -- Item names can appear red when data isn't fully loaded
+    for i = 2, numLines do
+        local line = lines[i]
+        if line and line.r and line.g and line.b then
             -- Check for red text (requirements not met)
             local isRed = IsRedColor(line.r, line.g, line.b) or
                           (line.r > 0.85 and line.g < 0.3 and line.b < 0.3)
 
             if isRed then
                 local text = line.left or ""
+
                 -- Ignore durability lines (broken items)
                 if durabilityPattern and string.find(text, durabilityPattern) then
                     -- skip durability
-                else
+                -- Only count as unusable if text looks like a requirement
+                elseif IsRequirementText(text) then
                     return true
                 end
+                -- If red but not a requirement pattern, ignore it (might be flavor text or loading state)
             end
         end
 
-        -- Also check right column (some requirements appear there)
-        if line.rightR and line.rightG and line.rightB then
+        -- Also check right column (some requirements appear there, like "Warrior" class)
+        if line and line.rightR and line.rightG and line.rightB then
             local isRed = IsRedColor(line.rightR, line.rightG, line.rightB) or
                           (line.rightR > 0.85 and line.rightG < 0.3 and line.rightB < 0.3)
 
@@ -330,7 +397,7 @@ local function DetectUnusable(lines)
                 local text = line.right or ""
                 if durabilityPattern and string.find(text, durabilityPattern) then
                     -- skip durability
-                else
+                elseif IsRequirementText(text) then
                     return true
                 end
             end
@@ -369,12 +436,18 @@ function ItemDetection:GetItemProperties(itemData, bagID, slotID)
 
     -- Scan tooltip once
     local lines = ScanTooltipLines(bagID, slotID, itemLink)
+    local numLines = table.getn(lines)
 
     -- Debug: log if tooltip scan failed
-    if table.getn(lines) == 0 and addon.DEBUG then
+    if numLines == 0 and addon.DEBUG then
         addon:Debug("ItemDetection: No tooltip lines for %s (bag=%s, slot=%s)",
             tostring(itemData.name or itemLink), tostring(bagID), tostring(slotID))
     end
+
+    -- Check if tooltip data appears complete
+    -- A proper item tooltip should have at least 2 lines (name + something)
+    -- If tooltip is too short, data may not be fully loaded - don't cache
+    local tooltipLooksComplete = (numLines >= 2)
 
     -- Detect all properties
     local isPermanentEnchant = DetectPermanentEnchant(lines)
@@ -409,8 +482,9 @@ function ItemDetection:GetItemProperties(itemData, bagID, slotID)
         isUnusable = isUnusable,
     }
 
-    -- Cache result
-    if cacheKey then
+    -- Only cache result if tooltip data appears complete
+    -- This prevents caching incorrect results from partially-loaded item data
+    if cacheKey and tooltipLooksComplete then
         detectionCache[cacheKey] = result
     end
 

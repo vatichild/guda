@@ -99,8 +99,8 @@
                     <OnEnter>
                         GameTooltip:SetOwner(this, "ANCHOR_TOP")
                         if this.isCategoryView then
-                            GameTooltip:SetText("Merge Stacks")
-                            GameTooltip:AddLine("Combines split stacks of the same item", 0.7, 0.7, 0.7)
+                            GameTooltip:SetText("Restack and Clean")
+                            GameTooltip:AddLine("Merges split stacks and refreshes the view", 0.7, 0.7, 0.7)
                         else
                             GameTooltip:SetText("Sort Bank")
                         end
