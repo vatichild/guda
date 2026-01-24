@@ -194,6 +194,12 @@ function Main:SetupSlashCommands()
                 addon:Print("ItemDetection Cache: %d hits, %d misses (%.1f%% hit rate, %d items)",
                     stats.hits, stats.misses, stats.hitRate, stats.size)
             end
+            -- Show button pool stats
+            if Guda_GetButtonPoolStats then
+                local stats = Guda_GetButtonPoolStats()
+                addon:Print("Button Pool: %d total (%d shown, %d hidden, %d inUse, %d available, max %d)",
+                    stats.total, stats.shown, stats.hidden, stats.inUse, stats.available, stats.maxSize)
+            end
 
         elseif msg == "perfreset" then
             -- Reset performance statistics
@@ -214,6 +220,21 @@ function Main:SetupSlashCommands()
                 addon.Modules.ItemDetection:ClearCache()
             end
 
+        elseif msg == "poolreset" then
+            -- Reset button pool (only safe when no frames are visible)
+            local bagFrame = getglobal("Guda_BagFrame")
+            local bankFrame = getglobal("Guda_BankFrame")
+            if (bagFrame and bagFrame:IsShown()) or (bankFrame and bankFrame:IsShown()) then
+                addon:Print("Cannot reset pool while bag/bank frames are open. Close them first.")
+            else
+                if Guda_ResetButtonPool then
+                    Guda_ResetButtonPool()
+                    addon:Print("Button pool reset. Pool is now empty.")
+                else
+                    addon:Print("Button pool reset function not available.")
+                end
+            end
+
         elseif msg == "help" then
             -- Show help
             addon:Print("Commands:")
@@ -229,6 +250,7 @@ function Main:SetupSlashCommands()
             addon:Print("/guda cleanup - Remove old characters")
             addon:Print("/guda perf - Show performance stats")
             addon:Print("/guda perfreset - Reset performance stats")
+            addon:Print("/guda poolreset - Reset button pool (debug)")
 
         else
             addon:Print("Unknown command. Type /guda help for commands")

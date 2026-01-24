@@ -144,10 +144,10 @@ function Guda_BagFrame_OnHide(self)
     end
 
 	-- Clean up all buttons when frame is hidden (safe since we're not displaying)
+	-- Use itemButtons hash instead of GetChildren() to avoid table allocation
 	for _, bagParent in pairs(bagParents) do
-		if bagParent then
-			local buttons = { bagParent:GetChildren() }
-			for _, button in ipairs(buttons) do
+		if bagParent and bagParent.itemButtons then
+			for button in pairs(bagParent.itemButtons) do
 				if button.hasItem ~= nil then
 					button:Hide()
 					button:ClearAllPoints()
@@ -434,11 +434,11 @@ function BagFrame:Update()
 	-- BUT only if we already have items displayed - otherwise we need to do initial build
 	if CursorHasItem and CursorHasItem() then
 		-- Check if we have any displayed items
+		-- Use itemButtons hash instead of GetChildren() to avoid table allocation
 		local hasDisplayedItems = false
 		for _, bagParent in pairs(bagParents) do
-			if bagParent then
-				local children = { bagParent:GetChildren() }
-				for _, button in ipairs(children) do
+			if bagParent and bagParent.itemButtons then
+				for button in pairs(bagParent.itemButtons) do
 					if button.hasItem and button:IsShown() then
 						hasDisplayedItems = true
 						break
@@ -456,12 +456,12 @@ function BagFrame:Update()
 	end
 
 	-- Mark all existing buttons as not in use (we'll mark active ones during display)
+	-- Use itemButtons hash instead of GetChildren() to avoid table allocation
 	local totalButtonsBefore = 0
 	local shownButtonsBefore = 0
 	for _, bagParent in pairs(bagParents) do
-		if bagParent then
-			local buttons = { bagParent:GetChildren() }
-			for _, button in ipairs(buttons) do
+		if bagParent and bagParent.itemButtons then
+			for button in pairs(bagParent.itemButtons) do
 				if button.hasItem ~= nil then
 					totalButtonsBefore = totalButtonsBefore + 1
 					if button:IsShown() then
@@ -556,12 +556,12 @@ function BagFrame:Update()
 	self:UpdateBaglineLayout()
 
 	-- Clean up unused buttons AFTER display is complete (prevents drag/drop issues)
+	-- Use itemButtons hash instead of GetChildren() to avoid table allocation
 	local hiddenCount = 0
 	local stillShownCount = 0
 	for _, bagParent in pairs(bagParents) do
-		if bagParent then
-			local buttons = { bagParent:GetChildren() }
-			for _, button in ipairs(buttons) do
+		if bagParent and bagParent.itemButtons then
+			for button in pairs(bagParent.itemButtons) do
 				if button.hasItem ~= nil and not button.inUse then
 					button:Hide()
 					button:ClearAllPoints()
@@ -2543,13 +2543,12 @@ end
 
 -- Highlight all item slots belonging to a specific bag by dimming others
 function Guda_BagFrame_HighlightBagSlots(bagID)
-    -- Iterate through bagParents to get all item buttons (same approach as BankFrame)
+    -- Use itemButtons hash instead of GetChildren() to avoid table allocation
     local highlightCount, dimCount = 0, 0
 
     for _, bagParent in pairs(bagParents) do
-        if bagParent then
-            local children = { bagParent:GetChildren() }
-            for _, button in ipairs(children) do
+        if bagParent and bagParent.itemButtons then
+            for button in pairs(bagParent.itemButtons) do
                 if button and button:IsShown() and button.hasItem ~= nil and not button.isBagSlot then
                     if button.bagID == bagID then
                         button:SetAlpha(1.0)
@@ -2567,12 +2566,12 @@ end
 -- Clear all highlighting by restoring full opacity to all slots
 function Guda_BagFrame_ClearHighlightedSlots()
     -- Restore alpha to whatever the search filter dictates (pfUI style). If no search, full opacity.
+    -- Use itemButtons hash instead of GetChildren() to avoid table allocation
     local searchActive = BagFrame and BagFrame.IsSearchActive and BagFrame:IsSearchActive()
 
     for _, bagParent in pairs(bagParents) do
-        if bagParent then
-            local children = { bagParent:GetChildren() }
-            for _, button in ipairs(children) do
+        if bagParent and bagParent.itemButtons then
+            for button in pairs(bagParent.itemButtons) do
                 if button and button:IsShown() and button.hasItem ~= nil and not button.isBagSlot then
                     if searchActive and BagFrame and BagFrame.PassesSearchFilter then
                         local matches = BagFrame:PassesSearchFilter(button.itemData)
@@ -2813,32 +2812,14 @@ end
 
 -- Refresh cooldown overlays for all visible item buttons
 function BagFrame:RefreshCooldowns()
-    local itemContainer = getglobal("Guda_BagFrame_ItemContainer")
-    if not itemContainer then return end
-
-    -- Iterate through all children; our item buttons are direct children of per-bag parents inside the container,
-    -- so iterate all descendants by scanning children of children as well.
-    local function refreshChildren(parent)
-        local children = { parent:GetChildren() }
-        for _, child in ipairs(children) do
-            if child and child.hasItem ~= nil then
-                if child:IsShown() and Guda_ItemButton_UpdateCooldown then
-                    Guda_ItemButton_UpdateCooldown(child)
-                end
-            end
-            -- Recurse one level to reach actual buttons under bag parents
-            local grandChildren = { child:GetChildren() }
-            if table.getn(grandChildren) > 0 then
-                for _, gc in ipairs(grandChildren) do
-                    if gc and gc.hasItem ~= nil then
-                        if gc:IsShown() and Guda_ItemButton_UpdateCooldown then
-                            Guda_ItemButton_UpdateCooldown(gc)
-                        end
-                    end
+    -- Use itemButtons hash instead of GetChildren() to avoid table allocation
+    for _, bagParent in pairs(bagParents) do
+        if bagParent and bagParent.itemButtons then
+            for button in pairs(bagParent.itemButtons) do
+                if button and button.hasItem and button:IsShown() and Guda_ItemButton_UpdateCooldown then
+                    Guda_ItemButton_UpdateCooldown(button)
                 end
             end
         end
     end
-
-    refreshChildren(itemContainer)
 end

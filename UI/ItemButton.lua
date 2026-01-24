@@ -4,6 +4,58 @@ local addon = Guda
 -- Item button pool
 local buttonPool = {}
 local nextButtonID = 1
+local BUTTON_POOL_MAX = 350  -- Maximum buttons to create (bags ~80 + bank ~124 + keyring ~96 + buffer)
+
+-- Get button pool statistics (for /guda perf command)
+function Guda_GetButtonPoolStats()
+    local total = 0
+    local shown = 0
+    local hidden = 0
+    local inUse = 0
+    local available = 0
+    for _, button in pairs(buttonPool) do
+        total = total + 1
+        if button:IsShown() then
+            shown = shown + 1
+        else
+            hidden = hidden + 1
+        end
+        if button.inUse then
+            inUse = inUse + 1
+        else
+            available = available + 1
+        end
+    end
+    return {
+        total = total,
+        shown = shown,
+        hidden = hidden,
+        inUse = inUse,
+        available = available,
+        maxSize = BUTTON_POOL_MAX,
+    }
+end
+
+-- Reset button pool (for testing/debugging)
+-- WARNING: Only call this when no bag/bank frames are visible!
+function Guda_ResetButtonPool()
+    -- Hide and clear all buttons
+    for id, button in pairs(buttonPool) do
+        button:Hide()
+        button:ClearAllPoints()
+        -- Clear from parent tracking
+        local parent = button:GetParent()
+        if parent and parent.itemButtons then
+            parent.itemButtons[button] = nil
+        end
+    end
+    -- Clear the pool table
+    for k in pairs(buttonPool) do
+        buttonPool[k] = nil
+    end
+    -- Reset counter
+    nextButtonID = 1
+end
 
 -- Use shared tooltip from Utils module (retrieved on-demand to ensure Utils is loaded)
 
@@ -172,30 +224,117 @@ local function Guda_ItemButton_UpdateUsableTint(self)
 end
 
 
+-- Check if a button is available for reuse
+-- A button is available if it's either:
+-- 1. Hidden (not shown)
+-- 2. Marked as not in use (inUse == false) during an update cycle
+local function IsButtonAvailable(button)
+    if not button:IsShown() then
+        return true
+    end
+    -- During update cycles, buttons are marked inUse = false before display
+    -- and inUse = true when assigned. This allows reuse without hiding first.
+    if button.inUse == false then
+        return true
+    end
+    return false
+end
+
 -- Create or get a button from the pool
 function Guda_GetItemButton(parent)
-    -- Try to reuse existing button from same parent
+    local reuseCandidate = nil  -- Button from different parent we can reparent
+
+    -- Try to reuse existing button from pool
     for _, button in pairs(buttonPool) do
         -- Skip bag slot buttons
-        if not button.isBagSlot and not button:IsShown() and button:GetParent() == parent then
-            -- Re-register with parent (itemButtons hash may have been cleared)
+        if not button.isBagSlot and IsButtonAvailable(button) then
+            if button:GetParent() == parent then
+                -- Same parent - best case, reuse immediately
+                -- Mark as in use to prevent double-assignment
+                button.inUse = true
+                -- Re-register with parent (itemButtons hash may have been cleared)
+                if Guda_RegisterItemButton then
+                    Guda_RegisterItemButton(parent, button)
+                end
+                return button
+            elseif not reuseCandidate then
+                -- Different parent but available - save as candidate for reparenting
+                reuseCandidate = button
+            end
+        end
+    end
+
+    -- If we found an available button from a different parent, reparent it
+    if reuseCandidate then
+        -- Mark as in use
+        reuseCandidate.inUse = true
+
+        -- Unregister from old parent
+        local oldParent = reuseCandidate:GetParent()
+        if oldParent and oldParent.itemButtons then
+            oldParent.itemButtons[reuseCandidate] = nil
+        end
+
+        -- Reparent to new parent
+        reuseCandidate:SetParent(parent)
+
+        -- Register with new parent
+        if Guda_RegisterItemButton then
+            Guda_RegisterItemButton(parent, reuseCandidate)
+        end
+
+        return reuseCandidate
+    end
+
+    -- Only create new button if under pool limit
+    if nextButtonID <= BUTTON_POOL_MAX then
+        local button = CreateFrame("Button", "Guda_ItemButton" .. nextButtonID, parent, "Guda_ItemButtonTemplate")
+        buttonPool[nextButtonID] = button
+        nextButtonID = nextButtonID + 1
+        button.inUse = true
+
+        -- Register button with parent for tracking (avoids GetChildren() allocation)
+        if Guda_RegisterItemButton then
+            Guda_RegisterItemButton(parent, button)
+        end
+
+        return button
+    end
+
+    -- Pool is at max and no available button found - this shouldn't normally happen
+    -- but as a fallback, force-reuse the first non-bag-slot button we find
+    for _, button in pairs(buttonPool) do
+        if not button.isBagSlot then
+            -- Hide it first (in case it was shown)
+            button:Hide()
+            button.inUse = true
+
+            -- Unregister from old parent
+            local oldParent = button:GetParent()
+            if oldParent and oldParent.itemButtons then
+                oldParent.itemButtons[button] = nil
+            end
+
+            -- Reparent
+            button:SetParent(parent)
+
+            -- Register with new parent
             if Guda_RegisterItemButton then
                 Guda_RegisterItemButton(parent, button)
             end
+
             return button
         end
     end
 
-    -- Create new button
+    -- Ultimate fallback (should never reach here) - create one more button
     local button = CreateFrame("Button", "Guda_ItemButton" .. nextButtonID, parent, "Guda_ItemButtonTemplate")
     buttonPool[nextButtonID] = button
     nextButtonID = nextButtonID + 1
-
-    -- Register button with parent for tracking (avoids GetChildren() allocation)
+    button.inUse = true
     if Guda_RegisterItemButton then
         Guda_RegisterItemButton(parent, button)
     end
-
     return button
 end
 
