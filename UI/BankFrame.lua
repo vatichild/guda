@@ -144,6 +144,17 @@ function Guda_BankFrame_OnHide(self)
     -- Clear recently emptied slots tracking (reset placeholders)
     BankFrame:ClearRecentlyEmptiedSlots()
 
+    -- Clear isEmptyPlaceholder flags on all buttons (reset for next open)
+    for bagID, slots in pairs(bankSlotToButton) do
+        if type(slots) == "table" then
+            for slotID, button in pairs(slots) do
+                if button and button.isEmptyPlaceholder then
+                    button.isEmptyPlaceholder = nil
+                end
+            end
+        end
+    end
+
     -- Close the actual Blizzard bank too
     local blizzardBankFrame = getglobal("BankFrame")
     if blizzardBankFrame and blizzardBankFrame:IsShown() then
@@ -238,26 +249,40 @@ function BankFrame:UpdateSingleSlot(bagID, slotID, passedButton)
 
     addon:DebugCategory("UpdateSingleSlot: bag=%d slot=%d hasItem=%s -> updating button", bagID, slotID, itemLink and "yes" or "no")
 
-    -- Track when slot becomes empty in Category View (for placeholder display)
+    -- Track when slot becomes empty in Category View (keep empty placeholder visible)
     local viewType = addon.Modules.DB:GetSetting("bankViewType") or "single"
-    if viewType == "category" then
-        local hadItem = targetButton.itemData and targetButton.itemData.link
-        local hasItem = itemData and itemData.link
+    local hadItem = targetButton.itemData and targetButton.itemData.link
+    local hasItem = itemData and itemData.link
 
+    if viewType == "category" then
         if hadItem and not hasItem then
-            -- Item was removed - mark slot as emptied with its category and sort info
-            local category = targetButton.itemCategory or "Miscellaneous"
-            local oldItemData = targetButton.itemData  -- Get the old item data before it's cleared
-            self:MarkSlotAsEmptied(bagID, slotID, category, oldItemData)
+            -- Item was removed - show empty placeholder, keep button visible
+            addon:DebugCategory("UpdateSingleSlot: slot %d:%d emptied, showing empty placeholder", bagID, slotID)
+            -- Mark as still in use so cleanup doesn't hide it
+            targetButton.inUse = true
+            targetButton.isEmptyPlaceholder = true
+            -- Also mark in recentlyEmptiedSlots for full redraw support
+            local oldItemData = targetButton.itemData
+            local oldCategory = "Miscellaneous"
+            if oldItemData and oldItemData.link then
+                oldCategory = addon.Modules.CategoryManager:CategorizeItem(oldItemData, bagID, slotID) or "Miscellaneous"
+            end
+            self:MarkSlotAsEmptied(bagID, slotID, oldCategory, oldItemData)
         elseif hasItem and not hadItem then
-            -- Item was added - remove from emptied tracking
+            -- Item was added
+            targetButton.isEmptyPlaceholder = false
             self:UnmarkSlotAsEmptied(bagID, slotID)
         end
     end
 
-    -- Update the button
+    -- Update the button visually
     local matchesFilter = self:PassesSearchFilter(itemData)
     Guda_ItemButton_SetItem(targetButton, bagID, slotID, itemData, true, nil, matchesFilter, isReadOnlyMode)
+
+    -- Ensure empty placeholders stay visible
+    if viewType == "category" and targetButton.isEmptyPlaceholder then
+        targetButton:Show()
+    end
 
     return true
 end
@@ -2014,7 +2039,7 @@ function BankFrame:Initialize()
             -- arg1 is the slot number (1-28 for main bank), but can be nil in some cases
             local viewType = addon.Modules.DB:GetSetting("bankViewType") or "single"
 
-            if arg1 then
+            if arg1 and type(arg1) == "number" and arg1 >= 1 then
                 -- Specific slot changed
                 local rawTexture, rawCount = GetContainerItemInfo(-1, arg1)
                 local rawLink = GetContainerItemLink(-1, arg1)
@@ -2071,11 +2096,10 @@ function BankFrame:Initialize()
                     addon:DebugCategory("  -> comparing cache=%d vs API=%d", cacheItems, realItems)
 
                     if realItems < cacheItems then
-                        -- Items were REMOVED - update only the emptied slots, no full redraw
-                        addon:DebugCategory("  -> items removed (%d -> %d), updating emptied slots only", cacheItems, realItems)
+                        -- Items were REMOVED - show empty placeholders, no full redraw
+                        addon:DebugCategory("  -> items removed (%d -> %d), showing empty placeholders", cacheItems, realItems)
 
-                        -- Find and update slots that became empty
-                        -- Use button's stored itemData (not cache, which may already be updated)
+                        -- Find slots that became empty and update them to show empty placeholder
                         if bankSlotToButton[-1] then
                             for slotID, button in pairs(bankSlotToButton[-1]) do
                                 local buttonHadItem = button.itemData and button.itemData.link
@@ -2083,18 +2107,31 @@ function BankFrame:Initialize()
 
                                 -- If button had item but API doesn't, this slot was emptied
                                 if buttonHadItem and not currentTexture then
-                                    addon:DebugCategory("  -> slot %d emptied, updating button", slotID)
-                                    -- Mark slot as emptied for placeholder tracking
-                                    local category = button.itemCategory or "Miscellaneous"
-                                    self:MarkSlotAsEmptied(-1, slotID, category, button.itemData)
-                                    -- Update the button to show empty state
+                                    addon:DebugCategory("  -> slot %d emptied, showing empty placeholder", slotID)
+                                    -- Mark as empty placeholder so it stays visible
+                                    button.inUse = true
+                                    button.isEmptyPlaceholder = true
+                                    -- Also mark in recentlyEmptiedSlots for full redraw support
+                                    local oldItemData = button.itemData
+                                    local oldCategory = "Miscellaneous"
+                                    if oldItemData and oldItemData.link then
+                                        oldCategory = addon.Modules.CategoryManager:CategorizeItem(oldItemData, -1, slotID) or "Miscellaneous"
+                                    end
+                                    self:MarkSlotAsEmptied(-1, slotID, oldCategory, oldItemData)
+                                    -- Update button to show empty state
                                     local matchesFilter = self:PassesSearchFilter(nil)
                                     Guda_ItemButton_SetItem(button, -1, slotID, nil, true, nil, matchesFilter, isReadOnlyMode)
+                                    -- Clear itemData so subsequent events know this slot is empty
+                                    button.itemData = nil
+                                    -- Ensure it stays visible
+                                    button:Show()
                                 end
                             end
                         end
 
-                        addon.Modules.BankScanner:InvalidateBag(-1)
+                        -- DON'T invalidate cache here - we've already handled the visual update
+                        -- Invalidating would cause cache=0, making next event think items were added
+                        -- The cache will be updated on next full redraw if needed
                         return
                     elseif realItems == cacheItems then
                         -- No change in item count - might be item swap, skip update
