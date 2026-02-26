@@ -59,15 +59,31 @@ function TrackedItemBar:ScanForTrackedItems()
     end
 
     for _, id in ipairs(itemOrder) do
+        local bagID = itemCounts[id .. "_bag"]
+        local slotID = itemCounts[id .. "_slot"]
+        local link = itemLinks[id]
+
+        -- Detect unusable and junk status using centralized ItemDetection
+        local isUnusable = false
+        local isJunk = false
+        if addon.Modules.ItemDetection and link then
+            local itemData = { link = link }
+            local props = addon.Modules.ItemDetection:GetItemProperties(itemData, bagID, slotID)
+            isUnusable = props.isUnusable
+            isJunk = props.isJunk
+        end
+
         table.insert(trackedItemsInfo, {
             itemID = id,
             texture = itemTextures[id],
             count = itemCounts[id],
-            link = itemLinks[id],
-            bagID = itemCounts[id .. "_bag"],
-            slotID = itemCounts[id .. "_slot"],
+            link = link,
+            bagID = bagID,
+            slotID = slotID,
             isQuest = itemIsQuest[id],
-            isQuestStarter = itemIsQuestStarter[id]
+            isQuestStarter = itemIsQuestStarter[id],
+            isUnusable = isUnusable,
+            isJunk = isJunk,
         })
     end
 end
@@ -88,9 +104,11 @@ function TrackedItemBar:Update()
     -- Update frame height based on button size
     frame:SetHeight(buttonSize + 8)
     
-    -- Hide all buttons initially
+    -- Hide all buttons and their overlays initially
     for _, btn in ipairs(buttons) do
         btn:Hide()
+        if btn.unusableOverlay then btn.unusableOverlay:Hide() end
+        if btn.junkIcon then btn.junkIcon:Hide() end
     end
 
     for i, info in ipairs(trackedItemsInfo) do
@@ -254,6 +272,51 @@ function TrackedItemBar:Update()
                 button.questIcon:Show()
             else
                 button.questIcon:Hide()
+            end
+        end
+
+        -- Apply unusable red overlay (same as bag slot indicator)
+        if info.isUnusable then
+            if not button.unusableOverlay then
+                local overlay = button:CreateTexture(nil, "OVERLAY")
+                overlay:SetAllPoints(icon)
+                overlay:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
+                overlay:Hide()
+                button.unusableOverlay = overlay
+            end
+            local r, g, b = 0.9, 0.2, 0.2
+            if RED_FONT_COLOR then
+                r, g, b = RED_FONT_COLOR.r, RED_FONT_COLOR.g, RED_FONT_COLOR.b
+            end
+            button.unusableOverlay:SetVertexColor(r, g, b, 0.45)
+            button.unusableOverlay:Show()
+        else
+            if button.unusableOverlay then
+                button.unusableOverlay:Hide()
+            end
+        end
+
+        -- Apply junk vendor icon (same as bag slot indicator)
+        if info.isJunk then
+            if not button.junkIcon then
+                local junkFrame = CreateFrame("Frame", nil, button)
+                junkFrame:SetFrameStrata("HIGH")
+                local junkTex = junkFrame:CreateTexture(nil, "OVERLAY")
+                junkTex:SetAllPoints(junkFrame)
+                junkTex:SetTexture("Interface\\GossipFrame\\VendorGossipIcon")
+                junkTex:SetTexCoord(0, 1, 0, 1)
+                junkFrame.texture = junkTex
+                button.junkIcon = junkFrame
+            end
+            local junkIconSize = math.max(10, math.min(14, buttonSize * 0.30))
+            button.junkIcon:SetWidth(junkIconSize)
+            button.junkIcon:SetHeight(junkIconSize)
+            button.junkIcon:ClearAllPoints()
+            button.junkIcon:SetPoint("TOPLEFT", button, "TOPLEFT", 2, -2)
+            button.junkIcon:Show()
+        else
+            if button.junkIcon then
+                button.junkIcon:Hide()
             end
         end
 
