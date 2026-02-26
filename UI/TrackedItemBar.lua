@@ -30,6 +30,7 @@ function TrackedItemBar:ScanForTrackedItems()
     local itemOrder = {}
     local itemIsQuest = {}
     local itemIsQuestStarter = {}
+    local itemQualities = {}
 
     -- Scan backpack and 4 bags
     for bagID = 0, 4 do
@@ -50,6 +51,9 @@ function TrackedItemBar:ScanForTrackedItems()
                         local isQuest, isStarter = IsQuestItem(bagID, slotID)
                         itemIsQuest[id] = isQuest
                         itemIsQuestStarter[id] = isStarter
+                        -- Get item quality
+                        local _, _, itemQuality = GetItemInfo(id)
+                        itemQualities[id] = tonumber(itemQuality)
                         table.insert(itemOrder, id)
                     end
                     itemCounts[id] = itemCounts[id] + count
@@ -84,6 +88,7 @@ function TrackedItemBar:ScanForTrackedItems()
             isQuestStarter = itemIsQuestStarter[id],
             isUnusable = isUnusable,
             isJunk = isJunk,
+            quality = itemQualities[id],
         })
     end
 end
@@ -107,6 +112,7 @@ function TrackedItemBar:Update()
     -- Hide all buttons and their overlays initially
     for _, btn in ipairs(buttons) do
         btn:Hide()
+        if btn.qualityBorder then btn.qualityBorder:Hide() end
         if btn.unusableOverlay then btn.unusableOverlay:Hide() end
         if btn.junkIcon then btn.junkIcon:Hide() end
     end
@@ -129,6 +135,19 @@ function TrackedItemBar:Update()
             questBorder:SetBackdropBorderColor(1.0, 0.82, 0, 1)
             questBorder:Hide()
             button.questBorder = questBorder
+
+            -- Create quality border (colored by rarity)
+            local qualityBorder = CreateFrame("Frame", nil, button)
+            qualityBorder:SetFrameLevel(button:GetFrameLevel() + 5)
+            qualityBorder:SetBackdrop({
+                bgFile = nil,
+                edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+                edgeSize = 12,
+                insets = {left = 4, right = 4, top = 4, bottom = 4}
+            })
+            qualityBorder:SetBackdropBorderColor(0, 0, 0, 0)
+            qualityBorder:Hide()
+            button.qualityBorder = qualityBorder
 
             -- Create quest icon (question mark in corner)
             local questIcon = CreateFrame("Frame", nil, button)
@@ -237,6 +256,23 @@ function TrackedItemBar:Update()
         if emptyBg then
             emptyBg:SetWidth(buttonSize)
             emptyBg:SetHeight(buttonSize)
+        end
+
+        -- Position and show/hide quality border
+        if button.qualityBorder then
+            button.qualityBorder:ClearAllPoints()
+            button.qualityBorder:SetPoint("TOPLEFT", icon, "TOPLEFT", -5, 5)
+            button.qualityBorder:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", 5, -5)
+            if info.quality and info.quality >= 1 then
+                local r, g, b = 1, 1, 1
+                if addon.Modules.Utils and addon.Modules.Utils.GetQualityColor then
+                    r, g, b = addon.Modules.Utils:GetQualityColor(info.quality)
+                end
+                button.qualityBorder:SetBackdropBorderColor(r, g, b, 1)
+                button.qualityBorder:Show()
+            else
+                button.qualityBorder:Hide()
+            end
         end
 
         -- Position and show/hide quest border
@@ -384,6 +420,16 @@ function TrackedItemBar:Initialize()
     
     addon.Modules.Events:Register("PLAYER_ENTERING_WORLD", function()
         TrackedItemBar:Update()
+    end, "TrackedItemBar")
+
+    addon.Modules.Events:Register("PLAYER_LEVEL_UP", function()
+        -- Delay to let client update internal player level before re-scanning tooltips
+        Guda_ScheduleTimer(0.5, function()
+            if addon.Modules.ItemDetection then
+                addon.Modules.ItemDetection:ClearCache()
+            end
+            TrackedItemBar:Update()
+        end)
     end, "TrackedItemBar")
 
     TrackedItemBar:Update()
