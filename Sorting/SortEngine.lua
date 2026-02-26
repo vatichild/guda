@@ -19,6 +19,20 @@ local MAX_BANK_MOVES_PER_CYCLE = 25
 -- Current sort context (set by ExecuteSort, used by ApplySort)
 local currentSortType = "bags"
 
+-- Swap deduplication: track swapped slot pairs from the PREVIOUS pass only
+-- Prevents oscillation where pass N swaps A↔B and pass N+1 swaps B↔A
+-- Only blocks immediate re-swaps; allows the same pair again after one pass gap
+local previousPassSwaps = {}
+local currentPassSwaps = {}
+
+-- Generate a canonical key for a swap pair (order-independent)
+local function SwapKey(bag1, slot1, bag2, slot2)
+	local a = bag1 * 1000 + slot1
+	local b = bag2 * 1000 + slot2
+	if a > b then a, b = b, a end
+	return a .. ":" .. b
+end
+
 -- Transfer status constants (like Baganator's SortStatus)
 local TransferStatus = {
     Complete = 0,       -- All moves done
@@ -111,6 +125,44 @@ local CATEGORY_ORDER = {
 	["Class Items"] = 18,
 }
 
+-- Weapon subclass ordering: 1H weapons grouped first, then 2H, then ranged
+-- Includes both singular and plural forms for TurtleWoW API compatibility
+local WEAPON_SUBCLASS_ORDER = {
+	["Dagger"] = 1, ["Daggers"] = 1,
+	["Fist Weapon"] = 2, ["Fist Weapons"] = 2,
+	["One-Handed Sword"] = 3, ["One-Handed Swords"] = 3,
+	["One-Handed Mace"] = 4, ["One-Handed Maces"] = 4,
+	["One-Handed Axe"] = 5, ["One-Handed Axes"] = 5,
+	["Sword"] = 6, ["Swords"] = 6,
+	["Mace"] = 7, ["Maces"] = 7,
+	["Axe"] = 8, ["Axes"] = 8,
+	["Two-Handed Sword"] = 10, ["Two-Handed Swords"] = 10,
+	["Two-Handed Mace"] = 11, ["Two-Handed Maces"] = 11,
+	["Two-Handed Axe"] = 12, ["Two-Handed Axes"] = 12,
+	["Polearm"] = 13, ["Polearms"] = 13,
+	["Staff"] = 14, ["Staves"] = 14,
+	["Fishing Pole"] = 15, ["Fishing Poles"] = 15,
+	["Bow"] = 18, ["Bows"] = 18,
+	["Crossbow"] = 19, ["Crossbows"] = 19,
+	["Gun"] = 20, ["Guns"] = 20,
+	["Wand"] = 21, ["Wands"] = 21,
+	["Thrown"] = 22,
+}
+
+-- Armor subclass ordering: heavy armor first, then light, then accessories
+local ARMOR_SUBCLASS_ORDER = {
+	["Plate"] = 1,
+	["Mail"] = 2,
+	["Leather"] = 3,
+	["Cloth"] = 4,
+	["Shield"] = 5, ["Shields"] = 5,
+	["Libram"] = 6, ["Librams"] = 6,
+	["Idol"] = 7, ["Idols"] = 7,
+	["Totem"] = 8, ["Totems"] = 8,
+	["Buckler"] = 9, ["Bucklers"] = 9,
+	["Miscellaneous"] = 10,
+}
+
 -- Subclass ordering for grouping related items
 local SUBCLASS_ORDER = {
 	gems = 1,
@@ -135,6 +187,29 @@ local GEM_PATTERNS = {
 -- UTILITY FUNCTIONS
 -- Uses shared tooltip from Utils module
 --===========================================================================
+
+-- Check if an item can be placed in a target bag (bag family constraint validation)
+local function CanItemGoInBag(itemLink, targetBagID)
+	-- Backpack, bank main, and keyring accept all items
+	if targetBagID == 0 or targetBagID == -1 or targetBagID == -2 then
+		return true
+	end
+	local bagType = addon.Modules.Utils:GetSpecializedBagType(targetBagID)
+	-- Regular bags accept all items
+	if not bagType then
+		return true
+	end
+	-- Specialized bags: check if item matches the bag's type
+	local preferredType = addon.Modules.Utils:GetItemPreferredContainer(itemLink)
+	return preferredType == bagType
+end
+
+-- Extract item ID from an item link string
+local function GetItemIDFromLink(link)
+	if not link then return nil end
+	local _, _, id = string.find(link, "item:(%d+)")
+	return id
+end
 
 -- Property cache to prevent race conditions during rapid moves
 -- With size limits to prevent unbounded memory growth (Baganator pattern)
@@ -768,6 +843,15 @@ local function AddSortKeys(items)
 				item.sortedSubclass = _cons_prk(item.restoreTag) + baseSub
 				item.subclass = itemSubType or ""
 
+				-- Numeric subclass order for logical weapon/armor grouping
+				if itemCategory == "Weapon" and WEAPON_SUBCLASS_ORDER[itemSubType] then
+					item.numericSubclassOrder = WEAPON_SUBCLASS_ORDER[itemSubType]
+				elseif itemCategory == "Armor" and ARMOR_SUBCLASS_ORDER[itemSubType] then
+					item.numericSubclassOrder = ARMOR_SUBCLASS_ORDER[itemSubType]
+				else
+					item.numericSubclassOrder = 99
+				end
+
 				-- Quest flags: mark quest items and detect starter/usable states
 				-- Note: permanent enchant items should NOT be marked as quest items
 				item.isQuest = false
@@ -847,7 +931,13 @@ local function SortItems(items)
 			if a.equipSlotOrder ~= b.equipSlotOrder then
 				return a.equipSlotOrder < b.equipSlotOrder
 			end
-			-- Group by itemSubType first (e.g., "Ring", "Staff", "Cloth", etc.)
+			-- Group by subclass using numeric order (1H before 2H, plate before cloth)
+			local aOrder = a.numericSubclassOrder or 99
+			local bOrder = b.numericSubclassOrder or 99
+			if aOrder ~= bOrder then
+				return aOrder < bOrder
+			end
+			-- Fallback to string comparison for unknown subtypes
 			if a.subclass ~= b.subclass then
 				return a.subclass < b.subclass
 			end
@@ -1093,12 +1183,23 @@ local function ApplySort(bagIDs, items, targetPositions)
 						targetSlot = targetSlot,
 					})
 				else
-					table.insert(swapOccupied, {
-						sourceBag = sourceBag,
-						sourceSlot = sourceSlot,
-						targetBag = targetBag,
-						targetSlot = targetSlot,
-					})
+					-- Skip swap if both slots contain identical items (same ID and stack count)
+					local sourceLink = GetContainerItemLink(sourceBag, sourceSlot)
+					local sourceID = GetItemIDFromLink(sourceLink)
+					local targetID = GetItemIDFromLink(targetItem)
+					local _, sourceCount = GetContainerItemInfo(sourceBag, sourceSlot)
+					local _, targetCount = GetContainerItemInfo(targetBag, targetSlot)
+					if sourceID and targetID and sourceID == targetID and (sourceCount or 1) == (targetCount or 1) then
+						-- Identical items, no visual change from swapping
+						addon:DebugSort("Swap skipped: identical items (%s) at (%d:%d) and (%d:%d)", sourceID, sourceBag, sourceSlot, targetBag, targetSlot)
+					else
+						table.insert(swapOccupied, {
+							sourceBag = sourceBag,
+							sourceSlot = sourceSlot,
+							targetBag = targetBag,
+							targetSlot = targetSlot,
+						})
+					end
 				end
 			end
 		end
@@ -1114,14 +1215,22 @@ local function ApplySort(bagIDs, items, targetPositions)
 			break
 		end
 
-		local _, _, locked = GetContainerItemInfo(move.sourceBag, move.sourceSlot)
-		if not locked then
-			PickupContainerItem(move.sourceBag, move.sourceSlot)
-			PickupContainerItem(move.targetBag, move.targetSlot)
-			ClearCursor()
-			moveCount = moveCount + 1
+		-- Validate bag family constraint before moving
+		local sourceLink = GetContainerItemLink(move.sourceBag, move.sourceSlot)
+		if sourceLink and not CanItemGoInBag(sourceLink, move.targetBag) then
+			addon:DebugSort("Move skipped: item can't go in bag %d", move.targetBag)
+		elseif not sourceLink then
+			-- Source slot is now empty, skip
 		else
-			lockedCount = lockedCount + 1
+			local _, _, locked = GetContainerItemInfo(move.sourceBag, move.sourceSlot)
+			if not locked then
+				PickupContainerItem(move.sourceBag, move.sourceSlot)
+				PickupContainerItem(move.targetBag, move.targetSlot)
+				ClearCursor()
+				moveCount = moveCount + 1
+			else
+				lockedCount = lockedCount + 1
+			end
 		end
 	end
 
@@ -1137,23 +1246,36 @@ local function ApplySort(bagIDs, items, targetPositions)
 			break
 		end
 
-		-- Verify source item is still there (previous swaps may have moved it)
-		local sourceLink = GetContainerItemLink(move.sourceBag, move.sourceSlot)
-		if not sourceLink then
-			-- Source slot is now empty, skip this swap (will be handled next pass)
-			addon:DebugSort("Swap skipped: source slot now empty (%d:%d)", move.sourceBag, move.sourceSlot)
+		-- Check swap deduplication: skip if this pair was swapped in the previous pass (oscillation)
+		local swapKey = SwapKey(move.sourceBag, move.sourceSlot, move.targetBag, move.targetSlot)
+		if previousPassSwaps[swapKey] then
+			addon:DebugSort("Swap dedup: skipping oscillating pair (%d:%d) <-> (%d:%d)", move.sourceBag, move.sourceSlot, move.targetBag, move.targetSlot)
 		else
-			local _, _, sourceLocked = GetContainerItemInfo(move.sourceBag, move.sourceSlot)
-			local _, _, targetLocked = GetContainerItemInfo(move.targetBag, move.targetSlot)
-
-			if not sourceLocked and not targetLocked then
-				PickupContainerItem(move.sourceBag, move.sourceSlot)
-				PickupContainerItem(move.targetBag, move.targetSlot)
-				ClearCursor()
-				moveCount = moveCount + 1
-				swapCount = swapCount + 1
+			-- Verify source item is still there (previous swaps may have moved it)
+			local sourceLink = GetContainerItemLink(move.sourceBag, move.sourceSlot)
+			if not sourceLink then
+				-- Source slot is now empty, skip this swap (will be handled next pass)
+				addon:DebugSort("Swap skipped: source slot now empty (%d:%d)", move.sourceBag, move.sourceSlot)
 			else
-				lockedCount = lockedCount + 1
+				-- Validate bag family constraints for both directions
+				local targetLink = GetContainerItemLink(move.targetBag, move.targetSlot)
+				if not CanItemGoInBag(sourceLink, move.targetBag) or (targetLink and not CanItemGoInBag(targetLink, move.sourceBag)) then
+					addon:DebugSort("Swap skipped: bag constraint violation (%d:%d) <-> (%d:%d)", move.sourceBag, move.sourceSlot, move.targetBag, move.targetSlot)
+				else
+					local _, _, sourceLocked = GetContainerItemInfo(move.sourceBag, move.sourceSlot)
+					local _, _, targetLocked = GetContainerItemInfo(move.targetBag, move.targetSlot)
+
+					if not sourceLocked and not targetLocked then
+						PickupContainerItem(move.sourceBag, move.sourceSlot)
+						PickupContainerItem(move.targetBag, move.targetSlot)
+						ClearCursor()
+						moveCount = moveCount + 1
+						swapCount = swapCount + 1
+						currentPassSwaps[swapKey] = true
+					else
+						lockedCount = lockedCount + 1
+					end
+				end
 			end
 		end
 	end
@@ -1243,44 +1365,14 @@ end
 
 -- Split a list of collected items into non-junk and junk items
 -- Junk includes: gray items (quality 0), gray tooltip items, white equippable items (quality 1 Weapon/Armor)
--- Uses centralized ItemDetection when available
+-- Uses centralized ItemDetection module
 local function SplitGreyItems(items)
     local nonGreys, greys = {}, {}
     for _, item in ipairs(items) do
         local isJunk = false
-
-        -- Use centralized ItemDetection when available
         if addon.Modules.ItemDetection and item.data then
             local props = addon.Modules.ItemDetection:GetItemProperties(item.data, item.bagID, item.slot)
             isJunk = props.isJunk
-        else
-            -- Fallback: manual junk detection
-            local quality = tonumber(item.quality or 0)
-            local isGray = quality == 0 or IsItemGrayTooltip(item.bagID, item.slot, item.data and item.data.link)
-            local itemClass = item.class or ""
-            local itemSubclass = item.data and item.data.subclass or ""
-            local itemLink = item.data and item.data.link
-            local isWhiteEquip = false
-
-            if quality == 1 and (itemClass == "Weapon" or itemClass == "Armor") then
-                local isSpecialSlot = (itemSubclass == "INVTYPE_TRINKET" or
-                                       itemSubclass == "INVTYPE_FINGER" or
-                                       itemSubclass == "INVTYPE_NECK" or
-                                       itemSubclass == "INVTYPE_TABARD" or
-                                       itemSubclass == "INVTYPE_BODY")
-
-                if not isSpecialSlot then
-                    local isProfTool = IsProfessionTool(itemLink, itemSubclass)
-                    local hasSpecialText = false
-                    if not isProfTool then
-                        hasSpecialText = HasSpecialTooltipText(item.bagID, item.slot, itemLink)
-                    end
-                    if not isProfTool and not hasSpecialText then
-                        isWhiteEquip = true
-                    end
-                end
-            end
-            isJunk = isGray or isWhiteEquip
         end
 
         if isJunk then
@@ -1410,9 +1502,6 @@ end
 
 -- Execute exactly ONE full sorting pass over bags (used by safety wrapper)
 function SortEngine:SortBagsPass()
-    -- Clear property cache to ensure fresh detection
-    propertyCache = {}
-
     local bagIDs = addon.Constants.BAGS
 
     -- Phase 1: Detect specialized bags
@@ -1599,9 +1688,6 @@ function SortEngine:SortBankPass()
 end
 
 function SortEngine:SortBank()
-    -- Clear property cache to ensure fresh detection
-    propertyCache = {}
-
 	if not addon.Modules.BankScanner:IsBankOpen() then
 		addon:Print("Bank must be open to sort!")
 		return 0
@@ -1687,8 +1773,10 @@ function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sort
 	-- Set current sort context so ApplySort uses correct move limits
 	currentSortType = sortType or "bags"
 
-	-- Clear property cache at the start of a sort operation
+	-- Clear property cache and swap dedup tracking at the start of a sort session
 	self:ClearCache()
+	previousPassSwaps = {}
+	currentPassSwaps = {}
 
 -- Analyze to determine how many passes are needed
 	local analysis = analyzeFunction()
@@ -1713,11 +1801,31 @@ function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sort
  local safetyLimit = (sortType == "bank") and math.max(maxPasses * 4, 15) or math.max(maxPasses * 3, 10)
  local totalMoves = 0
  local noProgressPasses = 0
+ local lastItemsOutOfPlace = analysis.itemsOutOfPlace
+ local stuckPasses = 0
+
+ -- Mute sound effects during sort to prevent rapid-fire pickup sounds
+ -- Try Sound_EnableSFX first (modern), then Sound_EnableAllSound (vanilla 1.12.1)
+ local sfxCVar = nil
+ local originalSFX = nil
+ for _, cvar in ipairs({"Sound_EnableSFX", "Sound_EnableAllSound", "EnableAllSound"}) do
+     local ok, val = pcall(GetCVar, cvar)
+     if ok and val ~= nil then
+         sfxCVar = cvar
+         originalSFX = val
+         pcall(SetCVar, cvar, "0")
+         break
+     end
+ end
 
 	addon:DebugSort("Starting %s sort (estimated: %d passes, safety limit: %d)", sortType, maxPasses, safetyLimit)
 
 	local function DoSortPass()
 		passCount = passCount + 1
+
+		-- Rotate swap tracking: previous pass swaps become the block list, current pass starts fresh
+		previousPassSwaps = currentPassSwaps
+		currentPassSwaps = {}
 
   -- Perform one sort pass
   local moveCount = sortFunction()
@@ -1732,6 +1840,7 @@ function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sort
 
 			-- Final update (cache clearing happens after delay, uses pooled timer)
 			Guda_ScheduleTimer(0.3, function()
+				if sfxCVar then pcall(SetCVar, sfxCVar, originalSFX) end
 				SortEngine.sortingInProgress = false
 				SortEngine:UpdateSortButtonState(false)
 				currentSortType = "bags"  -- Reset sort context
@@ -1750,6 +1859,7 @@ function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sort
 
 			-- Final update (cache clearing happens after delay, uses pooled timer)
 			Guda_ScheduleTimer(0.3, function()
+				if sfxCVar then pcall(SetCVar, sfxCVar, originalSFX) end
 				SortEngine.sortingInProgress = false
 				SortEngine:UpdateSortButtonState(false)
 				currentSortType = "bags"  -- Reset sort context
@@ -1775,10 +1885,38 @@ function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sort
 
                 -- Final update (cache clearing happens after delay, uses pooled timer)
                 Guda_ScheduleTimer(0.3, function()
+                    if sfxCVar then pcall(SetCVar, sfxCVar, originalSFX) end
                     SortEngine.sortingInProgress = false
                     SortEngine:UpdateSortButtonState(false)
                     currentSortType = "bags"  -- Reset sort context
                     -- Clear bag position cache - item properties don't change on move
+                    if sortType == "bank" then
+                        addon.Modules.BankScanner:ClearCache()
+                    else
+                        addon.Modules.BagScanner:ClearCache()
+                    end
+                    updateFrame()
+                end)
+                return
+            end
+
+            -- Stuck detection: abort if items out of place aren't decreasing despite moves
+            if moveCount > 0 and currentAnalysis.itemsOutOfPlace >= lastItemsOutOfPlace then
+                stuckPasses = stuckPasses + 1
+            else
+                stuckPasses = 0
+            end
+            lastItemsOutOfPlace = currentAnalysis.itemsOutOfPlace
+
+            if stuckPasses >= 3 then
+                addon:DebugSort("%s sort stuck: items not decreasing after %d passes with moves (remaining: %d/%d)",
+                    sortType, stuckPasses, currentAnalysis.itemsOutOfPlace, currentAnalysis.totalItems)
+
+                Guda_ScheduleTimer(0.3, function()
+                    if sfxCVar then pcall(SetCVar, sfxCVar, originalSFX) end
+                    SortEngine.sortingInProgress = false
+                    SortEngine:UpdateSortButtonState(false)
+                    currentSortType = "bags"
                     if sortType == "bank" then
                         addon.Modules.BankScanner:ClearCache()
                     else
@@ -1807,6 +1945,25 @@ function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sort
 			Guda_ScheduleTimer(totalDelay, DoSortPass)
 		end
 	end
+
+	-- Hard timeout safety net: force-reset sortingInProgress after max reasonable time
+	-- Bank with 240 slots at ~0.5s per pass, 15 passes = ~8s; use 30s as generous limit
+	local hardTimeout = (sortType == "bank") and 30 or 20
+	Guda_ScheduleTimer(hardTimeout, function()
+		if SortEngine.sortingInProgress then
+			addon:DebugSort("%s sort force-stopped after %ds timeout", sortType, hardTimeout)
+			if sfxCVar then pcall(SetCVar, sfxCVar, originalSFX) end
+			SortEngine.sortingInProgress = false
+			SortEngine:UpdateSortButtonState(false)
+			currentSortType = "bags"
+			if sortType == "bank" then
+				addon.Modules.BankScanner:ClearCache()
+			else
+				addon.Modules.BagScanner:ClearCache()
+			end
+			updateFrame()
+		end
+	end)
 
 	-- Start the first pass
 	DoSortPass()
