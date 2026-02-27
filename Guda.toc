@@ -24,6 +24,7 @@ Data\BankScanner.lua
 Data\MailboxScanner.lua
 Data\MoneyTracker.lua
 Data\EquipmentScanner.lua
+Data\EquipmentSets.lua
 
 Sorting\SortEngine.lua
 

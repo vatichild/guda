@@ -996,55 +996,131 @@ function BagFrame:DisplayItemsByCategory(bagData, isOtherChar, charName)
     local categoryItemsProcessed = 0
     local CATEGORY_ITEMS_PER_BUDGET_CHECK = 8
 
-    local totalButtonsCreated = 0
-    for _, catName in ipairs(categoryList) do
-        local items = categories[catName]
-        local numItems = items and table.getn(items) or 0
-        if numItems > 0 then
-            addon:DebugCategory("  Category '%s': %d items, pos=(%d,%d)", catName, numItems, currentX, currentY)
-            -- Sort items using centralized sorter
-            Guda_SortCategoryItems(items)
+    -- Check merged groups setting
+    local mergedGroups = addon.Modules.DB:GetSetting("mergedGroups") or {}
 
-            local blockCols = numItems
-            if blockCols > perRow then blockCols = perRow end
-            local blockRows = math.ceil(numItems / perRow)
-            local blockWidth = blockCols * (buttonSize + spacing)
-            local blockHeight = 20 + (blockRows * (buttonSize + spacing)) + 5
+    -- Build category order index map for sorting within merged groups
+    local catOrderIndex = {}
+    for idx, catId in ipairs(categoryList) do
+        catOrderIndex[catId] = idx
+    end
 
-            -- Check if it fits in current row
-            if currentX > 0 and currentX + blockWidth + 20 > totalWidth + 5 then
-                currentX = 0
-                currentY = currentY + rowMaxHeight
-                rowMaxHeight = 0
-                addon:DebugCategory("    -> wrap to new row, Y=%d", currentY)
-            end
+    -- Build merged group display lists if any groups are merged
+    local mergedDisplayList = {}  -- { { name, items, icon, catDef } }
+    local processedCats = {}     -- Track which categories were merged
 
-            -- Add Header
-            local header = self:GetSectionHeader(headerIdx)
-            headerIdx = headerIdx + 1
-            header:SetPoint("TOPLEFT", itemContainer, "TOPLEFT", startX + currentX, startY - currentY)
-            header:SetWidth(blockWidth)
-
-            -- Get display name from category definition
-            local displayName = catName
-            if addon.Modules.CategoryManager then
-                local catDef = addon.Modules.CategoryManager:GetCategory(catName)
-                if catDef and catDef.name then
-                    displayName = catDef.name
+    if addon.Modules.CategoryManager then
+        local groupsByName = addon.Modules.CategoryManager:GetCategoriesByGroup()
+        for groupName, catIds in pairs(groupsByName) do
+            if mergedGroups[groupName] then
+                -- Merge all items from categories in this group into one section
+                local mergedItems = {}
+                local mergedName = groupName
+                local mergedIcon = nil
+                for _, catId in ipairs(catIds) do
+                    local items = categories[catId]
+                    if items then
+                        local orderIdx = catOrderIndex[catId] or 999
+                        for _, item in ipairs(items) do
+                            item.categoryOrderIndex = orderIdx
+                            table.insert(mergedItems, item)
+                        end
+                    end
+                    processedCats[catId] = true
+                end
+                if table.getn(mergedItems) > 0 then
+                    table.insert(mergedDisplayList, {
+                        name = mergedName,
+                        items = mergedItems,
+                        icon = nil, -- Group header, no single icon
+                    })
                 end
             end
-            header.fullName = displayName
-            header.isShortened = false
-            if string.len(displayName) > 8 and numItems < 2 then
-                displayName = string.sub(displayName, 1, 6) .. "..."
-                header.isShortened = true
-            end
-            header.text:SetText(displayName)
-            header:Show()
+        end
+    end
 
-            local itemY = currentY + 20
-            local col = 0
-            local row = 0
+    -- Track total buttons created across all category blocks
+    local totalButtonsCreated = 0
+
+    -- Helper to render a category block
+    local function RenderCategoryBlock(catName, items, numItems, catDef, isEmptyCat)
+        addon:DebugCategory("  Category '%s': %d items, pos=(%d,%d)", catName, numItems, currentX, currentY)
+        Guda_SortCategoryItems(items)
+
+        local effectiveItems = numItems
+        if isEmptyCat then effectiveItems = 1 end
+
+        local blockCols = effectiveItems
+        if blockCols > perRow then blockCols = perRow end
+        local blockRows = math.ceil(effectiveItems / perRow)
+        local blockWidth = blockCols * (buttonSize + spacing)
+        local blockHeight = 20 + (blockRows * (buttonSize + spacing)) + 5
+
+        -- Check if it fits in current row
+        if currentX > 0 and currentX + blockWidth + 20 > totalWidth + 5 then
+            currentX = 0
+            currentY = currentY + rowMaxHeight
+            rowMaxHeight = 0
+        end
+
+        -- Add Header
+        local header = self:GetSectionHeader(headerIdx)
+        headerIdx = headerIdx + 1
+        header:SetPoint("TOPLEFT", itemContainer, "TOPLEFT", startX + currentX, startY - currentY)
+        header:SetWidth(blockWidth)
+
+        -- Get display name from category definition
+        local displayName = catName
+        if catDef and catDef.name then
+            displayName = catDef.name
+        end
+
+        -- Set item count
+        if header.countText then
+            if numItems > 0 then
+                header.countText:SetText("(" .. numItems .. ")")
+                header.countText:Show()
+            else
+                header.countText:Hide()
+            end
+        end
+
+        header.fullName = displayName
+        header.isShortened = false
+        if string.len(displayName) > 8 and effectiveItems < 2 then
+            displayName = string.sub(displayName, 1, 6) .. "..."
+            header.isShortened = true
+        end
+        header.text:SetText(displayName)
+        header:Show()
+
+        local itemY = currentY + 20
+        local col = 0
+        local row = 0
+
+        if isEmptyCat then
+            -- Render empty slot indicator
+            local bagID = firstFreeBag or 0
+            local slotID = firstFreeSlot or 1
+            local bagParent = self:GetBagParent(bagID)
+            local button = Guda_GetItemButton(bagParent)
+            button:SetParent(bagParent)
+            button:SetWidth(buttonSize)
+            button:SetHeight(buttonSize)
+            button:ClearAllPoints()
+            button:SetPoint("TOPLEFT", itemContainer, "TOPLEFT", startX + currentX, startY - itemY)
+            button:Show()
+
+            local emptyItemData = {
+                texture = "Interface\\PaperDoll\\UI-PaperDoll-Slot-Bag",
+                count = totalFreeSlots,
+                name = "Empty Slots"
+            }
+            Guda_ItemButton_SetItem(button, bagID, slotID, emptyItemData, false, isOtherChar and charName or nil, true, true)
+            button.isReadOnly = false
+            button.inUse = true
+            table.insert(itemButtons, button)
+        else
             for _, item in ipairs(items) do
                 local bagID = item.bagID
                 local slot = item.slotID
@@ -1064,7 +1140,6 @@ function BagFrame:DisplayItemsByCategory(bagData, isOtherChar, charName)
                 Guda_ItemButton_SetItem(button, bagID, slot, itemData, false, isOtherChar and charName or nil, matchesFilter, isOtherChar)
                 button.inUse = true
                 table.insert(itemButtons, button)
-                -- Populate slot lookup for O(1) access
                 if not slotToButton[bagID] then slotToButton[bagID] = {} end
                 slotToButton[bagID][slot] = button
 
@@ -1074,7 +1149,6 @@ function BagFrame:DisplayItemsByCategory(bagData, isOtherChar, charName)
                     row = row + 1
                 end
 
-                -- Frame budget check
                 categoryItemsProcessed = categoryItemsProcessed + 1
                 if categoryItemsProcessed >= CATEGORY_ITEMS_PER_BUDGET_CHECK then
                     categoryItemsProcessed = 0
@@ -1083,25 +1157,50 @@ function BagFrame:DisplayItemsByCategory(bagData, isOtherChar, charName)
                     end
                 end
             end
+        end
 
-            totalButtonsCreated = totalButtonsCreated + numItems
-            if blockHeight > rowMaxHeight then rowMaxHeight = blockHeight end
-            currentX = currentX + blockWidth + 20
+        totalButtonsCreated = totalButtonsCreated + effectiveItems
+        if blockHeight > rowMaxHeight then rowMaxHeight = blockHeight end
+        currentX = currentX + blockWidth + 20
+    end
+
+    -- Render merged group sections first
+    for _, merged in ipairs(mergedDisplayList) do
+        local numItems = table.getn(merged.items)
+        if numItems > 0 then
+            RenderCategoryBlock(merged.name, merged.items, numItems, { name = merged.name, icon = merged.icon })
+        end
+    end
+
+    -- Render individual categories (skip merged ones and Empty)
+    for _, catName in ipairs(categoryList) do
+        if not processedCats[catName] then
+            local catDef = addon.Modules.CategoryManager and addon.Modules.CategoryManager:GetCategory(catName) or nil
+
+            -- Handle Empty category specially
+            if catDef and catDef.isEmptyCategory then
+                if totalFreeSlots > 0 and catDef.enabled then
+                    RenderCategoryBlock(catName, {}, 0, catDef, true)
+                end
+            else
+                local items = categories[catName]
+                local numItems = items and table.getn(items) or 0
+                if numItems > 0 then
+                    RenderCategoryBlock(catName, items, numItems, catDef, false)
+                end
+            end
         end
     end
     addon:DebugCategory("DisplayItemsByCategory: totalButtonsCreated=%d from categories", totalButtonsCreated)
 
     -- Update Y for bottom sections
     local y = currentY + rowMaxHeight
-    
-    -- Special sections at bottom (Hearthstone, Mount, Tools, Empty)
+
+    -- Special sections at bottom (only Mounts now)
     local bottomSections = {
-        { name = "Home", items = specialItems.Hearthstone },
         { name = "Mounts", items = specialItems.Mount },
-        { name = "Tools", items = specialItems.Tools },
-        { name = "Empty", items = {} }
     }
-    
+
     local x = startX
     y = startY - y
 
@@ -1112,10 +1211,6 @@ function BagFrame:DisplayItemsByCategory(bagData, isOtherChar, charName)
             break
         end
     end
-    -- Also check if Empty section should show
-    if totalFreeSlots > 0 then
-        hasAnyBottom = true
-    end
 
     if hasAnyBottom then
         y = y - 10
@@ -1125,22 +1220,7 @@ function BagFrame:DisplayItemsByCategory(bagData, isOtherChar, charName)
         for _, sec in ipairs(bottomSections) do
             local items = sec.items
             local numItems = table.getn(items)
-            if sec.name == "Empty" then
-                numItems = (totalFreeSlots > 0) and 1 or 0
-            end
             if numItems > 0 then
-                if sec.name == "Tools" then
-                    table.sort(items, function(a, b)
-                        -- Guard against nil entries
-                        if not a or not a.itemData then return false end
-                        if not b or not b.itemData then return true end
-                        if (a.itemData.quality or 0) ~= (b.itemData.quality or 0) then
-                            return (a.itemData.quality or 0) > (b.itemData.quality or 0)
-                        end
-                        return (a.itemData.name or "") < (b.itemData.name or "")
-                    end)
-                end
-
                 local blockCols = numItems
                 if blockCols > perRow then blockCols = perRow end
                 local blockRows = math.ceil(numItems / perRow)
@@ -1158,61 +1238,38 @@ function BagFrame:DisplayItemsByCategory(bagData, isOtherChar, charName)
                 header:SetPoint("TOPLEFT", itemContainer, "TOPLEFT", x + currentBottomX, y)
                 header:SetWidth(blockWidth)
                 header.text:SetText(sec.name)
+                if header.countText then header.countText:SetText("(" .. numItems .. ")"); header.countText:Show() end
                 header:Show()
 
                 local itemY = y - 20
                 local sCol = 0
                 local sRow = 0
-                
-                if sec.name == "Empty" then
-                    local bagID = firstFreeBag or 0
-                    local slotID = firstFreeSlot or 1
-                    local bagParent = self:GetBagParent(bagID)
+
+                for _, item in ipairs(items) do
+                    local bagParent = self:GetBagParent(item.bagID)
                     local button = Guda_GetItemButton(bagParent)
                     button:SetParent(bagParent)
                     button:SetWidth(buttonSize)
                     button:SetHeight(buttonSize)
                     button:ClearAllPoints()
-                    button:SetPoint("TOPLEFT", itemContainer, "TOPLEFT", x + currentBottomX, itemY)
+                    button:SetPoint("TOPLEFT", itemContainer, "TOPLEFT", x + currentBottomX + (sCol * (buttonSize + spacing)), itemY - (sRow * (buttonSize + spacing)))
                     button:Show()
-                    
-                    local emptyItemData = { 
-                        texture = "Interface\\PaperDoll\\UI-PaperDoll-Slot-Bag", 
-                        count = totalFreeSlots, 
-                        name = "Empty Slots" 
-                    }
-                    Guda_ItemButton_SetItem(button, bagID, slotID, emptyItemData, false, isOtherChar and charName or nil, true, true)
-                    button.isReadOnly = false
+                    Guda_ItemButton_SetItem(button, item.bagID, item.slotID, item.itemData, false, isOtherChar and charName or nil, self:PassesSearchFilter(item.itemData), isOtherChar)
                     button.inUse = true
                     table.insert(itemButtons, button)
-                else
-                    for _, item in ipairs(items) do
-                        local bagParent = self:GetBagParent(item.bagID)
-                        local button = Guda_GetItemButton(bagParent)
-                        button:SetParent(bagParent)
-                        button:SetWidth(buttonSize)
-                        button:SetHeight(buttonSize)
-                        button:ClearAllPoints()
-                        button:SetPoint("TOPLEFT", itemContainer, "TOPLEFT", x + currentBottomX + (sCol * (buttonSize + spacing)), itemY - (sRow * (buttonSize + spacing)))
-                        button:Show()
-                        Guda_ItemButton_SetItem(button, item.bagID, item.slotID, item.itemData, false, isOtherChar and charName or nil, self:PassesSearchFilter(item.itemData), isOtherChar)
-                        button.inUse = true
-                        table.insert(itemButtons, button)
-                        -- Populate slot lookup for O(1) access
-                        if not slotToButton[item.bagID] then slotToButton[item.bagID] = {} end
-                        slotToButton[item.bagID][item.slotID] = button
+                    if not slotToButton[item.bagID] then slotToButton[item.bagID] = {} end
+                    slotToButton[item.bagID][item.slotID] = button
 
-                        sCol = sCol + 1
-                        if sCol >= blockCols then
-                            sCol = 0
-                            sRow = sRow + 1
-                        end
+                    sCol = sCol + 1
+                    if sCol >= blockCols then
+                        sCol = 0
+                        sRow = sRow + 1
                     end
                 end
 
                 if blockHeight > sectionMaxHeight then sectionMaxHeight = blockHeight end
                 currentBottomX = currentBottomX + blockWidth + 20
-                
+
                 if currentBottomX >= totalWidth then
                     currentBottomX = 0
                     y = y - sectionMaxHeight - 5
@@ -1220,7 +1277,7 @@ function BagFrame:DisplayItemsByCategory(bagData, isOtherChar, charName)
                 end
             end
         end
-        
+
         if currentBottomX > 0 then
             y = y - sectionMaxHeight
         end

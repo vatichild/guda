@@ -53,8 +53,8 @@ addon.Constants = {
     SAVE_INTERVAL = 1800, -- 30 minutes in seconds
 
     -- UI Constants
-    BUTTON_SIZE = 40,
-    BUTTON_SPACING = 0,
+    BUTTON_SIZE = 37,
+    BUTTON_SPACING = 3,
     BUTTONS_PER_ROW = 10,
     MIN_ICON_SIZE = 30,
     MAX_ICON_SIZE = 64,

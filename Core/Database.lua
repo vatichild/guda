@@ -36,8 +36,8 @@ function DB:Initialize()
 				bankBagColumns = 8,
 				bankColumns = 10,
 				sortMethod = "quality", -- quality, name, type
-				iconSize = 40,
-				iconSpacing = 0,
+				iconSize = 37,
+				iconSpacing = 3,
 				iconFontSize = 12,
 				showQualityBorderEquipment = true,
 				showQualityBorderOther = true,
@@ -98,10 +98,10 @@ function DB:Initialize()
 		Guda_CharDB.settings.bankColumns = 10
 	end
 	if not Guda_CharDB.settings.iconSize then
-		Guda_CharDB.settings.iconSize = 40
+		Guda_CharDB.settings.iconSize = 37
 	end
 	if not Guda_CharDB.settings.iconSpacing then
-		Guda_CharDB.settings.iconSpacing = 0
+		Guda_CharDB.settings.iconSpacing = 3
 	end
 	if not Guda_CharDB.settings.iconFontSize then
 		Guda_CharDB.settings.iconFontSize = 12
@@ -120,6 +120,15 @@ function DB:Initialize()
 	end
 	if Guda_CharDB.settings.markUnusableItems == nil then
 		Guda_CharDB.settings.markUnusableItems = true
+	end
+	if Guda_CharDB.settings.mergedGroups == nil then
+		Guda_CharDB.settings.mergedGroups = {}
+	end
+	if Guda_CharDB.settings.showEquipSetCategories == nil then
+		Guda_CharDB.settings.showEquipSetCategories = true
+	end
+	if Guda_CharDB.settings.markEquipmentSets == nil then
+		Guda_CharDB.settings.markEquipmentSets = true
 	end
 
 	-- Initialize CategoryManager for custom categories

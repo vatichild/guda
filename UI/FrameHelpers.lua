@@ -21,7 +21,6 @@ end
 -- Returns nothing, modifies tables in place
 function Guda_CategorizeItem(itemData, bagID, slotID, categories, specialItems, isOtherChar)
     local itemName = itemData.name or ""
-    local itemType = itemData.type or ""
     local cat = "Miscellaneous"
 
     -- Detect consumable restore/eat/drink tag for current character only
@@ -32,37 +31,10 @@ function Guda_CategorizeItem(itemData, bagID, slotID, categories, specialItems, 
         end
     end
 
-    -- Priority 1: Special items (Hearthstone, Mounts, Tools)
-    -- These are handled separately and go into specialItems table, not categories
-    if string.find(itemName, "Hearthstone") then
-        -- Only show in Home section if Home category is enabled
-        local showHome = true
-        if addon.Modules.CategoryManager then
-            local homeCat = addon.Modules.CategoryManager:GetCategory("Home")
-            if homeCat then
-                showHome = homeCat.enabled
-            end
-        end
-        if showHome then
-            table.insert(specialItems.Hearthstone, {bagID = bagID, slotID = slotID, itemData = itemData})
-        end
-        -- Always return - if Home is disabled, Hearthstone is hidden completely
-        return
-    elseif addon.Modules.SortEngine and addon.Modules.SortEngine.IsMount and addon.Modules.SortEngine.IsMount(itemData.texture) then
+    -- Special items: only Mounts are handled separately now
+    -- Home and Tools are real categories handled by CategoryManager rules
+    if addon.Modules.SortEngine and addon.Modules.SortEngine.IsMount and addon.Modules.SortEngine.IsMount(itemData.texture) then
         table.insert(specialItems.Mount, {bagID = bagID, slotID = slotID, itemData = itemData})
-        return
-    elseif string.find(itemName, "Runed .* Rod") or
-       itemType == "Fishing Pole" or
-       string.find(itemName, "Mining Pick") or
-       string.find(itemName, "Blacksmith Hammer") or
-       itemName == "Arclight Spanner" or
-       itemName == "Gyromatic Micro-Adjustor" or
-       itemName == "Philosopher's Stone" or
-       string.find(itemName, "Skinning Knife") or
-       itemName == "Blood Scythe" or
-       string.find(itemName, "Jeweler") or
-       string.find(itemName, "Jewelry Kit") then
-        table.insert(specialItems.Tools, {bagID = bagID, slotID = slotID, itemData = itemData})
         return
     end
 
@@ -218,22 +190,20 @@ function Guda_InitCategories()
     end
 
     -- Reuse or create specialItems table
+    -- Only Mount remains as a special item; Home and Tools are now real categories
     if not specialItemsCache then
         specialItemsCache = {
-            Hearthstone = {},
             Mount = {},
-            Tools = {}
         }
     else
-        WipeTable(specialItemsCache.Hearthstone)
         WipeTable(specialItemsCache.Mount)
-        WipeTable(specialItemsCache.Tools)
     end
 
     return categoriesCache, specialItemsCache
 end
 
--- Sort items within a category
+-- Sort items within a category (or merged group)
+-- Items may have a categoryOrderIndex field set by merged group display
 function Guda_SortCategoryItems(items)
     if not items then return end
     table.sort(items, function(a, b)
@@ -242,6 +212,13 @@ function Guda_SortCategoryItems(items)
         if not b then return true end
         if not a.itemData then return false end
         if not b.itemData then return true end
+
+        -- Primary: category order index (for merged groups)
+        local oa = a.categoryOrderIndex or 0
+        local ob = b.categoryOrderIndex or 0
+        if oa ~= ob then
+            return oa < ob
+        end
 
         -- Rank Trade Goods: meat (name ends with 'meat') = 2, egg (contains 'egg') = 1, others = 0
         local function tgRank(d)
@@ -290,9 +267,17 @@ function Guda_GetSectionHeader(framePrefix, containerName, index)
         header = CreateFrame("Frame", name, container)
         header:SetHeight(20)
         header:EnableMouse(true)
+
+        -- Category name text
         local text = header:CreateFontString(nil, "OVERLAY", "GameFontNormal")
         text:SetPoint("LEFT", header, "LEFT", 0, 0)
         header.text = text
+
+        -- Item count text
+        local countText = header:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        countText:SetPoint("LEFT", text, "RIGHT", 4, 0)
+        countText:SetTextColor(0.6, 0.6, 0.6)
+        header.countText = countText
 
         header:SetScript("OnEnter", function()
             if this.fullName and this.isShortened then

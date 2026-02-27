@@ -52,13 +52,21 @@ end
 -- texturePattern: Match icon texture path
 -- itemID: Specific item IDs (table of IDs)
 
+-- Group constants
+local GROUP_MAIN = "Main"
+local GROUP_OTHER = "Other"
+local GROUP_CLASS = "Class"
+
 -- Default category definitions that replicate the existing hardcoded behavior
 local DEFAULT_CATEGORIES = {
     order = {
-        "Home", "BoE", "Weapon", "Armor", "Consumable", "Food", "Drink",
+        "BoE", "Weapon", "Armor", "Consumable", "Food", "Drink",
         "Trade Goods", "Reagent", "Recipe", "Quiver", "Container",
-        "Soul Bag", "Miscellaneous", "Quest", "Junk", "Class Items", "Keyring"
+        "Soul Bag", "Miscellaneous", "Quest", "Junk",
+        "Class Items", "Keyring",
+        "Home", "Tools", "Empty"
     },
+    itemOverrides = {},  -- flat map: [itemID] = categoryId
     definitions = {
         ["BoE"] = {
             name = "BoE",
@@ -70,6 +78,7 @@ local DEFAULT_CATEGORIES = {
             priority = 75,
             enabled = true,
             isBuiltIn = true,
+            group = GROUP_MAIN,
         },
         ["Weapon"] = {
             name = "Weapon",
@@ -81,6 +90,7 @@ local DEFAULT_CATEGORIES = {
             priority = 70,
             enabled = true,
             isBuiltIn = true,
+            group = GROUP_MAIN,
         },
         ["Armor"] = {
             name = "Armor",
@@ -92,6 +102,7 @@ local DEFAULT_CATEGORIES = {
             priority = 70,
             enabled = true,
             isBuiltIn = true,
+            group = GROUP_MAIN,
         },
         ["Consumable"] = {
             name = "Consumable",
@@ -103,6 +114,7 @@ local DEFAULT_CATEGORIES = {
             priority = 50,
             enabled = true,
             isBuiltIn = true,
+            group = GROUP_MAIN,
         },
         ["Food"] = {
             name = "Food",
@@ -115,6 +127,7 @@ local DEFAULT_CATEGORIES = {
             priority = 55,
             enabled = true,
             isBuiltIn = true,
+            group = GROUP_MAIN,
         },
         ["Drink"] = {
             name = "Drink",
@@ -127,6 +140,7 @@ local DEFAULT_CATEGORIES = {
             priority = 55,
             enabled = true,
             isBuiltIn = true,
+            group = GROUP_MAIN,
         },
         ["Trade Goods"] = {
             name = "Trade Goods",
@@ -138,6 +152,7 @@ local DEFAULT_CATEGORIES = {
             priority = 40,
             enabled = true,
             isBuiltIn = true,
+            group = GROUP_MAIN,
         },
         ["Reagent"] = {
             name = "Reagent",
@@ -149,6 +164,7 @@ local DEFAULT_CATEGORIES = {
             priority = 40,
             enabled = true,
             isBuiltIn = true,
+            group = GROUP_MAIN,
         },
         ["Recipe"] = {
             name = "Recipe",
@@ -160,6 +176,7 @@ local DEFAULT_CATEGORIES = {
             priority = 40,
             enabled = true,
             isBuiltIn = true,
+            group = GROUP_MAIN,
         },
         ["Quiver"] = {
             name = "Quiver",
@@ -171,6 +188,7 @@ local DEFAULT_CATEGORIES = {
             priority = 40,
             enabled = true,
             isBuiltIn = true,
+            group = GROUP_MAIN,
         },
         ["Container"] = {
             name = "Container",
@@ -182,6 +200,7 @@ local DEFAULT_CATEGORIES = {
             priority = 40,
             enabled = true,
             isBuiltIn = true,
+            group = GROUP_MAIN,
         },
         ["Soul Bag"] = {
             name = "Soul Bag",
@@ -193,6 +212,7 @@ local DEFAULT_CATEGORIES = {
             priority = 45,
             enabled = true,
             isBuiltIn = true,
+            group = GROUP_MAIN,
         },
         ["Miscellaneous"] = {
             name = "Miscellaneous",
@@ -203,6 +223,7 @@ local DEFAULT_CATEGORIES = {
             enabled = true,
             isBuiltIn = true,
             isFallback = true,
+            group = GROUP_MAIN,
         },
         ["Quest"] = {
             name = "Quest",
@@ -214,6 +235,7 @@ local DEFAULT_CATEGORIES = {
             priority = 80,
             enabled = true,
             isBuiltIn = true,
+            group = GROUP_MAIN,
         },
         ["Junk"] = {
             name = "Junk",
@@ -225,17 +247,20 @@ local DEFAULT_CATEGORIES = {
             priority = 85,
             enabled = true,
             isBuiltIn = true,
+            group = GROUP_MAIN,
         },
         ["Class Items"] = {
             name = "Class Items",
             icon = "Interface\\Icons\\INV_Misc_Ammo_Arrow_01",
             rules = {
-                { type = "itemType", value = "Projectile" }
+                { type = "itemType", value = "Projectile" },
+                { type = "isSoulShard", value = true }
             },
             matchMode = "any",
             priority = 90,
             enabled = true,
             isBuiltIn = true,
+            group = GROUP_CLASS,
         },
         ["Keyring"] = {
             name = "Keyring",
@@ -247,19 +272,55 @@ local DEFAULT_CATEGORIES = {
             priority = 40,
             enabled = true,
             isBuiltIn = true,
+            group = GROUP_CLASS,
         },
         ["Home"] = {
             name = "Home",
             icon = "Interface\\Icons\\INV_Misc_Rune_01",
+            rules = {
+                { type = "itemID", value = {6948} }
+            },
+            matchMode = "all",
+            priority = 100,
+            enabled = true,
+            isBuiltIn = true,
+            group = GROUP_OTHER,
+        },
+        ["Tools"] = {
+            name = "Tools",
+            icon = "Interface\\Icons\\Trade_BlackSmithing",
+            rules = {
+                { type = "isProfessionTool", value = true }
+            },
+            matchMode = "all",
+            priority = 60,
+            enabled = true,
+            isBuiltIn = true,
+            group = GROUP_OTHER,
+        },
+        ["Empty"] = {
+            name = "Empty",
+            icon = "Interface\\PaperDoll\\UI-PaperDoll-Slot-Bag",
             rules = {},
             matchMode = "all",
-            priority = 0,
+            priority = -10,
             enabled = true,
             isBuiltIn = true,
             hideControls = true,
+            isEmptyCategory = true,
+            group = GROUP_OTHER,
         },
     }
 }
+
+-- Group definitions for display order and built-in group mapping
+local GROUP_ORDER = { GROUP_MAIN, GROUP_CLASS, GROUP_OTHER }
+
+-- Map of built-in category IDs to their default groups (for migration)
+local BUILTIN_GROUP_MAP = {}
+for id, def in pairs(DEFAULT_CATEGORIES.definitions) do
+    BUILTIN_GROUP_MAP[id] = def.group
+end
 
 -- Deep copy a table
 local function deepCopy(orig)
@@ -404,6 +465,130 @@ function CategoryManager:MigrateCategories()
             addon:Debug("CategoryManager: Migrated Junk category to use isJunk rule")
         end
     end
+
+    -- Migrate: Add group to all categories that lack it
+    for id, def in pairs(cats.definitions) do
+        if not def.group then
+            -- Use built-in mapping if available, otherwise default to Main
+            def.group = BUILTIN_GROUP_MAP[id] or GROUP_MAIN
+            addon:Debug("CategoryManager: Added group '%s' to category: %s", def.group, id)
+        end
+    end
+
+    -- Migrate: Convert per-category itemOverrides arrays to flat map at categories level
+    if not cats.itemOverrides then
+        cats.itemOverrides = {}
+    end
+    local migratedOverrides = false
+    for catId, def in pairs(cats.definitions) do
+        if def.itemOverrides and type(def.itemOverrides) == "table" then
+            -- Check if it's an array (old format) by looking for numeric keys
+            local isArray = false
+            for k, v in pairs(def.itemOverrides) do
+                if type(k) == "number" then
+                    isArray = true
+                    break
+                end
+            end
+            if isArray then
+                for _, itemID in ipairs(def.itemOverrides) do
+                    cats.itemOverrides[itemID] = catId
+                    migratedOverrides = true
+                end
+                def.itemOverrides = nil
+            end
+        end
+    end
+    if migratedOverrides then
+        addon:Debug("CategoryManager: Migrated per-category itemOverrides to flat map")
+    end
+
+    -- Migrate Home category: add rules and remove hideControls
+    local homeCat = cats.definitions["Home"]
+    if homeCat and homeCat.isBuiltIn then
+        -- Remove hideControls
+        if homeCat.hideControls then
+            homeCat.hideControls = nil
+            addon:Debug("CategoryManager: Removed hideControls from Home")
+        end
+        -- Add rules if empty
+        if not homeCat.rules or table.getn(homeCat.rules) == 0 then
+            homeCat.rules = { { type = "itemID", value = {6948} } }
+            homeCat.priority = 100
+            addon:Debug("CategoryManager: Added itemID rule to Home category")
+        end
+        -- Ensure group is Other
+        if homeCat.group ~= GROUP_OTHER then
+            homeCat.group = GROUP_OTHER
+        end
+    end
+
+    -- Migrate Class Items: add isSoulShard rule if missing
+    local classItemsCat = cats.definitions["Class Items"]
+    if classItemsCat and classItemsCat.isBuiltIn then
+        local hasSoulShard = false
+        if classItemsCat.rules then
+            for _, rule in ipairs(classItemsCat.rules) do
+                if rule.type == "isSoulShard" then
+                    hasSoulShard = true
+                    break
+                end
+            end
+        end
+        if not hasSoulShard then
+            if not classItemsCat.rules then classItemsCat.rules = {} end
+            table.insert(classItemsCat.rules, { type = "isSoulShard", value = true })
+            classItemsCat.matchMode = "any"
+            addon:Debug("CategoryManager: Added isSoulShard rule to Class Items")
+        end
+    end
+
+    -- Ensure new categories in the order list are in correct positions
+    -- Check if order needs rebuilding to include new group-based ordering
+    local hasTools, hasEmpty = false, false
+    for _, id in ipairs(cats.order) do
+        if id == "Tools" then hasTools = true end
+        if id == "Empty" then hasEmpty = true end
+    end
+
+    -- If Tools or Empty were just added by the built-in migration above,
+    -- they're already at end of order. Move them to the Other group area.
+    if hasTools or hasEmpty then
+        -- Rebuild order to respect groups: Other, Main, Class
+        local grouped = {}
+        for _, g in ipairs(GROUP_ORDER) do
+            grouped[g] = {}
+        end
+        grouped["_ungrouped"] = {}
+
+        for _, id in ipairs(cats.order) do
+            local def = cats.definitions[id]
+            if def then
+                local g = def.group or GROUP_MAIN
+                if grouped[g] then
+                    table.insert(grouped[g], id)
+                else
+                    table.insert(grouped["_ungrouped"], id)
+                end
+            end
+        end
+
+        -- Rebuild order
+        local newOrder = {}
+        for _, g in ipairs(GROUP_ORDER) do
+            if grouped[g] then
+                for _, id in ipairs(grouped[g]) do
+                    table.insert(newOrder, id)
+                end
+            end
+        end
+        for _, id in ipairs(grouped["_ungrouped"]) do
+            table.insert(newOrder, id)
+        end
+
+        cats.order = newOrder
+        addon:Debug("CategoryManager: Rebuilt category order for group ordering")
+    end
 end
 
 -- Get all categories
@@ -438,20 +623,50 @@ function CategoryManager:SaveCategories(categories)
 end
 
 -- Add a new custom category
+-- If categoryId is nil, auto-generates a unique ID like "Custom_<time>_<random>"
 function CategoryManager:AddCategory(categoryId, definition)
     local cats = self:GetCategories()
+
+    -- Auto-generate ID if not provided
+    if not categoryId then
+        categoryId = "Custom_" .. time() .. "_" .. math.random(1000, 9999)
+        -- Ensure unique
+        while cats.definitions[categoryId] do
+            categoryId = "Custom_" .. time() .. "_" .. math.random(1000, 9999)
+        end
+    end
 
     if cats.definitions[categoryId] then
         addon:Debug("CategoryManager: Category already exists: " .. categoryId)
         return false
     end
 
-    definition.isBuiltIn = false
+    definition.isBuiltIn = definition.isBuiltIn or false
+    if not definition.group then
+        definition.group = GROUP_MAIN
+    end
     cats.definitions[categoryId] = definition
-    table.insert(cats.order, categoryId)
+
+    -- Insert at end of the category's group in the order list
+    local insertPos = nil
+    local group = definition.group
+    -- Find last category in the same group
+    for i = table.getn(cats.order), 1, -1 do
+        local existDef = cats.definitions[cats.order[i]]
+        if existDef and existDef.group == group then
+            insertPos = i + 1
+            break
+        end
+    end
+    if insertPos then
+        -- Lua 5.0 table.insert with position
+        table.insert(cats.order, insertPos, categoryId)
+    else
+        table.insert(cats.order, categoryId)
+    end
 
     self:SaveCategories(cats)
-    return true
+    return true, categoryId
 end
 
 -- Update an existing category
@@ -499,32 +714,106 @@ function CategoryManager:DeleteCategory(categoryId)
     return true
 end
 
--- Move category up in order
-function CategoryManager:MoveCategoryUp(categoryId)
+-- Check if a category can move up within its group
+function CategoryManager:CanMoveUp(categoryId)
     local cats = self:GetCategories()
+    local def = cats.definitions[categoryId]
+    if not def or def.hideControls then return false end
 
     for i, id in ipairs(cats.order) do
-        if id == categoryId and i > 1 then
-            cats.order[i] = cats.order[i - 1]
-            cats.order[i - 1] = categoryId
-            self:SaveCategories(cats)
-            return true
+        if id == categoryId then
+            -- Find any previous non-hideControls category (can cross group boundaries)
+            for j = i - 1, 1, -1 do
+                local prevDef = cats.definitions[cats.order[j]]
+                if prevDef and not prevDef.hideControls then
+                    return true
+                end
+            end
+            return false -- very first movable category
         end
     end
     return false
 end
 
--- Move category down in order
+-- Check if a category can move down (crosses group boundaries)
+function CategoryManager:CanMoveDown(categoryId)
+    local cats = self:GetCategories()
+    local def = cats.definitions[categoryId]
+    if not def or def.hideControls then return false end
+
+    local count = table.getn(cats.order)
+    for i, id in ipairs(cats.order) do
+        if id == categoryId then
+            -- Find any next non-hideControls category (can cross group boundaries)
+            for j = i + 1, count do
+                local nextDef = cats.definitions[cats.order[j]]
+                if nextDef and not nextDef.hideControls then
+                    return true
+                end
+            end
+            return false -- very last movable category
+        end
+    end
+    return false
+end
+
+-- Move category up in order (crosses group boundaries, changes group when crossing)
+function CategoryManager:MoveCategoryUp(categoryId)
+    local cats = self:GetCategories()
+    local def = cats.definitions[categoryId]
+    if not def or def.hideControls then return false end
+
+    for i, id in ipairs(cats.order) do
+        if id == categoryId then
+            -- Find previous non-hideControls category
+            for j = i - 1, 1, -1 do
+                local prevDef = cats.definitions[cats.order[j]]
+                if prevDef and not prevDef.hideControls then
+                    -- Swap positions
+                    cats.order[i] = cats.order[j]
+                    cats.order[j] = categoryId
+                    -- If crossing into a different group, adopt that group
+                    local prevGroup = prevDef.group or GROUP_MAIN
+                    if (def.group or GROUP_MAIN) ~= prevGroup then
+                        def.group = prevGroup
+                    end
+                    self:SaveCategories(cats)
+                    return true
+                end
+            end
+            return false
+        end
+    end
+    return false
+end
+
+-- Move category down in order (crosses group boundaries, changes group when crossing)
 function CategoryManager:MoveCategoryDown(categoryId)
     local cats = self:GetCategories()
+    local def = cats.definitions[categoryId]
+    if not def or def.hideControls then return false end
+
     local count = table.getn(cats.order)
 
     for i, id in ipairs(cats.order) do
-        if id == categoryId and i < count then
-            cats.order[i] = cats.order[i + 1]
-            cats.order[i + 1] = categoryId
-            self:SaveCategories(cats)
-            return true
+        if id == categoryId then
+            -- Find next non-hideControls category
+            for j = i + 1, count do
+                local nextDef = cats.definitions[cats.order[j]]
+                if nextDef and not nextDef.hideControls then
+                    -- Swap positions
+                    cats.order[i] = cats.order[j]
+                    cats.order[j] = categoryId
+                    -- If crossing into a different group, adopt that group
+                    local nextGroup = nextDef.group or GROUP_MAIN
+                    if (def.group or GROUP_MAIN) ~= nextGroup then
+                        def.group = nextGroup
+                    end
+                    self:SaveCategories(cats)
+                    return true
+                end
+            end
+            return false
         end
     end
     return false
@@ -742,6 +1031,26 @@ function CategoryManager:CategorizeItem(itemData, bagID, slotID, isOtherChar)
     end
     cacheMisses = cacheMisses + 1
 
+    -- Check item overrides first (flat map: itemID -> categoryId)
+    if itemData and itemData.link then
+        local itemID = addon.Modules.Utils:ExtractItemID(itemData.link)
+        if itemID then
+            local cats = self:GetCategories()
+            if cats.itemOverrides then
+                local overrideCatId = cats.itemOverrides[itemID]
+                if overrideCatId then
+                    local overrideDef = cats.definitions[overrideCatId]
+                    if overrideDef and overrideDef.enabled then
+                        if cacheKey then
+                            categoryCache[cacheKey] = overrideCatId
+                        end
+                        return overrideCatId
+                    end
+                end
+            end
+        end
+    end
+
     local sortedCats = self:GetCategoriesByPriority()
 
     -- Debug: show white item categorization
@@ -789,6 +1098,243 @@ function CategoryManager:BuildCategoryList()
     end
 
     return list
+end
+
+-------------------------------------------
+-- Group Management
+-------------------------------------------
+
+-- Get ordered list of unique groups from the category order
+function CategoryManager:GetGroups()
+    local cats = self:GetCategories()
+    local seen = {}
+    local groups = {}
+    for _, id in ipairs(cats.order) do
+        local def = cats.definitions[id]
+        if def then
+            local g = def.group or GROUP_MAIN
+            if not seen[g] then
+                seen[g] = true
+                table.insert(groups, g)
+            end
+        end
+    end
+    return groups
+end
+
+-- Get categories organized by group: { groupName => {catIds} }
+-- Also returns ungrouped list for any categories without a group
+function CategoryManager:GetCategoriesByGroup()
+    local cats = self:GetCategories()
+    local result = {}
+    local ungrouped = {}
+
+    for _, id in ipairs(cats.order) do
+        local def = cats.definitions[id]
+        if def then
+            local g = def.group
+            if g then
+                if not result[g] then result[g] = {} end
+                table.insert(result[g], id)
+            else
+                table.insert(ungrouped, id)
+            end
+        end
+    end
+
+    return result, ungrouped
+end
+
+-- Change a category's group
+function CategoryManager:SetCategoryGroup(categoryId, groupName)
+    local cats = self:GetCategories()
+    local def = cats.definitions[categoryId]
+    if not def then return false end
+
+    local oldGroup = def.group or GROUP_MAIN
+    if oldGroup == groupName then return true end
+
+    def.group = groupName
+
+    -- Remove from current position in order
+    local currentPos = nil
+    for i, id in ipairs(cats.order) do
+        if id == categoryId then
+            currentPos = i
+            break
+        end
+    end
+    if currentPos then
+        table.remove(cats.order, currentPos)
+    end
+
+    -- Insert at end of new group
+    local insertPos = nil
+    for i = table.getn(cats.order), 1, -1 do
+        local existDef = cats.definitions[cats.order[i]]
+        if existDef and (existDef.group or GROUP_MAIN) == groupName then
+            insertPos = i + 1
+            break
+        end
+    end
+    if insertPos then
+        table.insert(cats.order, insertPos, categoryId)
+    else
+        table.insert(cats.order, categoryId)
+    end
+
+    self:SaveCategories(cats)
+    return true
+end
+
+-- Get the group order (unique groups in display order)
+function CategoryManager:GetGroupOrder()
+    return self:GetGroups()
+end
+
+
+-- Get group constants
+function CategoryManager:GetGroupMain() return GROUP_MAIN end
+function CategoryManager:GetGroupOther() return GROUP_OTHER end
+function CategoryManager:GetGroupClass() return GROUP_CLASS end
+
+-------------------------------------------
+-- Item Override System
+-------------------------------------------
+
+-- Assign an item to a specific category by item ID
+-- Uses flat map at categories level: cats.itemOverrides[itemID] = categoryId
+function CategoryManager:AssignItemToCategory(itemID, categoryId)
+    if not itemID or not categoryId then return false end
+    local cats = self:GetCategories()
+    local def = cats.definitions[categoryId]
+    if not def then return false end
+
+    if not cats.itemOverrides then
+        cats.itemOverrides = {}
+    end
+
+    cats.itemOverrides[itemID] = categoryId
+    self:SaveCategories(cats)
+    self:ClearCache()
+    return true
+end
+
+-- Remove an item from a specific category's overrides
+function CategoryManager:RemoveItemFromCategory(itemID, categoryId)
+    if not itemID or not categoryId then return false end
+    local cats = self:GetCategories()
+    if not cats.itemOverrides then return false end
+
+    if cats.itemOverrides[itemID] == categoryId then
+        cats.itemOverrides[itemID] = nil
+        self:SaveCategories(cats)
+        self:ClearCache()
+        return true
+    end
+    return false
+end
+
+-- Remove an item override regardless of category
+function CategoryManager:RemoveItemOverride(itemID)
+    if not itemID then return end
+    local cats = self:GetCategories()
+    if cats.itemOverrides then
+        cats.itemOverrides[itemID] = nil
+    end
+end
+
+-------------------------------------------
+-- Equipment Set Category Sync
+-------------------------------------------
+
+-- Saved properties for equipment set categories that were user-edited
+-- Preserves user changes (enabled state, order position) when sets are deleted/recreated
+local savedEquipSetProps = {}
+
+-- Sync equipment set categories with current set data from EquipmentSets module
+function CategoryManager:SyncEquipmentSetCategories()
+    local equipSets = addon.Modules.EquipmentSets
+    if not equipSets then return end
+
+    local showEquipSets = addon.Modules.DB:GetSetting("showEquipSetCategories")
+    if showEquipSets == false then return end
+
+    local setNames = equipSets:GetAllSetNames()
+    if not setNames then return end
+
+    local cats = self:GetCategories()
+    local existingSetCats = {}
+
+    -- Find existing EquipSet categories
+    for id, def in pairs(cats.definitions) do
+        if string.find(id, "^EquipSet:") then
+            existingSetCats[id] = true
+        end
+    end
+
+    -- Create/update categories for current sets
+    for _, setName in ipairs(setNames) do
+        local catId = "EquipSet:" .. setName
+        if not cats.definitions[catId] then
+            -- Check for saved properties from a previously deleted set
+            local props = savedEquipSetProps[catId]
+            local defaultMark = "Interface\\AddOns\\Guda\\Assets\\equipment"
+            local newDef = {
+                name = setName,
+                icon = "Interface\\Icons\\INV_Chest_Chain_04",
+                rules = {},
+                matchMode = "all",
+                priority = 65,
+                enabled = props and props.enabled or true,
+                isBuiltIn = false,
+                isEquipSetCategory = true,
+                group = GROUP_MAIN,
+                categoryMark = props and props.categoryMark or defaultMark,
+            }
+            cats.definitions[catId] = newDef
+
+            -- Add to order
+            local insertPos = nil
+            for i = table.getn(cats.order), 1, -1 do
+                local existDef = cats.definitions[cats.order[i]]
+                if existDef and (existDef.group or GROUP_MAIN) == GROUP_MAIN then
+                    insertPos = i + 1
+                    break
+                end
+            end
+            if insertPos then
+                table.insert(cats.order, insertPos, catId)
+            else
+                table.insert(cats.order, catId)
+            end
+
+            addon:Debug("CategoryManager: Created equipment set category: " .. catId)
+        end
+        existingSetCats[catId] = nil -- Mark as still active
+    end
+
+    -- Remove categories for sets that no longer exist
+    for catId in pairs(existingSetCats) do
+        local def = cats.definitions[catId]
+        if def then
+            -- Save user-edited properties before deletion
+            savedEquipSetProps[catId] = {
+                enabled = def.enabled,
+                categoryMark = def.categoryMark,
+            }
+        end
+        cats.definitions[catId] = nil
+        for i, id in ipairs(cats.order) do
+            if id == catId then
+                table.remove(cats.order, i)
+                break
+            end
+        end
+        addon:Debug("CategoryManager: Removed equipment set category: " .. catId)
+    end
+
+    self:SaveCategories(cats)
 end
 
 -- Get available rule types for UI

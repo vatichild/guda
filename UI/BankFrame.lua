@@ -779,6 +779,13 @@ function BankFrame:DisplayItemsByCategory(bankData, isOtherChar, charName)
     local CATEGORY_ITEMS_PER_BUDGET_CHECK = 8
 
     for _, catName in ipairs(categoryList) do
+        local catDef = addon.Modules.CategoryManager and addon.Modules.CategoryManager:GetCategory(catName) or nil
+
+        -- Skip Empty category in bank (bank doesn't need empty slot indicator in category loop)
+        if catDef and catDef.isEmptyCategory then
+            -- Skip empty categories in bank view
+        else
+
         local items = categories[catName]
         local numItems = items and table.getn(items) or 0
         if numItems > 0 then
@@ -803,9 +810,19 @@ function BankFrame:DisplayItemsByCategory(bankData, isOtherChar, charName)
             headerIdx = headerIdx + 1
             header:SetPoint("TOPLEFT", itemContainer, "TOPLEFT", startX + currentX, startY - currentY)
             header:SetWidth(blockWidth)
-            
+
             local displayName = catName
-            header.fullName = catName
+            if catDef and catDef.name then
+                displayName = catDef.name
+            end
+
+            -- Set item count
+            if header.countText then
+                header.countText:SetText("(" .. numItems .. ")")
+                header.countText:Show()
+            end
+
+            header.fullName = displayName
             header.isShortened = false
             if string.len(displayName) > 10 and numItems < 2 then
                 displayName = string.sub(displayName, 1, 7) .. "..."
@@ -865,32 +882,26 @@ function BankFrame:DisplayItemsByCategory(bankData, isOtherChar, charName)
             if blockHeight > rowMaxHeight then rowMaxHeight = blockHeight end
             currentX = currentX + blockWidth + 20
         end
+        end -- isEmptyCategory else
     end
 
     -- Update Y for bottom sections
     local y = currentY + rowMaxHeight
-    
-    -- Special sections at bottom (Hearthstone, Mount, Tools, Empty)
+
+    -- Special sections at bottom (only Mounts now; Home/Tools/Empty are real categories)
     local bottomSections = {
-        { name = "Home", items = specialItems.Hearthstone },
         { name = "Mounts", items = specialItems.Mount },
-        { name = "Tools", items = specialItems.Tools },
-        { name = "Empty", items = {} }
     }
-    
+
     local x = startX
     y = startY - y
-    
+
     local hasAnyBottom = false
     for _, sec in ipairs(bottomSections) do
         if table.getn(sec.items) > 0 then
             hasAnyBottom = true
             break
         end
-    end
-    -- Also show bottom section if there are free slots (for Empty drop target)
-    if totalFreeSlots > 0 then
-        hasAnyBottom = true
     end
 
     if hasAnyBottom then
@@ -901,22 +912,7 @@ function BankFrame:DisplayItemsByCategory(bankData, isOtherChar, charName)
         for _, sec in ipairs(bottomSections) do
             local items = sec.items
             local numItems = table.getn(items)
-            if sec.name == "Empty" then
-                numItems = (totalFreeSlots > 0) and 1 or 0
-            end
             if numItems > 0 then
-                if sec.name == "Tools" then
-                    table.sort(items, function(a, b)
-                        -- Guard against nil entries
-                        if not a or not a.itemData then return false end
-                        if not b or not b.itemData then return true end
-                        if (a.itemData.quality or 0) ~= (b.itemData.quality or 0) then
-                            return (a.itemData.quality or 0) > (b.itemData.quality or 0)
-                        end
-                        return (a.itemData.name or "") < (b.itemData.name or "")
-                    end)
-                end
-
                 local blockCols = numItems
                 if blockCols > perRow then blockCols = perRow end
                 local blockRows = math.ceil(numItems / perRow)
@@ -934,59 +930,38 @@ function BankFrame:DisplayItemsByCategory(bankData, isOtherChar, charName)
                 header:SetPoint("TOPLEFT", itemContainer, "TOPLEFT", x + currentBottomX, y)
                 header:SetWidth(blockWidth)
                 header.text:SetText(sec.name)
+                if header.countText then header.countText:SetText("(" .. numItems .. ")"); header.countText:Show() end
                 header:Show()
 
                 local itemY = y - 20
                 local sCol = 0
                 local sRow = 0
-                
-                if sec.name == "Empty" then
-                    local bagID = firstFreeBag or -1
-                    local slotID = firstFreeSlot or 1
-                    local bagParent = self:GetBagParent(bagID)
+
+                for _, item in ipairs(items) do
+                    local bagParent = self:GetBagParent(item.bagID)
                     local button = Guda_GetItemButton(bagParent)
                     button:SetParent(bagParent)
                     button:SetWidth(buttonSize)
                     button:SetHeight(buttonSize)
                     button:ClearAllPoints()
-                    button:SetPoint("TOPLEFT", itemContainer, "TOPLEFT", x + currentBottomX, itemY)
+                    button:SetPoint("TOPLEFT", itemContainer, "TOPLEFT", x + currentBottomX + (sCol * (buttonSize + spacing)), itemY - (sRow * (buttonSize + spacing)))
                     button:Show()
-                    
-                    local emptyItemData = { 
-                        texture = "Interface\\PaperDoll\\UI-PaperDoll-Slot-Bag", 
-                        count = totalFreeSlots, 
-                        name = "Empty Slots" 
-                    }
-                    Guda_ItemButton_SetItem(button, bagID, slotID, emptyItemData, true, isOtherChar and charName or nil, true, true)
-                    button.isReadOnly = false
+                    Guda_ItemButton_SetItem(button, item.bagID, item.slotID, item.itemData, true, isOtherChar and charName or nil, self:PassesSearchFilter(item.itemData), isOtherChar or isReadOnlyMode)
                     button.inUse = true
-                else
-                    for _, item in ipairs(items) do
-                        local bagParent = self:GetBagParent(item.bagID)
-                        local button = Guda_GetItemButton(bagParent)
-                        button:SetParent(bagParent)
-                        button:SetWidth(buttonSize)
-                        button:SetHeight(buttonSize)
-                        button:ClearAllPoints()
-                        button:SetPoint("TOPLEFT", itemContainer, "TOPLEFT", x + currentBottomX + (sCol * (buttonSize + spacing)), itemY - (sRow * (buttonSize + spacing)))
-                        button:Show()
-                        Guda_ItemButton_SetItem(button, item.bagID, item.slotID, item.itemData, true, isOtherChar and charName or nil, self:PassesSearchFilter(item.itemData), isOtherChar or isReadOnlyMode)
-                        button.inUse = true
-                        -- Populate slot lookup for O(1) access
-                        if not bankSlotToButton[item.bagID] then bankSlotToButton[item.bagID] = {} end
-                        bankSlotToButton[item.bagID][item.slotID] = button
+                    -- Populate slot lookup for O(1) access
+                    if not bankSlotToButton[item.bagID] then bankSlotToButton[item.bagID] = {} end
+                    bankSlotToButton[item.bagID][item.slotID] = button
 
-                        sCol = sCol + 1
-                        if sCol >= blockCols then
-                            sCol = 0
-                            sRow = sRow + 1
-                        end
+                    sCol = sCol + 1
+                    if sCol >= blockCols then
+                        sCol = 0
+                        sRow = sRow + 1
                     end
                 end
 
                 if blockHeight > sectionMaxHeight then sectionMaxHeight = blockHeight end
                 currentBottomX = currentBottomX + blockWidth + 20
-                
+
                 if currentBottomX >= totalWidth then
                     currentBottomX = 0
                     y = y - sectionMaxHeight - 5

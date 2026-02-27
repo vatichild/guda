@@ -92,9 +92,9 @@ function Guda_SettingsPopup_OnShow(self)
     -- Load current settings
     local bagColumns = Guda.Modules.DB:GetSetting("bagColumns") or 10
     local bankColumns = Guda.Modules.DB:GetSetting("bankColumns") or 10
-    local iconSize = Guda.Modules.DB:GetSetting("iconSize") or 40
+    local iconSize = Guda.Modules.DB:GetSetting("iconSize") or 37
     local iconFontSize = Guda.Modules.DB:GetSetting("iconFontSize") or 12
-    local iconSpacing = Guda.Modules.DB:GetSetting("iconSpacing") or 0
+    local iconSpacing = Guda.Modules.DB:GetSetting("iconSpacing") or 3
     local lockBags = Guda.Modules.DB:GetSetting("lockBags")
     if lockBags == nil then
         lockBags = false
@@ -438,7 +438,7 @@ function Guda_SettingsPopup_IconSizeSlider_OnLoad(self)
     self:SetMinMaxValues(22, 64)
     self:SetValueStep(1)
 
-    local currentValue = Guda.Modules.DB:GetSetting("iconSize") or addon.Constants.BUTTON_SIZE
+    local currentValue = Guda.Modules.DB:GetSetting("iconSize") or 37
     self:SetValue(currentValue)
 end
 
@@ -503,7 +503,7 @@ end
 
 -- Icon Spacing Slider OnLoad
 function Guda_SettingsPopup_IconSpacingSlider_OnLoad(self)
-    getglobal(self:GetName().."Low"):SetText("-10px")
+    getglobal(self:GetName().."Low"):SetText("0px")
     getglobal(self:GetName().."High"):SetText("20px")
 
     local text = getglobal(self:GetName().."Text")
@@ -515,10 +515,10 @@ function Guda_SettingsPopup_IconSpacingSlider_OnLoad(self)
         text:SetFont(font, 12, flags)
     end
 
-    self:SetMinMaxValues(-10, 20)
+    self:SetMinMaxValues(0, 20)
     self:SetValueStep(1)
 
-    local currentValue = Guda.Modules.DB:GetSetting("iconSpacing") or 0
+    local currentValue = Guda.Modules.DB:GetSetting("iconSpacing") or 3
     self:SetValue(currentValue)
 end
 
@@ -1409,6 +1409,30 @@ local function GetCategoryRowFrame(index)
     return row
 end
 
+-- Build a flat display list with group headers inserted
+local function BuildCategoryDisplayList()
+    if not Guda.Modules.CategoryManager then return {}, 0 end
+
+    local categoryOrder = Guda.Modules.CategoryManager:GetCategoryOrder()
+    local displayList = {}  -- entries: { type = "header"|"category", groupName, categoryId, categoryDef }
+    local lastGroup = nil
+
+    for _, catId in ipairs(categoryOrder) do
+        local catDef = Guda.Modules.CategoryManager:GetCategory(catId)
+        if catDef then
+            local group = catDef.group or "Main"
+            -- Insert group header if group changed
+            if group ~= lastGroup then
+                table.insert(displayList, { type = "header", groupName = group })
+                lastGroup = group
+            end
+            table.insert(displayList, { type = "category", categoryId = catId, categoryDef = catDef })
+        end
+    end
+
+    return displayList, table.getn(displayList)
+end
+
 -- Update the category list display
 function Guda_SettingsPopup_CategoriesTab_Update()
     if not Guda.Modules.CategoryManager then return end
@@ -1416,11 +1440,10 @@ function Guda_SettingsPopup_CategoriesTab_Update()
     local scrollFrame = getglobal("Guda_SettingsPopup_CategoriesScrollFrame")
     if not scrollFrame then return end
 
-    local categoryOrder = Guda.Modules.CategoryManager:GetCategoryOrder()
-    local totalCategories = table.getn(categoryOrder)
+    local displayList, totalEntries = BuildCategoryDisplayList()
 
     -- Update scroll frame
-    FauxScrollFrame_Update(scrollFrame, totalCategories, CATEGORY_VISIBLE_ROWS, CATEGORY_ROW_HEIGHT)
+    FauxScrollFrame_Update(scrollFrame, totalEntries, CATEGORY_VISIBLE_ROWS, CATEGORY_ROW_HEIGHT)
 
     local offset = FauxScrollFrame_GetOffset(scrollFrame)
 
@@ -1428,13 +1451,28 @@ function Guda_SettingsPopup_CategoriesTab_Update()
         local row = GetCategoryRowFrame(i)
         if row then
             local dataIndex = i + offset
-            if dataIndex <= totalCategories then
-                local categoryId = categoryOrder[dataIndex]
-                local categoryDef = Guda.Modules.CategoryManager:GetCategory(categoryId)
+            if dataIndex <= totalEntries then
+                local entry = displayList[dataIndex]
 
-                if categoryDef then
+                if entry.type == "header" then
+                    -- Show as group header row
+                    row.categoryId = nil
+                    row.nameText:SetText("|cffffd100-- " .. entry.groupName .. " --|r")
+                    row.nameText:SetTextColor(1, 0.82, 0)
+                    row.checkbox:Hide()
+                    row.editBtn:Hide()
+                    row.upBtn:Hide()
+                    row.downBtn:Hide()
+                    row.deleteBtn:Hide()
+                    row.builtInText:Hide()
+                    row:Show()
+                elseif entry.type == "category" then
+                    local categoryId = entry.categoryId
+                    local categoryDef = entry.categoryDef
+
                     row.categoryId = categoryId
                     row.nameText:SetText(categoryDef.name or categoryId)
+                    row.checkbox:Show()
                     row.checkbox:SetChecked(categoryDef.enabled and 1 or 0)
 
                     -- Show/hide delete button based on whether it's built-in
@@ -1458,24 +1496,17 @@ function Guda_SettingsPopup_CategoriesTab_Update()
                         row.upBtn:Show()
                         row.downBtn:Show()
 
-                        -- Enable/disable move buttons based on position
-                        if dataIndex == 1 then
-                            row.upBtn:Disable()
+                        -- Enable/disable move buttons based on group-aware boundaries
+                        if Guda.Modules.CategoryManager:CanMoveUp(categoryId) then
+                            row.upBtn:Enable()
                         else
-                            -- Check if category above has hideControls (can't move above it)
-                            local aboveCatId = categoryOrder[dataIndex - 1]
-                            local aboveCatDef = Guda.Modules.CategoryManager:GetCategory(aboveCatId)
-                            if aboveCatDef and aboveCatDef.hideControls then
-                                row.upBtn:Disable()
-                            else
-                                row.upBtn:Enable()
-                            end
+                            row.upBtn:Disable()
                         end
 
-                        if dataIndex == totalCategories then
-                            row.downBtn:Disable()
-                        else
+                        if Guda.Modules.CategoryManager:CanMoveDown(categoryId) then
                             row.downBtn:Enable()
+                        else
+                            row.downBtn:Disable()
                         end
                     end
 
@@ -1512,30 +1543,21 @@ end
 function Guda_SettingsPopup_AddCategory_OnClick()
     if not Guda.Modules.CategoryManager then return end
 
-    -- Generate unique ID
-    local baseId = "Custom"
-    local counter = 1
-    local newId = baseId .. counter
-
-    local cats = Guda.Modules.CategoryManager:GetCategories()
-    while cats.definitions[newId] do
-        counter = counter + 1
-        newId = baseId .. counter
-    end
-
     -- Create new category definition
     local newDef = {
-        name = "Custom " .. counter,
+        name = "Custom Category",
         icon = "Interface\\Icons\\INV_Misc_QuestionMark",
         rules = {},
         matchMode = "any",
         priority = 80,
         enabled = true,
         isBuiltIn = false,
+        group = Guda.Modules.CategoryManager:GetGroupMain(),
     }
 
-    -- Add to database
-    if Guda.Modules.CategoryManager:AddCategory(newId, newDef) then
+    -- Add to database with auto-generated ID
+    local success, newId = Guda.Modules.CategoryManager:AddCategory(nil, newDef)
+    if success and newId then
         -- Update display
         Guda_SettingsPopup_CategoriesTab_Update()
         -- Open editor for the new category
@@ -1577,8 +1599,19 @@ end
 
 local editorCategoryId = nil
 local editorMatchMode = "any"
+local editorGroup = "Main"
+local editorMark = nil  -- current category mark texture path or nil
 local editorRules = {}
 local editorRuleFrames = {}
+
+-- Available mark icons (texture paths)
+local MARK_ICONS = {
+    "Interface\\AddOns\\Guda\\Assets\\equipment",
+    "Interface\\AddOns\\Guda\\Assets\\plus",
+    "Interface\\AddOns\\Guda\\Assets\\fav",
+    "Interface\\AddOns\\Guda\\Assets\\combat",
+    "Interface\\AddOns\\Guda\\Assets\\Cog",
+}
 local RULE_ROW_HEIGHT = 28
 local MAX_RULES = 22
 
@@ -1625,6 +1658,91 @@ function Guda_CategoryEditor_OnLoad(self)
     local cancelBtn = getglobal("Guda_CategoryEditor_CancelButton")
     if cancelBtn then cancelBtn:SetText("Cancel") end
 
+    -- Create group EditBox if it doesn't exist
+    if not getglobal("Guda_CategoryEditor_GroupEditBox") then
+        local nameBox = getglobal("Guda_CategoryEditor_NameEditBox")
+        if nameBox then
+            -- Label
+            local groupLabel = self:CreateFontString("Guda_CategoryEditor_GroupLabel", "OVERLAY", "GameFontNormalSmall")
+            groupLabel:SetPoint("LEFT", nameBox, "RIGHT", 14, 0)
+            groupLabel:SetText("Group:")
+            groupLabel:SetTextColor(0.7, 0.7, 0.7)
+
+            -- EditBox
+            local groupBox = CreateFrame("EditBox", "Guda_CategoryEditor_GroupEditBox", self, "InputBoxTemplate")
+            groupBox:SetWidth(100)
+            groupBox:SetHeight(22)
+            groupBox:SetPoint("LEFT", groupLabel, "RIGHT", 6, 0)
+            groupBox:SetAutoFocus(false)
+            groupBox:SetMaxLetters(20)
+            groupBox:SetScript("OnEscapePressed", function() this:ClearFocus() end)
+            groupBox:SetScript("OnEnterPressed", function() this:ClearFocus() end)
+        end
+    end
+
+    -- Create mark icon selector row
+    if not getglobal("Guda_CategoryEditor_MarkLabel") then
+        local MARK_BTN_SIZE = 22
+        local MARK_BTN_SPACING = 6
+
+        local markLabel = self:CreateFontString("Guda_CategoryEditor_MarkLabel", "OVERLAY", "GameFontNormalSmall")
+        markLabel:SetPoint("TOPLEFT", self, "TOPLEFT", 20, -68)
+        markLabel:SetText("Mark:")
+        markLabel:SetTextColor(0.7, 0.7, 0.7)
+
+        -- "None" button (first)
+        local noneBtn = CreateFrame("Button", "Guda_CategoryEditor_MarkNone", self)
+        noneBtn:SetWidth(MARK_BTN_SIZE)
+        noneBtn:SetHeight(MARK_BTN_SIZE)
+        noneBtn:SetPoint("LEFT", markLabel, "RIGHT", 8, 0)
+        noneBtn:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+        noneBtn:SetBackdropColor(0.15, 0.15, 0.15, 0.8)
+        noneBtn:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
+        noneBtn.markPath = nil
+
+        local noneTex = noneBtn:CreateTexture(nil, "ARTWORK")
+        noneTex:SetWidth(12)
+        noneTex:SetHeight(12)
+        noneTex:SetPoint("CENTER", noneBtn, "CENTER", 0, 0)
+        noneTex:SetTexture("Interface\\Buttons\\UI-StopButton")
+        noneTex:SetVertexColor(0.6, 0.6, 0.6)
+
+        noneBtn:SetScript("OnClick", function()
+            editorMark = nil
+            Guda_CategoryEditor_UpdateMarkButtons()
+        end)
+
+        self.markButtons = { noneBtn }
+
+        -- Icon buttons
+        local prevBtn = noneBtn
+        for i = 1, table.getn(MARK_ICONS) do
+            local iconPath = MARK_ICONS[i]
+            local btn = CreateFrame("Button", "Guda_CategoryEditor_Mark" .. i, self)
+            btn:SetWidth(MARK_BTN_SIZE)
+            btn:SetHeight(MARK_BTN_SIZE)
+            btn:SetPoint("LEFT", prevBtn, "RIGHT", MARK_BTN_SPACING, 0)
+            btn:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+            btn:SetBackdropColor(0.15, 0.15, 0.15, 0.8)
+            btn:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
+            btn.markPath = iconPath
+
+            local tex = btn:CreateTexture(nil, "ARTWORK")
+            tex:SetWidth(16)
+            tex:SetHeight(16)
+            tex:SetPoint("CENTER", btn, "CENTER", 0, 0)
+            tex:SetTexture(iconPath)
+
+            btn:SetScript("OnClick", function()
+                editorMark = this.markPath
+                Guda_CategoryEditor_UpdateMarkButtons()
+            end)
+
+            table.insert(self.markButtons, btn)
+            prevBtn = btn
+        end
+    end
+
     -- Create radio button labels
     local anyRadio = getglobal("Guda_CategoryEditor_MatchAny")
     if anyRadio then
@@ -1638,6 +1756,19 @@ function Guda_CategoryEditor_OnLoad(self)
         local label = allRadio:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         label:SetPoint("LEFT", allRadio, "RIGHT", 2, 0)
         label:SetText("All rules")
+    end
+end
+
+-- Update mark button highlights (gold = selected, gray = unselected)
+function Guda_CategoryEditor_UpdateMarkButtons()
+    local editor = getglobal("Guda_CategoryEditor")
+    if not editor or not editor.markButtons then return end
+    for _, btn in ipairs(editor.markButtons) do
+        if btn.markPath == editorMark then
+            btn:SetBackdropBorderColor(1, 0.82, 0, 1)
+        else
+            btn:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
+        end
     end
 end
 
@@ -1655,6 +1786,8 @@ function Guda_CategoryEditor_Open(categoryId)
 
     editorCategoryId = categoryId
     editorMatchMode = categoryDef.matchMode or "any"
+    editorGroup = categoryDef.group or "Main"
+    editorMark = categoryDef.categoryMark or nil
 
     -- Copy rules
     editorRules = {}
@@ -1690,8 +1823,28 @@ function Guda_CategoryEditor_Open(categoryId)
         end
     end
 
+    -- Set group EditBox
+    local groupBox = getglobal("Guda_CategoryEditor_GroupEditBox")
+    if groupBox then
+        groupBox:SetText(editorGroup or "")
+        -- Disable group editing for built-in categories
+        if categoryDef.isBuiltIn then
+            groupBox:EnableMouse(false)
+            groupBox:EnableKeyboard(false)
+            groupBox:SetTextColor(0.5, 0.5, 0.5)
+        else
+            groupBox:EnableMouse(true)
+            groupBox:EnableKeyboard(true)
+            groupBox:SetTextColor(1, 1, 1)
+        end
+        groupBox:ClearFocus()
+    end
+
     -- Set match mode
     Guda_CategoryEditor_SetMatchMode(editorMatchMode)
+
+    -- Update mark button highlights
+    Guda_CategoryEditor_UpdateMarkButtons()
 
     -- Show editor
     local editor = getglobal("Guda_CategoryEditor")
@@ -1699,6 +1852,8 @@ function Guda_CategoryEditor_Open(categoryId)
         editor:Show()
     end
 end
+
+-- (Group is now an EditBox — no dropdown needed)
 
 -- Set match mode (radio buttons)
 function Guda_CategoryEditor_SetMatchMode(mode)
@@ -2065,6 +2220,9 @@ function Guda_CategoryEditor_Save()
     -- Set match mode
     categoryDef.matchMode = editorMatchMode
 
+    -- Set category mark
+    categoryDef.categoryMark = editorMark
+
     -- Set rules
     categoryDef.rules = {}
     for _, rule in ipairs(editorRules) do
@@ -2073,8 +2231,29 @@ function Guda_CategoryEditor_Save()
         end
     end
 
-    -- Save to database
-    Guda.Modules.CategoryManager:UpdateCategory(editorCategoryId, categoryDef)
+    -- Read group from EditBox
+    local groupBox = getglobal("Guda_CategoryEditor_GroupEditBox")
+    local newGroup = "Main" -- default
+    if groupBox then
+        local text = groupBox:GetText() or ""
+        -- Trim whitespace
+        text = string.gsub(text, "^%s+", "")
+        text = string.gsub(text, "%s+$", "")
+        if text ~= "" then
+            newGroup = text
+        end
+    end
+
+    -- Set group (handle group change via SetCategoryGroup for proper reordering)
+    local oldGroup = categoryDef.group or "Main"
+    if newGroup ~= oldGroup then
+        -- Save definition first, then move group
+        Guda.Modules.CategoryManager:UpdateCategory(editorCategoryId, categoryDef)
+        Guda.Modules.CategoryManager:SetCategoryGroup(editorCategoryId, newGroup)
+    else
+        -- Save to database
+        Guda.Modules.CategoryManager:UpdateCategory(editorCategoryId, categoryDef)
+    end
 
     -- Refresh displays
     Guda_SettingsPopup_CategoriesTab_Update()

@@ -27,6 +27,11 @@ function Main:Initialize()
         addon.Modules.MoneyTracker:Initialize()
 		addon.Modules.EquipmentScanner:Initialize()
 
+        -- Initialize equipment sets (Outfitter/ItemRack integration)
+        if addon.Modules.EquipmentSets then
+            addon.Modules.EquipmentSets:Initialize()
+        end
+
         -- Initialize UI
         addon:Print("Initializing UI...")
         addon.Modules.BagFrame:Initialize()

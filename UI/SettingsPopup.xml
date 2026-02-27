@@ -919,7 +919,7 @@
             <!-- Name EditBox -->
             <EditBox name="Guda_CategoryEditor_NameEditBox" autoFocus="false" inherits="InputBoxTemplate">
                 <Size>
-                    <AbsDimension x="200" y="20"/>
+                    <AbsDimension x="150" y="20"/>
                 </Size>
                 <Anchors>
                     <Anchor point="TOPLEFT">
@@ -946,7 +946,7 @@
                 <Anchors>
                     <Anchor point="TOPLEFT">
                         <Offset>
-                            <AbsDimension x="100" y="-77"/>
+                            <AbsDimension x="100" y="-97"/>
                         </Offset>
                     </Anchor>
                 </Anchors>
@@ -979,12 +979,12 @@
             <!-- Rules ScrollFrame -->
             <ScrollFrame name="Guda_CategoryEditor_RulesScrollFrame" inherits="FauxScrollFrameTemplate">
                 <Size>
-                    <AbsDimension x="335" y="280"/>
+                    <AbsDimension x="335" y="260"/>
                 </Size>
                 <Anchors>
                     <Anchor point="TOPLEFT">
                         <Offset>
-                            <AbsDimension x="20" y="-130"/>
+                            <AbsDimension x="20" y="-150"/>
                         </Offset>
                     </Anchor>
                 </Anchors>
@@ -1013,7 +1013,7 @@
                 <Anchors>
                     <Anchor point="TOPRIGHT">
                         <Offset>
-                            <AbsDimension x="-20" y="-112"/>
+                            <AbsDimension x="-20" y="-132"/>
                         </Offset>
                     </Anchor>
                 </Anchors>

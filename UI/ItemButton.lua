@@ -639,6 +639,8 @@ local function ResetButtonVisualState(self)
     HideInnerShadow(self.innerShadow)
     if self.unusableOverlay then self.unusableOverlay:Hide() end
     HideJunkIcon(self)
+    if self.categoryMarkIcon then self.categoryMarkIcon:Hide() end
+    if self.categoryMarkShadow then self.categoryMarkShadow:Hide() end
 
     -- Clear cooldown overlay
     local cd = getglobal(self:GetName().."Cooldown") or self.cooldown
@@ -738,11 +740,9 @@ local function UpdateEmptySlotBackground(self, emptySlotBg, iconSize)
     if not emptySlotBg then return end
 
     emptySlotBg:ClearAllPoints()
-    -- Use smaller padding for small icons
-    local bgPadding = iconSize < 44 and 1 or 2
-    emptySlotBg:SetPoint("TOPLEFT", self, "TOPLEFT", -bgPadding, bgPadding)
-    emptySlotBg:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", bgPadding, -bgPadding)
-    emptySlotBg:SetTexCoord(0.1, 0.9, 0.1, 0.9)
+    emptySlotBg:SetPoint("TOPLEFT", self, "TOPLEFT", 0, 0)
+    emptySlotBg:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", 0, 0)
+    emptySlotBg:SetTexCoord(0.17, 0.83, 0.17, 0.83)
 end
 
 -- Resize texture elements to match button size
@@ -793,12 +793,11 @@ local function PositionIconAndBorders(self, iconSize)
 
     if not iconTexture or not self.hasItem then return end
 
-    -- Calculate icon inset based on size
-    local iconInset = iconSize < 44 and 10 or 15
-    local iconDisplaySize = iconSize - iconInset
+    -- Icon fills the full button slot
+    local iconDisplaySize = iconSize
 
     iconTexture:ClearAllPoints()
-    iconTexture:SetPoint("CENTER", self, "CENTER", -0.5, 0.5)
+    iconTexture:SetPoint("CENTER", self, "CENTER", 0, 0)
     iconTexture:SetWidth(iconDisplaySize)
     iconTexture:SetHeight(iconDisplaySize)
     iconTexture:SetTexCoord(0.08, 0.92, 0.08, 0.92)
@@ -807,15 +806,15 @@ local function PositionIconAndBorders(self, iconSize)
     -- Position quality border around the icon
     if self.qualityBorder then
         self.qualityBorder:ClearAllPoints()
-        self.qualityBorder:SetPoint("TOPLEFT", iconTexture, "TOPLEFT", -5, 5)
-        self.qualityBorder:SetPoint("BOTTOMRIGHT", iconTexture, "BOTTOMRIGHT", 5, -5)
+        self.qualityBorder:SetPoint("TOPLEFT", iconTexture, "TOPLEFT", -1, 1)
+        self.qualityBorder:SetPoint("BOTTOMRIGHT", iconTexture, "BOTTOMRIGHT", 1, -1)
     end
 
     -- Position quest border around the icon
     if self.questBorder then
         self.questBorder:ClearAllPoints()
-        self.questBorder:SetPoint("TOPLEFT", iconTexture, "TOPLEFT", -5, 5)
-        self.questBorder:SetPoint("BOTTOMRIGHT", iconTexture, "BOTTOMRIGHT", 5, -5)
+        self.questBorder:SetPoint("TOPLEFT", iconTexture, "TOPLEFT", -1, 1)
+        self.questBorder:SetPoint("BOTTOMRIGHT", iconTexture, "BOTTOMRIGHT", 1, -1)
     end
 
     -- Position quest icon in top-right corner
@@ -1056,15 +1055,12 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
         end
     end
 
-    -- Resize empty slot background to match icon size (slightly larger to ensure coverage)
+    -- Resize empty slot background to fill the full button
     if emptySlotBg then
         emptySlotBg:ClearAllPoints()
-        -- Use smaller padding for small icons
-        local bgPadding = iconSize < 44 and 1 or 2
-        emptySlotBg:SetPoint("TOPLEFT", self, "TOPLEFT", -bgPadding, bgPadding)
-        emptySlotBg:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", bgPadding, -bgPadding)
-        -- Crop texture edges slightly to remove any built-in padding
-        emptySlotBg:SetTexCoord(0.1, 0.9, 0.1, 0.9)
+        emptySlotBg:SetPoint("TOPLEFT", self, "TOPLEFT", 0, 0)
+        emptySlotBg:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", 0, 0)
+        emptySlotBg:SetTexCoord(0.17, 0.83, 0.17, 0.83)
     end
 
     -- Also resize the underlying slot textures so the border/background scale with the button.
@@ -1231,11 +1227,49 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
             end
         end
 
-        -- Check if item is junk using the CategoryManager
+        -- Check if item is junk and get category mark using the CategoryManager
         local isJunk = false
+        local categoryMarkTexture = nil
         if itemData and addon.Modules.CategoryManager then
             local category = addon.Modules.CategoryManager:CategorizeItem(itemData, bagID, slotID, self.otherChar)
             isJunk = (category == "Junk")
+            -- Get category mark icon if set
+            local catDef = addon.Modules.CategoryManager:GetCategory(category)
+            if catDef and catDef.categoryMark then
+                categoryMarkTexture = catDef.categoryMark
+            end
+        end
+
+        -- Update category mark overlay (bottom-left of icon texture)
+        if categoryMarkTexture then
+            local iconTex = getglobal(self:GetName().."IconTexture") or getglobal(self:GetName().."Icon") or self.icon or self.Icon
+            local anchor = iconTex or self
+            -- Create mark textures lazily
+            if not self.categoryMarkShadow then
+                self.categoryMarkShadow = self:CreateTexture(nil, "OVERLAY")
+                self.categoryMarkShadow:SetVertexColor(0, 0, 0, 1)
+            end
+            if not self.categoryMarkIcon then
+                self.categoryMarkIcon = self:CreateTexture(nil, "OVERLAY")
+            end
+            -- Size relative to icon (roughly 40% of icon display size)
+            local markSize = math.max(10, math.floor(iconSize * 0.3))
+            local shadowSize = markSize + 2
+            self.categoryMarkShadow:SetWidth(shadowSize)
+            self.categoryMarkShadow:SetHeight(shadowSize)
+            self.categoryMarkShadow:ClearAllPoints()
+            self.categoryMarkShadow:SetPoint("BOTTOMLEFT", anchor, "BOTTOMLEFT", -1, -1)
+            self.categoryMarkIcon:SetWidth(markSize)
+            self.categoryMarkIcon:SetHeight(markSize)
+            self.categoryMarkIcon:ClearAllPoints()
+            self.categoryMarkIcon:SetPoint("BOTTOMLEFT", anchor, "BOTTOMLEFT", 0, 0)
+            self.categoryMarkShadow:SetTexture(categoryMarkTexture)
+            self.categoryMarkShadow:Show()
+            self.categoryMarkIcon:SetTexture(categoryMarkTexture)
+            self.categoryMarkIcon:Show()
+        else
+            if self.categoryMarkIcon then self.categoryMarkIcon:Hide() end
+            if self.categoryMarkShadow then self.categoryMarkShadow:Hide() end
         end
 
         -- Search filtering and junk opacity
@@ -1410,37 +1444,28 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
 
     if iconTexture then
         if self.hasItem then
-            -- Scale icon proportionally based on button size
-            -- For icons < 44: use smaller inset (4px) for better fit
-            -- For icons >= 44: use larger inset (15px) for classic look
-            local iconInset
-            if iconSize < 44 then
-                iconInset = 10  -- Small inset for small icons
-            else
-                iconInset = 15 -- Larger inset for larger icons
-            end
-
-            local iconDisplaySize = iconSize - iconInset
+            -- Icon fills the full button slot
+            local iconDisplaySize = iconSize
             iconTexture:ClearAllPoints()
-            iconTexture:SetPoint("CENTER", self, "CENTER", -0.5, 0.5)
+            iconTexture:SetPoint("CENTER", self, "CENTER", 0, 0)
             iconTexture:SetWidth(iconDisplaySize)
             iconTexture:SetHeight(iconDisplaySize)
             -- Crop icon edges slightly
             iconTexture:SetTexCoord(0.08, 0.92, 0.08, 0.92)
             iconTexture:Show()
 
-            -- Position quality border around the icon (not the slot)
+            -- Position quality border around the icon
             if self.qualityBorder then
                 self.qualityBorder:ClearAllPoints()
-                self.qualityBorder:SetPoint("TOPLEFT", iconTexture, "TOPLEFT", -5, 5)
-                self.qualityBorder:SetPoint("BOTTOMRIGHT", iconTexture, "BOTTOMRIGHT", 5, -5)
+                self.qualityBorder:SetPoint("TOPLEFT", iconTexture, "TOPLEFT", -1, 1)
+                self.qualityBorder:SetPoint("BOTTOMRIGHT", iconTexture, "BOTTOMRIGHT", 1, -1)
             end
 
-            -- Position quest border around the icon (same as quality border)
+            -- Position quest border around the icon
             if self.questBorder then
                 self.questBorder:ClearAllPoints()
-                self.questBorder:SetPoint("TOPLEFT", iconTexture, "TOPLEFT", -5, 5)
-                self.questBorder:SetPoint("BOTTOMRIGHT", iconTexture, "BOTTOMRIGHT", 5, -5)
+                self.questBorder:SetPoint("TOPLEFT", iconTexture, "TOPLEFT", -1, 1)
+                self.questBorder:SetPoint("BOTTOMRIGHT", iconTexture, "BOTTOMRIGHT", 1, -1)
             end
 
             -- Position quest icon in top-right corner
