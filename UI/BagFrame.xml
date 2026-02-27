@@ -550,6 +550,75 @@
                         </Scripts>
                     </Button>
 
+                    <!-- Soul Bag Button (Warlock only) -->
+                    <Button name="$parent_SoulBagButton" inherits="ItemButtonTemplate">
+                        <Size>
+                            <AbsDimension x="24" y="24"/>
+                        </Size>
+                        <Anchors>
+                            <Anchor point="LEFT" relativePoint="RIGHT" relativeTo="$parent_KeyringButton">
+                                <Offset>
+                                    <AbsDimension x="2" y="0"/>
+                                </Offset>
+                            </Anchor>
+                        </Anchors>
+                        <Scripts>
+                            <OnLoad>
+                                -- Hide borders (same as keyring/bag slots)
+                                local normalTexture = getglobal(this:GetName().."NormalTexture")
+                                if normalTexture then
+                                    normalTexture:SetTexture(nil)
+                                    normalTexture:Hide()
+                                end
+                                local iconBorder = getglobal(this:GetName().."IconBorder")
+                                if iconBorder then
+                                    iconBorder:Hide()
+                                end
+
+                                -- Hide the stock/count text from ItemButtonTemplate
+                                local countText = getglobal(this:GetName().."Count")
+                                if countText then
+                                    countText:Hide()
+                                end
+
+                                -- Apply footer button backdrop
+                                Guda_BagSlot_ApplyBackdrop(this)
+
+                                -- Set soul bag icon
+                                SetItemButtonTexture(this, "Interface\\AddOns\\Guda\\Assets\\soul")
+
+                                this:RegisterForClicks("LeftButtonUp")
+
+                                -- Create custom count FontString overlay
+                                local shardCount = this:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
+                                shardCount:SetPoint("BOTTOMRIGHT", this, "BOTTOMRIGHT", -2, 2)
+                                shardCount:SetText("")
+                                shardCount:Hide()
+                                this.countText = shardCount
+                                this.soulShardCount = 0
+
+                                -- Check player class — hide button if not Warlock
+                                local _, playerClass = UnitClass("player")
+                                if playerClass ~= "WARLOCK" then
+                                    this:Hide()
+                                end
+                            </OnLoad>
+                            <OnClick>
+                                Guda_BagFrame_ToggleSoulBag()
+                            </OnClick>
+                            <OnEnter>
+                                GameTooltip:SetOwner(this, "ANCHOR_TOP")
+                                GameTooltip:SetText("Soul Bag", 1.0, 1.0, 1.0)
+                                local count = this.soulShardCount or 0
+                                GameTooltip:AddLine(string.format("%d Soul Shards", count), 0.8, 0.8, 0.8)
+                                GameTooltip:Show()
+                            </OnEnter>
+                            <OnLeave>
+                                GameTooltip:Hide()
+                            </OnLeave>
+                        </Scripts>
+                    </Button>
+
                     <!-- Bag Slots Info Text -->
                     <Frame name="$parent_BagSlotsInfo">
                         <Size>

@@ -212,6 +212,7 @@ function Theme:ApplyToAllFrames()
             "Guda_BagFrame_Toolbar_BagSlot3",
             "Guda_BagFrame_Toolbar_BagSlot4",
             "Guda_BagFrame_Toolbar_KeyringButton",
+            "Guda_BagFrame_Toolbar_SoulBagButton",
         }
         for _, name in ipairs(footerButtons) do
             local btn = getglobal(name)

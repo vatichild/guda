@@ -212,6 +212,11 @@ function Guda_InitCategories()
         categoriesCache["Keyring"] = {}
     end
 
+    -- Always ensure Soul Bag exists (handled specially in BagFrame)
+    if not categoriesCache["Soul Bag"] then
+        categoriesCache["Soul Bag"] = {}
+    end
+
     -- Reuse or create specialItems table
     if not specialItemsCache then
         specialItemsCache = {

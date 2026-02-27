@@ -23,6 +23,7 @@ local searchText = ""
 local itemButtons = {}
 local slotToButton = {} -- Fast O(1) lookup: slotToButton[bagID][slotID] = button
 local showKeyring = false -- Toggle for keyring display
+local showSoulBag = false -- Toggle for soul bag display
 local hiddenBags = {} -- Track which bags are hidden (bagID -> true/false)
 local bagParents = {} -- Per-bag parent frames to carry bagID for Blizzard item button templates
 local isMerchantOpen = false -- Track whether a vendor window is currently open to prevent auto-closing bags
@@ -199,6 +200,9 @@ function Guda_BagFrame_OnHide(self)
 
 	-- Hide bag flyout
 	BagFrame:HideBagFlyout()
+
+	-- Hide tooltip (it may be showing for soul bag or other footer buttons)
+	GameTooltip:Hide()
 
     -- Clear any pending update and work queue items
     pendingUpdate = false
@@ -588,10 +592,17 @@ function BagFrame:UpdateBaglineLayout()
 	local bag3 = getglobal("Guda_BagFrame_Toolbar_BagSlot3")
 	local bag4 = getglobal("Guda_BagFrame_Toolbar_BagSlot4")
 	local keyring = getglobal("Guda_BagFrame_Toolbar_KeyringButton")
+	local soulbag = getglobal("Guda_BagFrame_Toolbar_SoulBagButton")
 	local info = getglobal("Guda_BagFrame_Toolbar_BagSlotsInfo")
 
+	-- Determine last visible special button for info anchor
+	local lastButton = keyring
+	if soulbag and soulbag:IsShown() then
+		lastButton = soulbag
+	end
+
 	if hideBagline then
-		-- Hide bags 1-4, show only bag0 + keyring
+		-- Hide bags 1-4, show only bag0 + keyring + soulbag
 		if bag1 then bag1:Hide() end
 		if bag2 then bag2:Hide() end
 		if bag3 then bag3:Hide() end
@@ -603,11 +614,17 @@ function BagFrame:UpdateBaglineLayout()
 			keyring:SetPoint("LEFT", bag0, "RIGHT", 2, 0)
 		end
 
-		-- Anchor info next to keyring
+		-- Anchor soul bag next to keyring
+		if soulbag and soulbag:IsShown() then
+			soulbag:ClearAllPoints()
+			soulbag:SetPoint("LEFT", keyring, "RIGHT", 2, 0)
+		end
+
+		-- Anchor info next to last button
 		if info then
 			info:Show()
 			info:ClearAllPoints()
-			info:SetPoint("LEFT", keyring, "RIGHT", 8, 0)
+			info:SetPoint("LEFT", lastButton, "RIGHT", 8, 0)
 		end
 	else
 		-- Standard horizontal layout - all bags visible
@@ -636,15 +653,23 @@ function BagFrame:UpdateBaglineLayout()
 			keyring:ClearAllPoints()
 			keyring:SetPoint("LEFT", bag4, "RIGHT", 2, 0)
 		end
+		-- Anchor soul bag next to keyring
+		if soulbag and soulbag:IsShown() then
+			soulbag:ClearAllPoints()
+			soulbag:SetPoint("LEFT", keyring, "RIGHT", 2, 0)
+		end
 		if info then
 			info:Show()
 			info:ClearAllPoints()
-			info:SetPoint("LEFT", keyring, "RIGHT", 8, 0)
+			info:SetPoint("LEFT", lastButton, "RIGHT", 8, 0)
 		end
 
 		-- Hide flyout when switching to full bagline
 		self:HideBagFlyout()
 	end
+
+	-- Update soul shard count
+	Guda_BagFrame_UpdateSoulBagCount()
 end
 
 -- Deferred update state for frame budgeting
@@ -861,15 +886,26 @@ function BagFrame:DisplayItemsByCategory(bagData, isOtherChar, charName)
     local categoryList = Guda_CategoryList
 
     -- Categorize all items using centralized function
+    -- Skip soul bags here; they are handled separately below (like keyring)
     local totalItemsCategorized = 0
     for _, bagID in ipairs(addon.Constants.BAGS) do
         if not hiddenBags[bagID] then
-            local bag = bagData[bagID]
-            if bag and bag.slots then
-                for slotID, itemData in pairs(bag.slots) do
-                    if itemData then
-                        Guda_CategorizeItem(itemData, bagID, slotID, categories, specialItems, isOtherChar)
-                        totalItemsCategorized = totalItemsCategorized + 1
+            local isSoulBag = false
+            if isOtherChar then
+                local bag = bagData[bagID]
+                isSoulBag = bag and bag.bagType == "soul"
+            else
+                isSoulBag = addon.Modules.Utils:GetSpecializedBagType(bagID) == "soul"
+            end
+
+            if not isSoulBag then
+                local bag = bagData[bagID]
+                if bag and bag.slots then
+                    for slotID, itemData in pairs(bag.slots) do
+                        if itemData then
+                            Guda_CategorizeItem(itemData, bagID, slotID, categories, specialItems, isOtherChar)
+                            totalItemsCategorized = totalItemsCategorized + 1
+                        end
                     end
                 end
             end
@@ -908,6 +944,45 @@ function BagFrame:DisplayItemsByCategory(bagData, isOtherChar, charName)
                 end
             end
         end
+    end
+
+    -- Handle Soul Bags if visible
+    if showSoulBag then
+        for _, bagID in ipairs(addon.Constants.BAGS) do
+            if not hiddenBags[bagID] then
+                local isSoulBag = false
+                if isOtherChar then
+                    local bag = bagData[bagID]
+                    isSoulBag = bag and bag.bagType == "soul"
+                else
+                    isSoulBag = addon.Modules.Utils:GetSpecializedBagType(bagID) == "soul"
+                end
+                if isSoulBag then
+                    local bag = bagData[bagID]
+                    if bag and bag.slots then
+                        for slotID, itemData in pairs(bag.slots) do
+                            if itemData then
+                                table.insert(categories["Soul Bag"], {bagID = bagID, slotID = slotID, itemData = itemData})
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    -- Ensure Keyring and Soul Bag are in the display list when they have items
+    -- (they may be missing from categoryList if user customized category order)
+    local hasKeyringInList, hasSoulBagInList = false, false
+    for _, catName in ipairs(categoryList) do
+        if catName == "Keyring" then hasKeyringInList = true end
+        if catName == "Soul Bag" then hasSoulBagInList = true end
+    end
+    if not hasKeyringInList and categories["Keyring"] and table.getn(categories["Keyring"]) > 0 then
+        table.insert(categoryList, "Keyring")
+    end
+    if not hasSoulBagInList and categories["Soul Bag"] and table.getn(categories["Soul Bag"]) > 0 then
+        table.insert(categoryList, "Soul Bag")
     end
 
     -- Layout
@@ -1222,8 +1297,8 @@ function BagFrame:DisplayItems(bagData, isOtherChar, charName)
             table.insert(bagsToShow, {bagID = bagID, needsSpacing = (i == 1)})
         end
     end
-    -- Soul
-    if table.getn(soulBags) > 0 then
+    -- Soul (only when soul bag toggle is active)
+    if showSoulBag and table.getn(soulBags) > 0 then
         for i, bagID in ipairs(soulBags) do
             table.insert(bagsToShow, {bagID = bagID, needsSpacing = (i == 1)})
         end
@@ -1959,6 +2034,58 @@ function Guda_BagFrame_ToggleKeyring()
 
 	-- Refresh display
 	BagFrame:Update()
+end
+
+-- Soul Bag toggle handler
+function Guda_BagFrame_ToggleSoulBag()
+	showSoulBag = not showSoulBag
+
+	-- Update button appearance to show toggle state
+	local button = getglobal("Guda_BagFrame_Toolbar_SoulBagButton")
+	if button then
+		if showSoulBag then
+			-- Gold border when active
+			button:SetBackdropBorderColor(1, 0.82, 0, 1)
+		else
+			-- Restore theme border when inactive
+			local fb = addon.Modules.Theme:GetValue("footerButtonBorder") or { 0.30, 0.30, 0.30, 1 }
+			button:SetBackdropBorderColor(fb[1], fb[2], fb[3], fb[4])
+		end
+	end
+
+	-- Refresh display
+	BagFrame:Update()
+end
+
+-- Update soul shard count on the soul bag button
+function Guda_BagFrame_UpdateSoulBagCount()
+	local button = getglobal("Guda_BagFrame_Toolbar_SoulBagButton")
+	if not button or not button:IsShown() then return end
+
+	local count = 0
+	for _, bagID in ipairs(addon.Constants.BAGS) do
+		local bagType = addon.Modules.Utils:GetSpecializedBagType(bagID)
+		if bagType == "soul" then
+			local numSlots = addon.Modules.Utils:GetBagSlotCount(bagID)
+			for slotID = 1, numSlots do
+				local texture, itemCount = GetContainerItemInfo(bagID, slotID)
+				if texture then
+					count = count + (itemCount or 1)
+				end
+			end
+		end
+	end
+
+	button.soulShardCount = count
+	if button.countText then
+		if count > 0 then
+			button.countText:SetText(tostring(count))
+			button.countText:Show()
+		else
+			button.countText:SetText("")
+			button.countText:Hide()
+		end
+	end
 end
 
 function Guda_BagFrame_Sort()
@@ -2899,6 +3026,12 @@ function Guda_BagFrame_ClearBagButtonHighlight()
 	local keyringButton = getglobal("Guda_BagFrame_Toolbar_KeyringButton")
 	if keyringButton then
 		keyringButton:UnlockHighlight()
+	end
+
+	-- Clear soul bag button highlight
+	local soulBagButton = getglobal("Guda_BagFrame_Toolbar_SoulBagButton")
+	if soulBagButton then
+		soulBagButton:UnlockHighlight()
 	end
 end
 
