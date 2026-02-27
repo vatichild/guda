@@ -119,9 +119,9 @@ function Guda_SettingsPopup_OnShow(self)
     if showQuestBar == nil then
         showQuestBar = true
     end
-    local hoverBagline = Guda.Modules.DB:GetSetting("hoverBagline")
-    if hoverBagline == nil then
-        hoverBagline = false
+    local hideBagline = Guda.Modules.DB:GetSetting("hideBagline")
+    if hideBagline == nil then
+        hideBagline = false
     end
     local bgTransparency = Guda.Modules.DB:GetSetting("bgTransparency") or 0.15
     local bagViewType = Guda.Modules.DB:GetSetting("bagViewType") or "single"
@@ -219,7 +219,7 @@ function Guda_SettingsPopup_OnShow(self)
     end
 
     if hoverBaglineCheckbox then
-        hoverBaglineCheckbox:SetChecked(hoverBagline and 1 or 0)
+        hoverBaglineCheckbox:SetChecked(hideBagline and 1 or 0)
     end
 
     if showTooltipCountsCheckbox then
@@ -242,10 +242,11 @@ function Guda_SettingsPopup_OnShow(self)
         end
     end
 
-    -- Initialize theme button text
+    -- Initialize theme dropdown button text
     if themeButton then
         local currentTheme = Guda.Modules.DB:GetSetting("theme") or "guda"
-        themeButton:SetText(currentTheme == "guda" and "Theme: Guda" or "Theme: Blizzard")
+        local names = { guda = "Guda", blizzard = "Blizzard" }
+        themeButton:SetText(names[currentTheme] or currentTheme)
     end
 
     -- Apply border visibility
@@ -916,7 +917,7 @@ end
 function Guda_SettingsPopup_HoverBaglineCheckbox_OnLoad(self)
     local text = getglobal(self:GetName().."Text")
     if text then
-        text:SetText("Hover Bagline")
+        text:SetText("Hide Bagline")
 
         -- Increase font size
         local font, _, flags = text:GetFont()
@@ -926,26 +927,26 @@ function Guda_SettingsPopup_HoverBaglineCheckbox_OnLoad(self)
     end
 
     -- Tooltip
-    self.tooltipText = L_HOVER_BAGLINE_TT
+    self.tooltipText = L_HIDE_BAGLINE_TT
 
-    local hoverBagline = false
+    local hideBagline = false
     if Guda and Guda.Modules and Guda.Modules.DB then
-        hoverBagline = Guda.Modules.DB:GetSetting("hoverBagline")
-        if hoverBagline == nil then
-            hoverBagline = false
+        hideBagline = Guda.Modules.DB:GetSetting("hideBagline")
+        if hideBagline == nil then
+            hideBagline = false
         end
     end
 
-    self:SetChecked(hoverBagline and 1 or 0)
+    self:SetChecked(hideBagline and 1 or 0)
 end
 
--- Hover Bagline Checkbox OnClick
+-- Hide Bagline Checkbox OnClick
 function Guda_SettingsPopup_HoverBaglineCheckbox_OnClick(self)
     local isChecked = self:GetChecked() == 1
 
     -- Save setting
     if Guda and Guda.Modules and Guda.Modules.DB then
-        Guda.Modules.DB:SetSetting("hoverBagline", isChecked)
+        Guda.Modules.DB:SetSetting("hideBagline", isChecked)
     end
 
     -- Update bag frame
@@ -1141,11 +1142,18 @@ function Guda_SettingsPopup_MarkUnusableCheckbox_OnClick(self)
     end
 end
 
--- Theme Button OnClick
-function Guda_SettingsPopup_ThemeButton_OnClick()
-    local current = Guda.Modules.DB:GetSetting("theme") or "guda"
-    local newValue = (current == "guda") and "blizzard" or "guda"
-    Guda.Modules.DB:SetSetting("theme", newValue)
+-- Theme Dropdown OnClick
+function Guda_SettingsPopup_ThemeDropdown_OnClick(button)
+    local themes = {
+        { text = "Guda", themeId = "guda" },
+        { text = "Blizzard", themeId = "blizzard" },
+    }
+    Guda_ShowSimpleDropdown(button, themes, "theme")
+end
+
+-- Apply selected theme
+function Guda_SettingsPopup_ApplyTheme(themeId)
+    Guda.Modules.DB:SetSetting("theme", themeId)
 
     -- Clear theme cache
     if Guda.Modules.Theme then
@@ -1155,7 +1163,8 @@ function Guda_SettingsPopup_ThemeButton_OnClick()
     -- Update button text
     local btn = getglobal("Guda_SettingsPopup_ThemeButton")
     if btn then
-        btn:SetText(newValue == "guda" and "Theme: Guda" or "Theme: Blizzard")
+        local names = { guda = "Guda", blizzard = "Blizzard" }
+        btn:SetText(names[themeId] or themeId)
     end
 
     -- Apply theme to all frames (also updates slot background alphas)
@@ -2007,6 +2016,7 @@ function Guda_ShowSimpleDropdown(anchor, menuItems, menuType)
         btn.typeId = item.typeId
         btn.ruleType = item.ruleType
         btn.value = item.value
+        btn.themeId = item.themeId
 
         btn:SetScript("OnClick", function()
             dropdownFrame:Hide()
@@ -2014,6 +2024,8 @@ function Guda_ShowSimpleDropdown(anchor, menuItems, menuType)
                 Guda_CategoryEditor_SetRuleType(this.ruleIndex, this.typeId)
             elseif this.menuType == "value" then
                 Guda_CategoryEditor_SetRuleValue(this.ruleIndex, this.value, this.ruleType)
+            elseif this.menuType == "theme" then
+                Guda_SettingsPopup_ApplyTheme(this.themeId)
             end
         end)
         btn:SetScript("OnEnter", function()

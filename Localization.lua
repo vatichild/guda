@@ -18,4 +18,5 @@ L_QUALITY_BORDER_OTHER_TT = "Show a color-coded border around non-equipped items
 L_SHOW_SEARCH_BAR_TT = "Show a search bar at the top of your bags to quickly find items."
 L_SHOW_QUEST_BAR_TT = "Show a bar for quickly accessing quest-related items."
 L_HOVER_BAGLINE_TT = "Minimizes the bag container to show only the main bag and keyring. Hover over the main bag to view the other bags."
+L_HIDE_BAGLINE_TT = "Hides bag slots 1-4 from the footer. Click the main bag to show a flyout with all bag slots."
 L_HIDE_FOOTER_TT = "Hide the bottom section of the bag frame containing money and bag slots."

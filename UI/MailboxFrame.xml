@@ -188,7 +188,7 @@
             <!-- Character Selection Button -->
             <Button name="$parent_CharacterButton">
                 <Size>
-                    <AbsDimension x="24" y="24"/>
+                    <AbsDimension x="24" y="22"/>
                 </Size>
                 <Anchors>
                     <Anchor point="TOPRIGHT">
@@ -201,7 +201,7 @@
                     <Layer level="ARTWORK">
                         <Texture name="$parent_Icon">
                             <Size>
-                                <AbsDimension x="20" y="20"/>
+                                <AbsDimension x="20" y="18"/>
                             </Size>
                             <Anchors>
                                 <Anchor point="CENTER"/>

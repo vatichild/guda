@@ -832,14 +832,6 @@ end
 local function UpdateQualityBorder(self, itemQuality, itemLink, bagID, Utils)
     if not self.qualityBorder then return end
 
-    if bagID == -2 then
-        -- Special border for keyring items (cyan/blue)
-        self.qualityBorder:SetBackdropBorderColor(0.2, 0.8, 1.0, 1)
-        self.qualityBorder:Show()
-        ShowInnerShadow(self.innerShadow, 0.2, 0.8, 1.0)
-        return
-    end
-
     if not itemQuality then
         self.qualityBorder:Hide()
         HideInnerShadow(self.innerShadow)
@@ -942,16 +934,9 @@ local function ClearItemButton(self, emptySlotBg, countText, bagID)
 
     if countText then countText:Hide() end
 
-    -- Handle quality border for empty keyring slots
     if self.qualityBorder then
-        if bagID == -2 then
-            self.qualityBorder:SetBackdropBorderColor(0.2, 0.8, 1.0, 0.5)
-            self.qualityBorder:Show()
-            ShowInnerShadow(self.innerShadow, 0.2, 0.8, 1.0)
-        else
-            self.qualityBorder:Hide()
-            HideInnerShadow(self.innerShadow)
-        end
+        self.qualityBorder:Hide()
+        HideInnerShadow(self.innerShadow)
     end
 
     -- Hide quest elements
@@ -1284,12 +1269,7 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
 
         -- Set quality border and inner shadow
         if self.qualityBorder then
-            if bagID == -2 then
-                -- Special border for keyring items (cyan/blue)
-                self.qualityBorder:SetBackdropBorderColor(0.2, 0.8, 1.0, 1)
-                self.qualityBorder:Show()
-                ShowInnerShadow(self.innerShadow, 0.2, 0.8, 1.0)
-            elseif itemQuality then
+            if itemQuality then
                 -- Check settings to determine if we should show borders
                 local showEquipmentBorder, showOtherBorder
                 if Utils and Utils.SafeCall then
@@ -1406,14 +1386,8 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
 
         -- Show border for empty keyring slots
         if self.qualityBorder then
-            if bagID == -2 then
-                self.qualityBorder:SetBackdropBorderColor(0.2, 0.8, 1.0, 0.5) -- Dimmer cyan for empty slots
-                self.qualityBorder:Show()
-                ShowInnerShadow(self.innerShadow, 0.2, 0.8, 1.0)
-            else
-                self.qualityBorder:Hide()
-                HideInnerShadow(self.innerShadow)
-            end
+            self.qualityBorder:Hide()
+            HideInnerShadow(self.innerShadow)
         end
 
         -- Hide quest border and icon for empty slots

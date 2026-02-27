@@ -42,7 +42,7 @@ function DB:Initialize()
 				showQualityBorderEquipment = true,
 				showQualityBorderOther = true,
 				showSearchBar = true,
-				hoverBagline = false,
+				hideBagline = false,
 				hideFooter = false,
 				bgTransparency = 0.15,
 				showTrackedItems = true,
@@ -76,8 +76,8 @@ function DB:Initialize()
 	if Guda_CharDB.settings.hideFooter == nil then
 		Guda_CharDB.settings.hideFooter = false
 	end
-	if Guda_CharDB.settings.hoverBagline == nil then
-		Guda_CharDB.settings.hoverBagline = false
+	if Guda_CharDB.settings.hideBagline == nil then
+		Guda_CharDB.settings.hideBagline = false
 	end
 	if Guda_CharDB.settings.showQuestBar == nil then
 		Guda_CharDB.settings.showQuestBar = true

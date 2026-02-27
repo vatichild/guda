@@ -197,6 +197,9 @@ function Guda_BagFrame_OnHide(self)
 	-- Close any open dropdown menus when the bag frame is hidden
 	CloseDropDownMenus()
 
+	-- Hide bag flyout
+	BagFrame:HideBagFlyout()
+
     -- Clear any pending update and work queue items
     pendingUpdate = false
     if addon.Modules.Utils and addon.Modules.Utils.ClearWorkQueue then
@@ -416,7 +419,157 @@ function BagFrame:UpdateChangedSlots(bagID)
     end
 end
 
--- Update bagline layout (hover option)
+-- Bag flyout state
+local bagFlyout = nil
+local bagFlyoutExpanded = false
+
+-- Create flyout frame for bags 1-4
+local function CreateBagFlyout(parent)
+	if bagFlyout then return bagFlyout end
+
+	local flyout = CreateFrame("Frame", "Guda_BagFlyout", parent)
+	flyout:SetFrameStrata("DIALOG")
+	flyout:SetFrameLevel(150)
+
+	local slotSize = 32
+	local padding = 4
+	local numBags = 4
+	flyout:SetWidth(slotSize + padding * 2)
+	flyout:SetHeight(slotSize * numBags + padding * 2)
+
+	flyout:SetBackdrop({
+		bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+		edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+		tile = true, tileSize = 16, edgeSize = 12,
+		insets = { left = 2, right = 2, top = 2, bottom = 2 }
+	})
+	flyout:SetBackdropColor(0.12, 0.12, 0.12, 0.95)
+	flyout:SetBackdropBorderColor(0.30, 0.30, 0.30, 1)
+
+	flyout:SetPoint("BOTTOMRIGHT", parent, "BOTTOMLEFT", -15, -9)
+	flyout:EnableMouse(true)
+	flyout:Hide()
+
+	-- Create 4 bag slot buttons inside the flyout (bags 1-4, stacked bottom to top)
+	flyout.bagSlots = {}
+	for i = 1, numBags do
+		local bagID = i
+		local btn = CreateFrame("Button", "Guda_BagFlyout_Slot" .. i, flyout, "ItemButtonTemplate")
+		btn:SetWidth(slotSize)
+		btn:SetHeight(slotSize)
+
+		if i == 1 then
+			btn:SetPoint("BOTTOM", flyout, "BOTTOM", 0, padding)
+		else
+			btn:SetPoint("BOTTOM", flyout.bagSlots[i - 1], "TOP", 0, 0)
+		end
+
+		btn.bagID = bagID
+		btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+
+		-- Hide template borders
+		local normalTex = getglobal(btn:GetName() .. "NormalTexture")
+		if normalTex then normalTex:SetTexture(nil); normalTex:Hide() end
+		local iconBorder = getglobal(btn:GetName() .. "IconBorder")
+		if iconBorder then iconBorder:Hide() end
+
+		-- Apply footer button backdrop
+		Guda_BagSlot_ApplyBackdrop(btn)
+
+		-- Register for drag (equip bags)
+		btn:RegisterForDrag("LeftButton")
+		btn:SetScript("OnDragStart", function()
+			Guda_BagSlot_OnDragStart(this, this.bagID)
+		end)
+		btn:SetScript("OnDragStop", function()
+			Guda_BagSlot_OnDragStop(this, this.bagID)
+		end)
+
+		btn:SetScript("OnClick", function()
+			Guda_BagSlot_OnClick(this, this.bagID)
+		end)
+		btn:SetScript("OnEnter", function()
+			Guda_BagSlot_OnEnter(this, this.bagID)
+		end)
+		btn:SetScript("OnLeave", function()
+			Guda_BagSlot_OnLeave(this, this.bagID)
+		end)
+
+		-- Register for bag updates
+		btn:RegisterEvent("BAG_UPDATE")
+		btn:RegisterEvent("ITEM_LOCK_CHANGED")
+		btn:RegisterEvent("CURSOR_UPDATE")
+		btn:RegisterEvent("UNIT_INVENTORY_CHANGED")
+		btn:SetScript("OnEvent", function()
+			Guda_BagSlot_OnEvent(this, event, arg1)
+		end)
+
+		-- Accept drops
+		btn:SetScript("OnReceiveDrag", function()
+			if this and this.bagID and this.bagID ~= 0 and CursorHasItem and CursorHasItem() then
+				local inv = ContainerIDToInventoryID(this.bagID)
+				if EquipCursorItem then
+					EquipCursorItem(inv)
+				elseif PutItemInBag then
+					PutItemInBag(inv)
+				end
+				Guda_BagSlot_Update(this, this.bagID)
+				if BagFrame and BagFrame.Update then BagFrame:Update() end
+			end
+		end)
+
+		flyout.bagSlots[i] = btn
+	end
+
+	bagFlyout = flyout
+	return flyout
+end
+
+-- Update flyout bag slot textures
+local function UpdateBagFlyout()
+	if not bagFlyout then return end
+	for i, btn in ipairs(bagFlyout.bagSlots) do
+		Guda_BagSlot_Update(btn, btn.bagID)
+	end
+end
+
+-- Toggle the bag flyout
+function BagFrame:ToggleBagFlyout()
+	local bag0 = getglobal("Guda_BagFrame_Toolbar_BagSlot0")
+	if not bag0 then return end
+
+	if not bagFlyout then
+		CreateBagFlyout(bag0)
+	end
+
+	bagFlyoutExpanded = not bagFlyoutExpanded
+
+	if bagFlyoutExpanded then
+		UpdateBagFlyout()
+		bagFlyout:Show()
+		-- Gold border when active
+		bag0:SetBackdropBorderColor(1, 0.82, 0, 1)
+	else
+		bagFlyout:Hide()
+		-- Restore theme border when inactive
+		local fb = addon.Modules.Theme:GetValue("footerButtonBorder") or { 0.30, 0.30, 0.30, 1 }
+		bag0:SetBackdropBorderColor(fb[1], fb[2], fb[3], fb[4])
+	end
+end
+
+-- Hide the bag flyout (used when frame closes, etc.)
+function BagFrame:HideBagFlyout()
+	bagFlyoutExpanded = false
+	if bagFlyout then bagFlyout:Hide() end
+	-- Restore theme border on bag0
+	local bag0 = getglobal("Guda_BagFrame_Toolbar_BagSlot0")
+	if bag0 then
+		local fb = addon.Modules.Theme:GetValue("footerButtonBorder") or { 0.30, 0.30, 0.30, 1 }
+		bag0:SetBackdropBorderColor(fb[1], fb[2], fb[3], fb[4])
+	end
+end
+
+-- Update bagline layout
 function BagFrame:UpdateBaglineLayout()
 	local hideFooter = addon.Modules.DB:GetSetting("hideFooter")
 	local toolbar = getglobal("Guda_BagFrame_Toolbar")
@@ -427,8 +580,8 @@ function BagFrame:UpdateBaglineLayout()
 		return
 	end
 
-	local hoverBagline = addon.Modules.DB:GetSetting("hoverBagline")
-	
+	local hideBagline = addon.Modules.DB:GetSetting("hideBagline")
+
 	local bag0 = getglobal("Guda_BagFrame_Toolbar_BagSlot0")
 	local bag1 = getglobal("Guda_BagFrame_Toolbar_BagSlot1")
 	local bag2 = getglobal("Guda_BagFrame_Toolbar_BagSlot2")
@@ -437,57 +590,27 @@ function BagFrame:UpdateBaglineLayout()
 	local keyring = getglobal("Guda_BagFrame_Toolbar_KeyringButton")
 	local info = getglobal("Guda_BagFrame_Toolbar_BagSlotsInfo")
 
-	if hoverBagline then
-		-- Hide extra bags by default if not hovering
-		if not toolbar.isHovered then
-			if bag1 then bag1:Hide() end
-			if bag2 then bag2:Hide() end
-			if bag3 then bag3:Hide() end
-			if bag4 then bag4:Hide() end
-		end
+	if hideBagline then
+		-- Hide bags 1-4, show only bag0 + keyring
+		if bag1 then bag1:Hide() end
+		if bag2 then bag2:Hide() end
+		if bag3 then bag3:Hide() end
+		if bag4 then bag4:Hide() end
 
-		-- Re-anchor Keyring to BagSlot0
+		-- Anchor keyring next to bag0
 		if keyring and bag0 then
 			keyring:ClearAllPoints()
 			keyring:SetPoint("LEFT", bag0, "RIGHT", 2, 0)
 		end
 
-		-- Keep info visible and anchor it to Keyring
+		-- Anchor info next to keyring
 		if info then
 			info:Show()
 			info:ClearAllPoints()
 			info:SetPoint("LEFT", keyring, "RIGHT", 8, 0)
 		end
-
-		-- If hovered, show and position vertically above Bag0
-		if toolbar.isHovered then
-			if bag1 then
-				bag1:Show()
-				bag1:SetFrameLevel(bag0:GetFrameLevel() + 10)
-				bag1:ClearAllPoints()
-				bag1:SetPoint("BOTTOM", bag0, "TOP", 0, 2)
-			end
-			if bag2 then
-				bag2:Show()
-				bag2:SetFrameLevel(bag0:GetFrameLevel() + 10)
-				bag2:ClearAllPoints()
-				bag2:SetPoint("BOTTOM", bag1, "TOP", 0, 2)
-			end
-			if bag3 then
-				bag3:Show()
-				bag3:SetFrameLevel(bag0:GetFrameLevel() + 10)
-				bag3:ClearAllPoints()
-				bag3:SetPoint("BOTTOM", bag2, "TOP", 0, 2)
-			end
-			if bag4 then
-				bag4:Show()
-				bag4:SetFrameLevel(bag0:GetFrameLevel() + 10)
-				bag4:ClearAllPoints()
-				bag4:SetPoint("BOTTOM", bag3, "TOP", 0, 2)
-			end
-		end
 	else
-		-- Restore standard horizontal layout
+		-- Standard horizontal layout - all bags visible
 		if bag1 then
 			bag1:Show()
 			bag1:ClearAllPoints()
@@ -518,6 +641,9 @@ function BagFrame:UpdateBaglineLayout()
 			info:ClearAllPoints()
 			info:SetPoint("LEFT", keyring, "RIGHT", 8, 0)
 		end
+
+		-- Hide flyout when switching to full bagline
+		self:HideBagFlyout()
 	end
 end
 
@@ -1821,15 +1947,13 @@ function Guda_BagFrame_ToggleKeyring()
 	-- Update button appearance to show toggle state
 	local button = getglobal("Guda_BagFrame_Toolbar_KeyringButton")
 	if button then
-		local icon = getglobal(button:GetName().."_Icon")
-		if icon then
-			if showKeyring then
-			-- Highlighted when active
-				icon:SetVertexColor(1.0, 1.0, 0.5)
-			else
-			-- Normal color when inactive
-				icon:SetVertexColor(0.8, 0.8, 0.8)
-			end
+		if showKeyring then
+			-- Gold border when active
+			button:SetBackdropBorderColor(1, 0.82, 0, 1)
+		else
+			-- Restore theme border when inactive
+			local fb = addon.Modules.Theme:GetValue("footerButtonBorder") or { 0.30, 0.30, 0.30, 1 }
+			button:SetBackdropBorderColor(fb[1], fb[2], fb[3], fb[4])
 		end
 	end
 
@@ -2422,6 +2546,21 @@ end
 
 -- Bag Slot Button Handlers
 
+-- Apply footer button backdrop styling
+function Guda_BagSlot_ApplyBackdrop(button)
+	local Theme = addon.Modules.Theme
+	button:SetBackdrop({
+		bgFile = "Interface\\Buttons\\WHITE8x8",
+		edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+		edgeSize = 8,
+		insets = { left = 2, right = 2, top = 2, bottom = 2 },
+	})
+	local fbBg = Theme:GetValue("footerButtonBg") or { 0.12, 0.12, 0.12, 1 }
+	local fbBorder = Theme:GetValue("footerButtonBorder") or { 0.30, 0.30, 0.30, 1 }
+	button:SetBackdropColor(fbBg[1], fbBg[2], fbBg[3], fbBg[4])
+	button:SetBackdropBorderColor(fbBorder[1], fbBorder[2], fbBorder[3], fbBorder[4])
+end
+
 -- OnLoad handler for bag slot buttons
 function Guda_BagSlot_OnLoad(button, bagID)
 -- Hide borders from ItemButtonTemplate
@@ -2440,12 +2579,15 @@ function Guda_BagSlot_OnLoad(button, bagID)
 		iconBorder:Hide()
 	end
 
+	-- Apply footer button backdrop
+	Guda_BagSlot_ApplyBackdrop(button)
+
 	-- Set up the button with proper ID
 	if bagID == 0 then
 	-- Backpack (bag 0)
 		button.bagID = 0
 		button.hasItem = 1
-		SetItemButtonTexture(button, "Interface\\Buttons\\Button-Backpack-Up")
+		SetItemButtonTexture(button, "Interface\\AddOns\\Guda\\Assets\\bags")
 	else
 	-- Bags 1-4
 		local invSlot = ContainerIDToInventoryID(bagID)
@@ -2513,7 +2655,7 @@ function Guda_BagSlot_Update(button, bagID)
 
 	if bagID == 0 then
 	-- Backpack always has the same texture
-		SetItemButtonTexture(button, "Interface\\Buttons\\Button-Backpack-Up")
+		SetItemButtonTexture(button, "Interface\\AddOns\\Guda\\Assets\\bags")
 		-- Dim if hidden
 		if isHidden then
 			SetItemButtonTextureVertexColor(button, 0.4, 0.4, 0.4)
@@ -2580,6 +2722,15 @@ function Guda_BagSlot_OnClick(button, bagID)
 		return
 	end
 
+	-- Left-Click on bag0: toggle flyout if bagline is hidden
+	if which == "LeftButton" and bagID == 0 then
+		local hideBagline = addon.Modules.DB:GetSetting("hideBagline")
+		if hideBagline then
+			BagFrame:ToggleBagFlyout()
+			return
+		end
+	end
+
 	-- Left-Click: equip bag from cursor into this slot (bags 1-4 only)
 	if which == "LeftButton" then
 		if bagID ~= 0 and CursorHasItem and CursorHasItem() then
@@ -2599,17 +2750,6 @@ end
 
 -- OnEnter handler for tooltip
 function Guda_BagSlot_OnEnter(button, bagID)
-	-- Handle hover bagline
-	local hoverBagline = addon.Modules.DB:GetSetting("hoverBagline")
-	if hoverBagline then
-		local toolbar = getglobal("Guda_BagFrame_Toolbar")
-		if toolbar then
-			toolbar.isHovered = true
-			toolbar.hoverTimer = nil -- Cancel any pending hide
-			BagFrame:UpdateBaglineLayout()
-		end
-	end
-
 	GameTooltip:SetOwner(button, "ANCHOR_TOP")
 
 	if bagID == 0 then
@@ -2666,28 +2806,6 @@ end
 
 -- OnLeave handler for tooltip
 function Guda_BagSlot_OnLeave(button, bagID)
-	-- Handle hover bagline
-	local hoverBagline = addon.Modules.DB:GetSetting("hoverBagline")
-	if hoverBagline then
-		local toolbar = getglobal("Guda_BagFrame_Toolbar")
-		if toolbar then
-			-- Start a small timer to hide, so we can move mouse between bags
-			toolbar.hoverTimer = 0.1
-			if not toolbar.hasOnUpdate then
-				toolbar:SetScript("OnUpdate", function()
-					if this.hoverTimer then
-						this.hoverTimer = this.hoverTimer - arg1
-						if this.hoverTimer <= 0 then
-							this.hoverTimer = nil
-							this.isHovered = false
-							BagFrame:UpdateBaglineLayout()
-						end
-					end
-				end)
-				toolbar.hasOnUpdate = true
-			end
-		end
-	end
 end
 
 -- Highlight all item slots belonging to a specific bag by dimming others

@@ -38,6 +38,9 @@ local themes = {
         },
         titleColor = { r = 1, g = 0.82, b = 0 },
         slotBgAlpha = { empty = 0.5, filled = 0.3 },
+        footerButtonBg = { 0.12, 0.12, 0.12, 1 },
+        footerButtonBorder = { 0.30, 0.30, 0.30, 1 },
+        showHeaderButtonBg = false,
     },
     blizzard = {
         -- Custom bank parchment texture bundled with the addon.
@@ -59,6 +62,11 @@ local themes = {
         },
         titleColor = { r = 1, g = 0.82, b = 0 },
         slotBgAlpha = { empty = 1, filled = 1 },
+        footerButtonBg = { 0.5, 0.06, 0.06, 0.6 },
+        footerButtonBorder = { 0.5, 0.06, 0.06, 1 },
+        showHeaderButtonBg = true,
+        headerButtonBg = { 0.5, 0.06, 0.06, 0.6 },
+        headerButtonBorder = { 0.5, 0.06, 0.06, 1 },
     },
 }
 
@@ -195,6 +203,30 @@ function Theme:ApplyToAllFrames()
         self:UpdateAllSlotBackgrounds(sa)
     end
 
+    -- Update footer button backdrops (bag slots + keyring)
+    if Guda_BagSlot_ApplyBackdrop then
+        local footerButtons = {
+            "Guda_BagFrame_Toolbar_BagSlot0",
+            "Guda_BagFrame_Toolbar_BagSlot1",
+            "Guda_BagFrame_Toolbar_BagSlot2",
+            "Guda_BagFrame_Toolbar_BagSlot3",
+            "Guda_BagFrame_Toolbar_BagSlot4",
+            "Guda_BagFrame_Toolbar_KeyringButton",
+        }
+        for _, name in ipairs(footerButtons) do
+            local btn = getglobal(name)
+            if btn then Guda_BagSlot_ApplyBackdrop(btn) end
+        end
+        -- Update flyout buttons too
+        for i = 1, 4 do
+            local btn = getglobal("Guda_BagFlyout_Slot" .. i)
+            if btn then Guda_BagSlot_ApplyBackdrop(btn) end
+        end
+    end
+
+    -- Update header button backgrounds
+    self:ApplyHeaderButtonBackgrounds()
+
     ThemeDebug("=== ApplyToAllFrames done ===")
 end
 
@@ -215,6 +247,63 @@ function Theme:UpdateAllSlotBackgrounds(sa)
             end
         end
         i = i + 1
+    end
+end
+
+-- Apply or remove header button background based on theme
+local headerButtonBackdrop = {
+    bgFile = "Interface\\Buttons\\WHITE8x8",
+    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    edgeSize = 8,
+    insets = { left = 2, right = 2, top = 2, bottom = 2 },
+}
+
+function Theme:ApplyHeaderButtonBg(button)
+    local showBg = self:GetValue("showHeaderButtonBg")
+    if showBg then
+        -- Create or reuse background frame behind the icon
+        if not button._themeBg then
+            local bg = CreateFrame("Frame", nil, button)
+            bg:SetWidth(button:GetWidth() + 4)
+            bg:SetHeight(button:GetHeight() + 4)
+            bg:SetPoint("CENTER", button, "CENTER", 0, 0)
+            bg:SetFrameLevel(button:GetFrameLevel())
+            bg:SetBackdrop(headerButtonBackdrop)
+            button._themeBg = bg
+        end
+        local hbBg = self:GetValue("headerButtonBg") or { 0.5, 0.06, 0.06, 0.6 }
+        local hbBorder = self:GetValue("headerButtonBorder") or { 0.5, 0.06, 0.06, 1 }
+        button._themeBg:SetBackdropColor(hbBg[1], hbBg[2], hbBg[3], hbBg[4])
+        button._themeBg:SetBackdropBorderColor(hbBorder[1], hbBorder[2], hbBorder[3], hbBorder[4])
+        button._themeBg:Show()
+    else
+        if button._themeBg then
+            button._themeBg:Hide()
+        end
+    end
+end
+
+function Theme:ApplyHeaderButtonBackgrounds()
+    local headerButtons = {
+        -- BagFrame
+        "Guda_BagFrame_SettingsButton",
+        "Guda_BagFrame_SortButton",
+        "Guda_BagFrame_CharsButton",
+        "Guda_BagFrame_BankButton",
+        "Guda_BagFrame_MailButton",
+        -- BankFrame
+        "Guda_BankFrame_SettingsButton",
+        "Guda_BankFrame_SortButton",
+        "Guda_BankFrame_CharsButton",
+        "Guda_BankFrame_BlizzardUIButton",
+        -- MailboxFrame
+        "Guda_MailboxFrame_CharacterButton",
+    }
+    for _, name in ipairs(headerButtons) do
+        local btn = getglobal(name)
+        if btn then
+            self:ApplyHeaderButtonBg(btn)
+        end
     end
 end
 

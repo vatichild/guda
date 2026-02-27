@@ -50,12 +50,12 @@
             <!-- Settings Button (header right, next to close) -->
             <Button name="$parent_SettingsButton">
                 <Size>
-                    <AbsDimension x="24" y="24"/>
+                    <AbsDimension x="24" y="22"/>
                 </Size>
                 <Anchors>
                     <Anchor point="TOPRIGHT" relativePoint="TOPLEFT" relativeTo="$parent_CloseButton">
                         <Offset>
-                            <AbsDimension x="0" y="-5"/>
+                            <AbsDimension x="-4" y="-5"/>
                         </Offset>
                     </Anchor>
                 </Anchors>
@@ -63,7 +63,7 @@
                     <Layer level="ARTWORK">
                         <Texture name="$parent_Icon">
                             <Size>
-                                <AbsDimension x="20" y="20"/>
+                                <AbsDimension x="20" y="18"/>
                             </Size>
                             <Anchors>
                                 <Anchor point="CENTER"/>
@@ -97,12 +97,12 @@
             <!-- Sort Button (header right, next to settings) -->
             <Button name="$parent_SortButton">
                 <Size>
-                    <AbsDimension x="24" y="24"/>
+                    <AbsDimension x="24" y="22"/>
                 </Size>
                 <Anchors>
                     <Anchor point="RIGHT" relativePoint="LEFT" relativeTo="$parent_SettingsButton">
                         <Offset>
-                            <AbsDimension x="-2" y="0"/>
+                            <AbsDimension x="-4" y="0"/>
                         </Offset>
                     </Anchor>
                 </Anchors>
@@ -110,7 +110,7 @@
                     <Layer level="ARTWORK">
                         <Texture name="$parent_Icon">
                             <Size>
-                                <AbsDimension x="20" y="20"/>
+                                <AbsDimension x="20" y="18"/>
                             </Size>
                             <Anchors>
                                 <Anchor point="CENTER"/>
@@ -150,12 +150,12 @@
             <!-- Characters Button (header left) -->
             <Button name="$parent_CharsButton">
                 <Size>
-                    <AbsDimension x="24" y="24"/>
+                    <AbsDimension x="24" y="22"/>
                 </Size>
                 <Anchors>
                     <Anchor point="TOPLEFT">
                         <Offset>
-                            <AbsDimension x="18" y="-15"/>
+                            <AbsDimension x="21" y="-15"/>
                         </Offset>
                     </Anchor>
                 </Anchors>
@@ -163,7 +163,7 @@
                     <Layer level="ARTWORK">
                         <Texture name="$parent_Icon">
                             <Size>
-                                <AbsDimension x="20" y="20"/>
+                                <AbsDimension x="20" y="18"/>
                             </Size>
                             <Anchors>
                                 <Anchor point="CENTER"/>
@@ -197,12 +197,12 @@
             <!-- Bank Button (header left, next to characters) -->
             <Button name="$parent_BankButton">
                 <Size>
-                    <AbsDimension x="24" y="24"/>
+                    <AbsDimension x="24" y="22"/>
                 </Size>
                 <Anchors>
                     <Anchor point="LEFT" relativePoint="RIGHT" relativeTo="$parent_CharsButton">
                         <Offset>
-                            <AbsDimension x="2" y="0"/>
+                            <AbsDimension x="4" y="0"/>
                         </Offset>
                     </Anchor>
                 </Anchors>
@@ -210,7 +210,7 @@
                     <Layer level="ARTWORK">
                         <Texture name="$parent_Icon">
                             <Size>
-                                <AbsDimension x="20" y="20"/>
+                                <AbsDimension x="20" y="18"/>
                             </Size>
                             <Anchors>
                                 <Anchor point="CENTER"/>
@@ -244,12 +244,12 @@
             <!-- Mail Button (header left, next to bank) -->
             <Button name="$parent_MailButton">
                 <Size>
-                    <AbsDimension x="24" y="24"/>
+                    <AbsDimension x="24" y="22"/>
                 </Size>
                 <Anchors>
                     <Anchor point="LEFT" relativePoint="RIGHT" relativeTo="$parent_BankButton">
                         <Offset>
-                            <AbsDimension x="2" y="0"/>
+                            <AbsDimension x="4" y="0"/>
                         </Offset>
                     </Anchor>
                 </Anchors>
@@ -257,7 +257,7 @@
                     <Layer level="ARTWORK">
                         <Texture name="$parent_Icon">
                             <Size>
-                                <AbsDimension x="20" y="20"/>
+                                <AbsDimension x="20" y="18"/>
                             </Size>
                             <Anchors>
                                 <Anchor point="CENTER"/>
@@ -528,11 +528,11 @@
                                     iconBorder:Hide()
                                 end
 
-                                -- Set keyring icon using SetItemButtonTexture (same as bag slots)
-                                SetItemButtonTexture(this, "Interface\\Icons\\INV_Misc_Key_03")
+                                -- Apply footer button backdrop
+                                Guda_BagSlot_ApplyBackdrop(this)
 
-                                -- Optionally tint it cyan to distinguish it
-                                SetItemButtonTextureVertexColor(this, 0.7, 1.0, 1.0)
+                                -- Set keyring icon
+                                SetItemButtonTexture(this, "Interface\\AddOns\\Guda\\Assets\\keyring")
 
                                 this:RegisterForClicks("LeftButtonUp", "RightButtonUp")
                             </OnLoad>

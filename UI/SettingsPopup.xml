@@ -191,18 +191,48 @@
                     </Anchor>
                 </Anchors>
                 <Frames>
-                    <!-- Theme Toggle Button -->
-                    <Button name="Guda_SettingsPopup_ThemeButton" inherits="UIPanelButtonTemplate">
-                        <Size><AbsDimension x="180" y="25"/></Size>
+                    <!-- Theme Label -->
+                    <Frame name="Guda_SettingsPopup_ThemeRow">
+                        <Size><AbsDimension x="300" y="25"/></Size>
                         <Anchors>
                             <Anchor point="TOPLEFT">
                                 <Offset><AbsDimension x="5" y="-15"/></Offset>
                             </Anchor>
                         </Anchors>
-                        <Scripts>
-                            <OnClick>Guda_SettingsPopup_ThemeButton_OnClick()</OnClick>
-                        </Scripts>
-                    </Button>
+                        <Layers>
+                            <Layer level="ARTWORK">
+                                <FontString name="Guda_SettingsPopup_ThemeLabel" inherits="GameFontNormal">
+                                    <Anchors>
+                                        <Anchor point="LEFT">
+                                            <Offset><AbsDimension x="0" y="0"/></Offset>
+                                        </Anchor>
+                                    </Anchors>
+                                </FontString>
+                            </Layer>
+                        </Layers>
+                        <Frames>
+                            <!-- Theme Dropdown Button -->
+                            <Button name="Guda_SettingsPopup_ThemeButton" inherits="UIPanelButtonTemplate">
+                                <Size><AbsDimension x="140" y="22"/></Size>
+                                <Anchors>
+                                    <Anchor point="LEFT" relativeTo="Guda_SettingsPopup_ThemeLabel" relativePoint="RIGHT">
+                                        <Offset><AbsDimension x="8" y="0"/></Offset>
+                                    </Anchor>
+                                </Anchors>
+                                <Scripts>
+                                    <OnLoad>
+                                        local label = getglobal("Guda_SettingsPopup_ThemeLabel")
+                                        if label then
+                                            label:SetText("Theme:")
+                                            local f, _, fl = label:GetFont()
+                                            if f then label:SetFont(f, 12, fl) end
+                                        end
+                                    </OnLoad>
+                                    <OnClick>Guda_SettingsPopup_ThemeDropdown_OnClick(this)</OnClick>
+                                </Scripts>
+                            </Button>
+                        </Frames>
+                    </Frame>
 
                     <!-- Bag Columns Slider -->
                     <Slider name="Guda_SettingsPopup_BagColumnsSlider" inherits="OptionsSliderTemplate">
@@ -210,7 +240,7 @@
                             <AbsDimension x="450" y="17"/>
                         </Size>
                         <Anchors>
-                            <Anchor point="TOPLEFT" relativePoint="BOTTOMLEFT" relativeTo="Guda_SettingsPopup_ThemeButton">
+                            <Anchor point="TOPLEFT" relativePoint="BOTTOMLEFT" relativeTo="Guda_SettingsPopup_ThemeRow">
                                 <Offset>
                                     <AbsDimension x="0" y="-25"/>
                                 </Offset>

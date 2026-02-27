@@ -50,12 +50,12 @@
             <!-- Sort Button (header right, next to settings) -->
             <Button name="$parent_SortButton">
                 <Size>
-                    <AbsDimension x="24" y="24"/>
+                    <AbsDimension x="24" y="22"/>
                 </Size>
                 <Anchors>
                     <Anchor point="TOPRIGHT" relativePoint="TOPLEFT" relativeTo="$parent_CloseButton">
                         <Offset>
-                            <AbsDimension x="-28" y="-5"/>
+                            <AbsDimension x="-32" y="-5"/>
                         </Offset>
                     </Anchor>
                 </Anchors>
@@ -63,7 +63,7 @@
                     <Layer level="ARTWORK">
                         <Texture name="$parent_Icon">
                             <Size>
-                                <AbsDimension x="20" y="20"/>
+                                <AbsDimension x="20" y="18"/>
                             </Size>
                             <Anchors>
                                 <Anchor point="CENTER"/>
@@ -103,7 +103,7 @@
             <!-- Settings Button (header right, next to close) -->
             <Button name="$parent_SettingsButton">
                 <Size>
-                    <AbsDimension x="24" y="24"/>
+                    <AbsDimension x="24" y="22"/>
                 </Size>
                 <Anchors>
                     <Anchor point="TOPRIGHT" relativePoint="TOPLEFT" relativeTo="$parent_CloseButton">
@@ -116,7 +116,7 @@
                     <Layer level="ARTWORK">
                         <Texture name="$parent_Icon">
                             <Size>
-                                <AbsDimension x="20" y="20"/>
+                                <AbsDimension x="20" y="18"/>
                             </Size>
                             <Anchors>
                                 <Anchor point="CENTER"/>
@@ -150,12 +150,12 @@
             <!-- Blizzard UI Button (header left) -->
             <Button name="$parent_BlizzardUIButton">
                 <Size>
-                    <AbsDimension x="24" y="24"/>
+                    <AbsDimension x="24" y="22"/>
                 </Size>
                 <Anchors>
                     <Anchor point="TOPLEFT">
                         <Offset>
-                            <AbsDimension x="20" y="-15"/>
+                            <AbsDimension x="23" y="-15"/>
                         </Offset>
                     </Anchor>
                 </Anchors>
@@ -163,7 +163,7 @@
                     <Layer level="ARTWORK">
                         <Texture name="$parent_Icon">
                             <Size>
-                                <AbsDimension x="20" y="20"/>
+                                <AbsDimension x="20" y="18"/>
                             </Size>
                             <Anchors>
                                 <Anchor point="CENTER"/>
@@ -197,12 +197,12 @@
             <!-- Characters Button (header left, next to Blizzard UI button) -->
             <Button name="$parent_CharsButton">
                 <Size>
-                    <AbsDimension x="24" y="24"/>
+                    <AbsDimension x="24" y="22"/>
                 </Size>
                 <Anchors>
                     <Anchor point="LEFT" relativePoint="RIGHT" relativeTo="$parent_BlizzardUIButton">
                         <Offset>
-                            <AbsDimension x="2" y="0"/>
+                            <AbsDimension x="4" y="0"/>
                         </Offset>
                     </Anchor>
                 </Anchors>
@@ -210,7 +210,7 @@
                     <Layer level="ARTWORK">
                         <Texture name="$parent_Icon">
                             <Size>
-                                <AbsDimension x="20" y="20"/>
+                                <AbsDimension x="20" y="18"/>
                             </Size>
                             <Anchors>
                                 <Anchor point="CENTER"/>

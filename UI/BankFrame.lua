@@ -2374,7 +2374,7 @@ function Guda_BankBagSlot_Update(button, bagID)
 
     if bagID == -1 then
         -- Main bank bag - use bank icon
-        SetItemButtonTexture(button, "Interface\\Buttons\\Button-Backpack-Up")
+        SetItemButtonTexture(button, "Interface\\AddOns\\Guda\\Assets\\bags")
         -- Dim if hidden
         if isHidden then
             SetItemButtonTextureVertexColor(button, 0.4, 0.4, 0.4)
