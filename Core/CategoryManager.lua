@@ -475,6 +475,11 @@ function CategoryManager:MigrateCategories()
         end
     end
 
+    -- Ensure savedEquipSetProps table exists
+    if not cats.savedEquipSetProps then
+        cats.savedEquipSetProps = {}
+    end
+
     -- Migrate: Convert per-category itemOverrides arrays to flat map at categories level
     if not cats.itemOverrides then
         cats.itemOverrides = {}
@@ -685,9 +690,14 @@ function CategoryManager:UpdateCategory(categoryId, definition)
         return false
     end
 
-    -- Preserve isBuiltIn flag
-    definition.isBuiltIn = cats.definitions[categoryId].isBuiltIn
-    cats.definitions[categoryId] = definition
+    -- Shallow merge: update existing definition with new fields
+    -- This preserves fields the caller didn't pass (group, priority, categoryMark, etc.)
+    local existing = cats.definitions[categoryId]
+    for k, v in pairs(definition) do
+        existing[k] = v
+    end
+    -- Always preserve isBuiltIn from original
+    existing.isBuiltIn = existing.isBuiltIn
 
     self:SaveCategories(cats)
     return true
@@ -1277,9 +1287,8 @@ end
 -- Equipment Set Category Sync
 -------------------------------------------
 
--- Saved properties for equipment set categories that were user-edited
--- Preserves user changes (enabled state, order position) when sets are deleted/recreated
-local savedEquipSetProps = {}
+-- Note: savedEquipSetProps is stored in cats.savedEquipSetProps (persisted in SavedVariables)
+-- Preserves user changes (enabled state, group, mark, order position) when sets are deleted/recreated
 
 -- Sync equipment set categories with current set data from EquipmentSets module
 function CategoryManager:SyncEquipmentSetCategories()
@@ -1295,6 +1304,11 @@ function CategoryManager:SyncEquipmentSetCategories()
     local cats = self:GetCategories()
     local existingSetCats = {}
 
+    -- Ensure savedEquipSetProps table exists (persisted in SavedVariables)
+    if not cats.savedEquipSetProps then
+        cats.savedEquipSetProps = {}
+    end
+
     -- Find existing EquipSet categories
     for id, def in pairs(cats.definitions) do
         if string.find(id, "^EquipSet:") then
@@ -1307,29 +1321,38 @@ function CategoryManager:SyncEquipmentSetCategories()
         local catId = "EquipSet:" .. setName
         if not cats.definitions[catId] then
             -- Check for saved properties from a previously deleted set
-            local props = savedEquipSetProps[catId]
+            local props = cats.savedEquipSetProps[catId]
             local defaultMark = "Interface\\AddOns\\Guda\\Assets\\equipment"
             local newDef = {
                 name = setName,
                 icon = "Interface\\Icons\\INV_Chest_Chain_04",
                 rules = {},
                 matchMode = "all",
-                priority = 65,
+                priority = props and props.priority or 65,
                 enabled = props and props.enabled or true,
                 isBuiltIn = false,
                 isEquipSetCategory = true,
-                group = GROUP_MAIN,
+                group = props and props.group or GROUP_MAIN,
                 categoryMark = props and props.categoryMark or defaultMark,
             }
             cats.definitions[catId] = newDef
 
-            -- Add to order
+            -- Restore saved order position or insert at end of Main group
             local insertPos = nil
-            for i = table.getn(cats.order), 1, -1 do
-                local existDef = cats.definitions[cats.order[i]]
-                if existDef and (existDef.group or GROUP_MAIN) == GROUP_MAIN then
-                    insertPos = i + 1
-                    break
+            if props and props.orderPos then
+                -- Clamp to valid range
+                insertPos = props.orderPos
+                if insertPos > table.getn(cats.order) + 1 then
+                    insertPos = table.getn(cats.order) + 1
+                end
+            end
+            if not insertPos then
+                for i = table.getn(cats.order), 1, -1 do
+                    local existDef = cats.definitions[cats.order[i]]
+                    if existDef and (existDef.group or GROUP_MAIN) == GROUP_MAIN then
+                        insertPos = i + 1
+                        break
+                    end
                 end
             end
             if insertPos then
@@ -1347,10 +1370,21 @@ function CategoryManager:SyncEquipmentSetCategories()
     for catId in pairs(existingSetCats) do
         local def = cats.definitions[catId]
         if def then
-            -- Save user-edited properties before deletion
-            savedEquipSetProps[catId] = {
+            -- Find current order position before removal
+            local orderPos = nil
+            for i, id in ipairs(cats.order) do
+                if id == catId then
+                    orderPos = i
+                    break
+                end
+            end
+            -- Save user-edited properties before deletion (persisted across reloads)
+            cats.savedEquipSetProps[catId] = {
                 enabled = def.enabled,
                 categoryMark = def.categoryMark,
+                group = def.group,
+                priority = def.priority,
+                orderPos = orderPos,
             }
         end
         cats.definitions[catId] = nil

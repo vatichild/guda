@@ -1541,6 +1541,31 @@ local function GetCategoryRowFrame(index)
     builtInText:SetTextColor(0.5, 0.5, 0.5)
     row.builtInText = builtInText
 
+    -- Merge checkbox (shown on group header rows)
+    local mergeCheckbox = CreateFrame("CheckButton", rowName .. "_MergeCheckbox", row, "UICheckButtonTemplate")
+    mergeCheckbox:SetWidth(20)
+    mergeCheckbox:SetHeight(20)
+    mergeCheckbox:SetPoint("RIGHT", row, "RIGHT", -5, 0)
+    mergeCheckbox:SetScript("OnClick", function()
+        local groupName = this:GetParent().groupName
+        if groupName then
+            local mergedGroups = Guda.Modules.DB:GetSetting("mergedGroups") or {}
+            if this:GetChecked() == 1 then
+                mergedGroups[groupName] = true
+            else
+                mergedGroups[groupName] = nil
+            end
+            Guda.Modules.DB:SetSetting("mergedGroups", mergedGroups)
+            Guda_SettingsPopup_RefreshBagFrames()
+        end
+    end)
+    local mergeLabel = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    mergeLabel:SetPoint("RIGHT", mergeCheckbox, "LEFT", -2, 0)
+    mergeLabel:SetText("Merge")
+    mergeLabel:SetTextColor(0.8, 0.8, 0.8)
+    row.mergeCheckbox = mergeCheckbox
+    row.mergeLabel = mergeLabel
+
     -- Hover highlight
     row:EnableMouse(true)
     row:SetScript("OnEnter", function()
@@ -1602,6 +1627,7 @@ function Guda_SettingsPopup_CategoriesTab_Update()
                 if entry.type == "header" then
                     -- Show as group header row
                     row.categoryId = nil
+                    row.groupName = entry.groupName
                     row.nameText:SetText("|cffffd100-- " .. entry.groupName .. " --|r")
                     row.nameText:SetTextColor(1, 0.82, 0)
                     row.checkbox:Hide()
@@ -1610,15 +1636,25 @@ function Guda_SettingsPopup_CategoriesTab_Update()
                     row.downBtn:Hide()
                     row.deleteBtn:Hide()
                     row.builtInText:Hide()
+
+                    -- Show merge checkbox for group headers
+                    local mergedGroups = Guda.Modules.DB:GetSetting("mergedGroups") or {}
+                    row.mergeCheckbox:SetChecked(mergedGroups[entry.groupName] and 1 or 0)
+                    row.mergeCheckbox:Show()
+                    row.mergeLabel:Show()
+
                     row:Show()
                 elseif entry.type == "category" then
                     local categoryId = entry.categoryId
                     local categoryDef = entry.categoryDef
 
                     row.categoryId = categoryId
+                    row.groupName = nil
                     row.nameText:SetText(categoryDef.name or categoryId)
                     row.checkbox:Show()
                     row.checkbox:SetChecked(categoryDef.enabled and 1 or 0)
+                    row.mergeCheckbox:Hide()
+                    row.mergeLabel:Hide()
 
                     -- Show/hide delete button based on whether it's built-in
                     if categoryDef.isBuiltIn then
