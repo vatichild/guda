@@ -279,6 +279,14 @@ function Guda_GetSectionHeader(framePrefix, containerName, index)
         countText:SetTextColor(0.6, 0.6, 0.6)
         header.countText = countText
 
+        -- Separator line extending from count/text to the right edge
+        local line = header:CreateTexture(nil, "ARTWORK")
+        line:SetHeight(1)
+        line:SetPoint("LEFT", countText, "RIGHT", 6, 0)
+        line:SetPoint("RIGHT", header, "RIGHT", 0, 0)
+        line:SetTexture(0.6, 0.6, 0.6, 0.3)
+        header.separatorLine = line
+
         header:SetScript("OnEnter", function()
             if this.fullName and this.isShortened then
                 GameTooltip:SetOwner(this, "ANCHOR_TOP")

@@ -18,7 +18,7 @@ local function CreateSectionHeader(parent, text, yOffset)
     line:SetHeight(1)
     line:SetPoint("LEFT", label, "RIGHT", 8, 0)
     line:SetPoint("RIGHT", parent, "RIGHT", -5, 0)
-    line:SetTexture(1, 0.82, 0, 0.3)
+    line:SetTexture(0.6, 0.6, 0.6, 0.3)
 
     return label
 end

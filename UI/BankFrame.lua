@@ -884,7 +884,7 @@ function BankFrame:DisplayItemsByCategory(bankData, isOtherChar, charName)
             if header.countText then
                 local showCount = addon.Modules.DB:GetSetting("showCategoryCount")
                 if showCount == nil then showCount = true end
-                if showCount and numItems > 0 then
+                if showCount and numItems > 1 then
                     header.countText:SetText("(" .. numItems .. ")")
                     header.countText:Show()
                 else
@@ -1003,7 +1003,7 @@ function BankFrame:DisplayItemsByCategory(bankData, isOtherChar, charName)
                 if header.countText then
                     local showCount = addon.Modules.DB:GetSetting("showCategoryCount")
                     if showCount == nil then showCount = true end
-                    if showCount and numItems > 0 then
+                    if showCount and numItems > 1 then
                         header.countText:SetText("(" .. numItems .. ")")
                         header.countText:Show()
                     else
