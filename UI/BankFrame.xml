@@ -574,6 +574,30 @@
                             searchBox:ClearFocus()
                         end
                     </OnMouseDown>
+                    <OnReceiveDrag>
+                        -- Drop item into first available bank slot
+                        if CursorHasItem and CursorHasItem() then
+                            -- Try main bank slots (bag -1)
+                            for slot = 1, GetContainerNumSlots(-1) do
+                                if not GetContainerItemLink(-1, slot) then
+                                    PickupContainerItem(-1, slot)
+                                    break
+                                end
+                            end
+                            -- Try bank bags 5-10
+                            for bag = 5, 10 do
+                                if CursorHasItem() then
+                                    for slot = 1, GetContainerNumSlots(bag) do
+                                        if not GetContainerItemLink(bag, slot) then
+                                            PickupContainerItem(bag, slot)
+                                            break
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                        Guda_ClearCursorItem()
+                    </OnReceiveDrag>
                 </Scripts>
             </Frame>
         </Frames>
@@ -602,6 +626,30 @@
             <OnMouseUp>
                 this:StopMovingOrSizing()
             </OnMouseUp>
+            <OnReceiveDrag>
+                -- Drop item into first available bank slot
+                if CursorHasItem and CursorHasItem() then
+                    -- Try main bank slots (bag -1)
+                    for slot = 1, GetContainerNumSlots(-1) do
+                        if not GetContainerItemLink(-1, slot) then
+                            PickupContainerItem(-1, slot)
+                            break
+                        end
+                    end
+                    -- Try bank bags 5-10
+                    for bag = 5, 10 do
+                        if CursorHasItem() then
+                            for slot = 1, GetContainerNumSlots(bag) do
+                                if not GetContainerItemLink(bag, slot) then
+                                    PickupContainerItem(bag, slot)
+                                    break
+                                end
+                            end
+                        end
+                    end
+                end
+                Guda_ClearCursorItem()
+            </OnReceiveDrag>
         </Scripts>
     </Frame>
 

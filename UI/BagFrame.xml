@@ -765,6 +765,7 @@
                                 end
                             end
                         end
+                        Guda_ClearCursorItem()
                     </OnReceiveDrag>
                 </Scripts>
             </Frame>
@@ -809,6 +810,7 @@
                         end
                     end
                 end
+                Guda_ClearCursorItem()
             </OnReceiveDrag>
         </Scripts>
     </Frame>

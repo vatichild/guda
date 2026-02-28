@@ -6,6 +6,10 @@ local buttonPool = {}
 local nextButtonID = 1
 local BUTTON_POOL_MAX = 500  -- Maximum buttons to create (bags ~80 + bank ~200 + keyring ~96 + buffer for both frames open)
 
+-- Category drag-drop: track cursor item for category reassignment
+local cursorItemInfo = nil  -- { bagID, slotID, itemID, link }
+local activeCategoryDropIndicator = nil  -- the currently shown "+" indicator button
+
 -- Get button pool statistics (for /guda perf command)
 function Guda_GetButtonPoolStats()
     local total = 0
@@ -66,6 +70,222 @@ function Guda_ReleaseAllButtons()
         end
     end
 end
+
+-- Category drop indicator: a single shared frame (parented to UIParent) with plus icon
+local HideCategoryDropIndicator  -- forward declaration
+local categoryDropIndicator = nil  -- the single shared indicator frame
+local dropIndicatorCategoryId = nil  -- category the indicator is currently showing for
+local dropCooldownTime = 0  -- GetTime() when cooldown expires
+
+-- Helper: get category of cursor item using tracked info
+local function GetCursorItemCategory()
+    local info = Guda_GetCursorItemInfo()
+    addon:Debug("GetCursorItemCat: info=%s", tostring(info ~= nil))
+    if not info or not info.itemID or not addon.Modules.CategoryManager then
+        addon:Debug("GetCursorItemCat: BAIL - info=%s itemID=%s catMgr=%s", tostring(info ~= nil), tostring(info and info.itemID), tostring(addon.Modules.CategoryManager ~= nil))
+        return nil
+    end
+    local itemName, itemLink, itemQuality, itemLevel, itemMinLevel, itemType, itemSubType, itemStackCount, itemEquipLoc, itemTexture
+    if info.link then
+        itemName, itemLink, itemQuality, itemLevel, itemMinLevel, itemType, itemSubType, itemStackCount, itemEquipLoc, itemTexture = GetItemInfo(info.link)
+    end
+    addon:Debug("GetCursorItemCat: itemName=%s itemType=%s", tostring(itemName), tostring(itemType))
+    if not itemName then return nil end
+    local itemData = {
+        link = info.link,
+        itemID = info.itemID,
+        name = itemName,
+        quality = itemQuality or 0,
+        class = itemType or "",
+        subClass = itemSubType or "",
+        equipLoc = itemEquipLoc or "",
+        stackCount = itemStackCount or 1,
+        level = itemLevel or 0,
+        minLevel = itemMinLevel or 0,
+        texture = itemTexture,
+    }
+    return addon.Modules.CategoryManager:CategorizeItem(itemData, info.bagID, info.slotID)
+end
+
+-- Create the single shared indicator frame (once)
+local function GetOrCreateIndicator()
+    if categoryDropIndicator then return categoryDropIndicator end
+
+    local f = CreateFrame("Frame", "Guda_CategoryDropIndicator", UIParent)
+    f:SetWidth(36)
+    f:SetHeight(36)
+    f:SetFrameStrata("FULLSCREEN_DIALOG")
+    f:SetFrameLevel(500)
+
+    -- Slot background (same texture as empty bag slot, with green tint like GudaBags)
+    local slotBg = f:CreateTexture(nil, "BACKGROUND")
+    slotBg:SetPoint("TOPLEFT", f, "TOPLEFT", -9, 9)
+    slotBg:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 9, -9)
+    slotBg:SetTexture("Interface\\Buttons\\UI-EmptySlot")
+    slotBg:SetVertexColor(0.4, 0.8, 0.4, 0.9)
+    f.slotBg = slotBg
+
+    -- Plus icon centered
+    local plus = f:CreateTexture(nil, "OVERLAY")
+    plus:SetWidth(20)
+    plus:SetHeight(20)
+    plus:SetPoint("CENTER", f, "CENTER", 0, 0)
+    plus:SetTexture("Interface\\AddOns\\Guda\\Assets\\plus")
+    f.plus = plus
+
+    -- Mouse-enabled for drops
+    f:EnableMouse(true)
+
+    -- Handle drop on the indicator itself
+    local function DoIndicatorDrop()
+        if not activeCategoryDropIndicator then return end
+        local parentBtn = activeCategoryDropIndicator
+        if parentBtn and parentBtn:GetScript("OnReceiveDrag") then
+            local savedThis = getfenv(0)["this"]
+            getfenv(0)["this"] = parentBtn
+            parentBtn:GetScript("OnReceiveDrag")()
+            getfenv(0)["this"] = savedThis
+        end
+    end
+
+    f:SetScript("OnReceiveDrag", DoIndicatorDrop)
+    f:SetScript("OnMouseUp", function()
+        if CursorHasItem and CursorHasItem() then
+            DoIndicatorDrop()
+        end
+    end)
+
+    -- Tooltip on hover
+    f:SetScript("OnEnter", function()
+        if dropIndicatorCategoryId then
+            GameTooltip:SetOwner(this, "ANCHOR_TOP")
+            GameTooltip:SetText("Add item to this category", 1, 1, 1)
+            GameTooltip:AddLine("Drop here to permanently assign", 0.7, 0.7, 0.7)
+            GameTooltip:AddLine("this item to \"" .. tostring(dropIndicatorCategoryId) .. "\"", 0.5, 1, 0.5)
+            GameTooltip:Show()
+        end
+    end)
+
+    f:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+        -- Delay hide: use an OnUpdate check instead of C_Timer
+        local elapsed = 0
+        this:SetScript("OnUpdate", function()
+            elapsed = elapsed + arg1
+            if elapsed >= 0.05 then
+                this:SetScript("OnUpdate", nil)
+                -- Check if mouse is still over the indicator or the parent button
+                if activeCategoryDropIndicator and MouseIsOver(activeCategoryDropIndicator) then
+                    return
+                end
+                if this:IsMouseOver() then
+                    return
+                end
+                HideCategoryDropIndicator()
+            end
+        end)
+    end)
+
+    f:Hide()
+    categoryDropIndicator = f
+    return f
+end
+
+local function ShowCategoryDropIndicator(button)
+    if activeCategoryDropIndicator == button then return end
+
+    -- Don't show during drop cooldown
+    if GetTime() < dropCooldownTime then return end
+
+    HideCategoryDropIndicator()
+
+    local ind = GetOrCreateIndicator()
+    local size = button:GetWidth()
+
+    -- Size to match icon
+    ind:SetWidth(size)
+    ind:SetHeight(size)
+
+    -- Update plus icon size (60% of icon, min 16)
+    local plusSize = math.max(16, math.floor(size * 0.6))
+    ind.plus:SetWidth(plusSize)
+    ind.plus:SetHeight(plusSize)
+
+    -- Position below the hovered button using screen coordinates
+    local buttonLeft = button:GetLeft()
+    local buttonBottom = button:GetBottom()
+    ind:ClearAllPoints()
+    if buttonLeft and buttonBottom then
+        ind:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", buttonLeft, buttonBottom - 2)
+    end
+
+    -- Track state
+    dropIndicatorCategoryId = button.categoryId or nil
+    activeCategoryDropIndicator = button
+    ind:Show()
+end
+
+HideCategoryDropIndicator = function()
+    if categoryDropIndicator then
+        categoryDropIndicator:Hide()
+        categoryDropIndicator:SetScript("OnUpdate", nil)
+        GameTooltip:Hide()
+    end
+    activeCategoryDropIndicator = nil
+    dropIndicatorCategoryId = nil
+end
+
+-- Track what item the cursor is holding (called before pickup)
+function Guda_TrackCursorItem(bagID, slotID)
+    local link = GetContainerItemLink(bagID, slotID)
+    if link then
+        local itemID = addon.Modules.Utils:ExtractItemID(link)
+        cursorItemInfo = { bagID = bagID, slotID = slotID, itemID = itemID, link = link }
+        addon:Debug("TrackCursor: bag=%d slot=%d itemID=%s", bagID, slotID, tostring(itemID))
+    else
+        cursorItemInfo = nil
+        addon:Debug("TrackCursor: no link at bag=%d slot=%d", bagID, slotID)
+    end
+end
+
+function Guda_ClearCursorItem()
+    cursorItemInfo = nil
+end
+
+function Guda_GetCursorItemInfo()
+    return cursorItemInfo
+end
+
+-- Check if we're in category view for bags or bank
+local function IsInCategoryView(isBank)
+    if not addon.Modules.DB then return false end
+    local key = isBank and "bankViewType" or "bagViewType"
+    return (addon.Modules.DB:GetSetting(key) or "single") == "category"
+end
+
+-- Auto-clear cursor tracking when cursor is truly empty
+-- Uses a short delay to avoid clearing during the pickup transition
+-- (CURSOR_UPDATE fires before the item is fully on the cursor)
+local cursorWatcher = CreateFrame("Frame")
+cursorWatcher:RegisterEvent("CURSOR_UPDATE")
+cursorWatcher:SetScript("OnEvent", function()
+    -- Don't clear immediately — wait a frame to let the pickup finish
+    if not cursorItemInfo then
+        HideCategoryDropIndicator()
+        return
+    end
+    -- Schedule a check next frame
+    this.pendingCheck = true
+end)
+cursorWatcher:SetScript("OnUpdate", function()
+    if not this.pendingCheck then return end
+    this.pendingCheck = nil
+    -- Now check if cursor actually has an item
+    if cursorItemInfo and (not CursorHasItem or not CursorHasItem()) then
+        cursorItemInfo = nil
+        HideCategoryDropIndicator()
+    end
+end)
 
 -- Use shared tooltip from Utils module (retrieved on-demand to ensure Utils is loaded)
 
@@ -535,6 +755,14 @@ function Guda_ItemButton_OnLoad(self)
         HideJunkIcon(this)
     end)
 
+    -- Track cursor item on drag start for category drag-drop
+    self:SetScript("OnDragStart", function()
+        if this.hasItem and this.bagID and this.slotID and not this.otherChar and not this.isReadOnly then
+            Guda_TrackCursorItem(this.bagID, this.slotID)
+            PickupContainerItem(this.bagID, this.slotID)
+        end
+    end)
+
     self:SetScript("OnClick", function()
         if IsAltKeyDown() and arg1 == "LeftButton" and this.hasItem and not this.otherChar and not this.isReadOnly then
             local link = GetContainerItemLink(this.bagID, this.slotID)
@@ -585,7 +813,62 @@ function Guda_ItemButton_OnLoad(self)
                 return
             end
 
+            -- Track cursor item before pickup for category drag-drop
+            if this.hasItem and this.bagID and this.slotID and not CursorHasItem() then
+                Guda_TrackCursorItem(this.bagID, this.slotID)
+            end
+
             ContainerFrameItemButton_OnClick(arg1)
+
+            -- Clear cursor tracking if item was placed (cursor no longer has item)
+            if not CursorHasItem() then
+                Guda_ClearCursorItem()
+            end
+        end
+    end)
+
+    -- OnReceiveDrag: category reassignment in category view
+    self:SetScript("OnReceiveDrag", function()
+        local info = Guda_GetCursorItemInfo()
+        if not info then return end
+
+        local inCatView = IsInCategoryView(this.isBank)
+        if not inCatView then
+            -- Single view: let default swap happen
+            if ContainerFrameItemButton_OnClick then
+                ContainerFrameItemButton_OnClick("LeftButton")
+            end
+            return
+        end
+
+        -- Category view: reassign dragged item to target item's category
+        if this.hasItem and this.itemData and addon.Modules.CategoryManager then
+            local targetCategory = addon.Modules.CategoryManager:CategorizeItem(this.itemData, this.bagID, this.slotID, this.otherChar)
+            if targetCategory and info.itemID then
+                addon.Modules.CategoryManager:AssignItemToCategory(info.itemID, targetCategory)
+                addon:Debug("Reassigned item %d to category: %s", info.itemID, targetCategory)
+            end
+        end
+
+        -- Put dragged item back in its original slot
+        if CursorHasItem() then
+            PickupContainerItem(info.bagID, info.slotID)
+        end
+
+        -- Set drop cooldown to prevent immediate re-show
+        dropCooldownTime = GetTime() + 0.3
+        HideCategoryDropIndicator()
+        Guda_ClearCursorItem()
+
+        -- Refresh frames
+        if addon.Modules.BagFrame and addon.Modules.BagFrame.Update then
+            addon.Modules.BagFrame:Update()
+        end
+        if addon.Modules.BankFrame and addon.Modules.BankFrame.Update then
+            local bankFrame = getglobal("Guda_BankFrame")
+            if bankFrame and bankFrame:IsShown() then
+                addon.Modules.BankFrame:Update()
+            end
         end
     end)
 end
@@ -1420,6 +1703,30 @@ end
 
 -- OnEnter handler (show tooltip)
 function Guda_ItemButton_OnEnter(self)
+    addon:Debug("OnEnter FIRED: button=%s CursorHasItem=%s", tostring(self:GetName()), tostring(CursorHasItem and CursorHasItem()))
+    -- Category drag-drop: show "+" indicator when hovering with cursor item in category view
+    local hasCursor = CursorHasItem and CursorHasItem()
+    if hasCursor then
+        addon:Debug("DropInd OnEnter: hasItem=%s otherChar=%s isBank=%s", tostring(self.hasItem), tostring(self.otherChar), tostring(self.isBank))
+    end
+    if hasCursor and self.hasItem and not self.otherChar then
+        local inCatView = IsInCategoryView(self.isBank)
+        addon:Debug("DropInd: inCatView=%s hasItemData=%s hasCatMgr=%s", tostring(inCatView), tostring(self.itemData ~= nil), tostring(addon.Modules.CategoryManager ~= nil))
+        if inCatView and self.itemData and addon.Modules.CategoryManager then
+            -- Don't show indicator if dragged item is already in the same category
+            local targetCategory = addon.Modules.CategoryManager:CategorizeItem(self.itemData, self.bagID, self.slotID, self.otherChar)
+            local cursorCategory = GetCursorItemCategory()
+            addon:Debug("DropInd: targetCat=%s cursorCat=%s cooldown=%s", tostring(targetCategory), tostring(cursorCategory), tostring(GetTime() < dropCooldownTime))
+            if targetCategory and cursorCategory and targetCategory ~= cursorCategory then
+                self.categoryId = targetCategory
+                addon:Debug("DropInd: SHOWING indicator for %s", tostring(targetCategory))
+                ShowCategoryDropIndicator(self)
+            else
+                addon:Debug("DropInd: NOT showing - same=%s targetNil=%s cursorNil=%s", tostring(targetCategory == cursorCategory), tostring(targetCategory == nil), tostring(cursorCategory == nil))
+            end
+        end
+    end
+
     -- Highlight the corresponding bag button in the footer (works for empty and filled slots)
 	if not self.otherChar and self.bagID then
 		if self.isBank then
@@ -1588,6 +1895,29 @@ end
 
 -- OnLeave handler
 function Guda_ItemButton_OnLeave(self)
+    -- Delay hide of drop indicator to allow mouse to move to indicator frame
+    if activeCategoryDropIndicator == self and categoryDropIndicator and categoryDropIndicator:IsShown() then
+        -- Use OnUpdate delay to check if mouse moved to the indicator
+        local elapsed = 0
+        local checkFrame = CreateFrame("Frame")
+        checkFrame:SetScript("OnUpdate", function()
+            elapsed = elapsed + arg1
+            if elapsed >= 0.05 then
+                this:SetScript("OnUpdate", nil)
+                -- If mouse is over the indicator, don't hide
+                if categoryDropIndicator and categoryDropIndicator:IsMouseOver() then
+                    return
+                end
+                -- If mouse is over the parent button, don't hide
+                if activeCategoryDropIndicator and MouseIsOver(activeCategoryDropIndicator) then
+                    return
+                end
+                HideCategoryDropIndicator()
+            end
+        end)
+    else
+        HideCategoryDropIndicator()
+    end
     self._debugPrinted = nil
     -- Clear any viewed character hint on the tooltip when leaving
     if GameTooltip then

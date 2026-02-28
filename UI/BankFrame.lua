@@ -845,9 +845,53 @@ function BankFrame:DisplayItemsByCategory(bankData, isOtherChar, charName)
     for _, catName in ipairs(categoryList) do
         local catDef = addon.Modules.CategoryManager and addon.Modules.CategoryManager:GetCategory(catName) or nil
 
-        -- Skip Empty category in bank (bank doesn't need empty slot indicator in category loop)
+        -- Handle Empty category: show a single slot with free slot count
         if catDef and catDef.isEmptyCategory then
-            -- Skip empty categories in bank view
+            if totalFreeSlots > 0 and catDef.enabled then
+                local blockWidth = 1 * (buttonSize + spacing)
+                local blockHeight = 20 + (1 * (buttonSize + spacing)) + 5
+
+                if currentX > 0 and currentX + blockWidth + 20 > totalWidth + 5 then
+                    currentX = 0
+                    currentY = currentY + rowMaxHeight
+                    rowMaxHeight = 0
+                end
+
+                local header = self:GetSectionHeader(headerIdx)
+                headerIdx = headerIdx + 1
+                header:SetPoint("TOPLEFT", itemContainer, "TOPLEFT", startX + currentX, startY - currentY)
+                header:SetWidth(blockWidth)
+                local displayName = (catDef and catDef.name) or catName
+                header.fullName = displayName
+                header.isShortened = false
+                header.text:SetText(displayName)
+                if header.countText then header.countText:Hide() end
+                header:Show()
+
+                local itemY = currentY + 20
+                local bagID = firstFreeBag or -1
+                local slotID = firstFreeSlot or 1
+                local bagParent = self:GetBagParent(bagID)
+                local button = Guda_GetItemButton(bagParent)
+                button:SetParent(bagParent)
+                button:SetWidth(buttonSize)
+                button:SetHeight(buttonSize)
+                button:ClearAllPoints()
+                button:SetPoint("TOPLEFT", itemContainer, "TOPLEFT", startX + currentX, startY - itemY)
+                button:Show()
+
+                local emptyItemData = {
+                    texture = "Interface\\PaperDoll\\UI-PaperDoll-Slot-Bag",
+                    count = totalFreeSlots,
+                    name = "Empty Slots"
+                }
+                Guda_ItemButton_SetItem(button, bagID, slotID, emptyItemData, true, isOtherChar and charName or nil, true, true)
+                button.isReadOnly = false
+                button.inUse = true
+
+                if blockHeight > rowMaxHeight then rowMaxHeight = blockHeight end
+                currentX = currentX + blockWidth + 20
+            end
         else
 
         local items = categories[catName]
