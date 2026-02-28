@@ -2256,11 +2256,122 @@ local function GetRuleRowFrame(index)
     valueBtn:Hide()
     row.valueBtn = valueBtn
 
+    -- Item drop zone (visible only for itemID rule type)
+    local dropZone = CreateFrame("Button", rowName .. "_DropZone", row)
+    dropZone:SetWidth(22)
+    dropZone:SetHeight(22)
+    dropZone:SetPoint("LEFT", valueBox, "RIGHT", 4, 0)
+    dropZone:SetBackdrop({
+        bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = 8,
+        insets = { left = 1, right = 1, top = 1, bottom = 1 }
+    })
+    dropZone:SetBackdropColor(0.1, 0.1, 0.1, 0.8)
+    dropZone:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
+
+    -- Icon texture (shows item icon after drop)
+    local dzIcon = dropZone:CreateTexture(nil, "ARTWORK")
+    dzIcon:SetPoint("TOPLEFT", dropZone, "TOPLEFT", 2, -2)
+    dzIcon:SetPoint("BOTTOMRIGHT", dropZone, "BOTTOMRIGHT", -2, 2)
+    dzIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    dzIcon:Hide()
+    dropZone.icon = dzIcon
+
+    -- "?" hint when empty
+    local dzHint = dropZone:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    dzHint:SetPoint("CENTER", dropZone, "CENTER", 0, 0)
+    dzHint:SetText("?")
+    dzHint:SetTextColor(0.5, 0.5, 0.5)
+    dropZone.hint = dzHint
+
+    -- "(Drop Item)" label
+    local dzLabel = dropZone:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    dzLabel:SetPoint("LEFT", dropZone, "RIGHT", 4, 0)
+    dzLabel:SetText("(Drop Item)")
+    dzLabel:SetTextColor(0.5, 0.5, 0.5)
+    dropZone.label = dzLabel
+
+    dropZone:EnableMouse(true)
+    dropZone:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    dropZone:RegisterForDrag("LeftButton")
+    dropZone.ruleIndex = index
+
+    -- Handle item drop via drag
+    dropZone:SetScript("OnReceiveDrag", function()
+        local idx = this.ruleIndex
+        if not editorRules[idx] or editorRules[idx].type ~= "itemID" then return end
+        if CursorHasItem and CursorHasItem() then
+            -- In 1.12.1, we get item info from the cursor via tracking
+            local info = Guda_GetCursorItemInfo()
+            if info and info.itemID then
+                -- Fill the value box with the item ID
+                editorRules[idx].value = tostring(info.itemID)
+                -- Update icon
+                local _, _, _, _, _, _, _, _, _, texture = GetItemInfo(info.link or info.itemID)
+                if texture then
+                    this.icon:SetTexture(texture)
+                    this.icon:Show()
+                    this.hint:Hide()
+                end
+                -- Put item back
+                PickupContainerItem(info.bagID, info.slotID)
+                Guda_ClearCursorItem()
+                Guda_CategoryEditor_UpdateRulesDisplay()
+            end
+        end
+    end)
+
+    -- Handle click (left = drop item from cursor, right = clear)
+    dropZone:SetScript("OnClick", function()
+        local idx = this.ruleIndex
+        if not editorRules[idx] or editorRules[idx].type ~= "itemID" then return end
+        if arg1 == "LeftButton" then
+            if CursorHasItem and CursorHasItem() then
+                local info = Guda_GetCursorItemInfo()
+                if info and info.itemID then
+                    editorRules[idx].value = tostring(info.itemID)
+                    local _, _, _, _, _, _, _, _, _, texture = GetItemInfo(info.link or info.itemID)
+                    if texture then
+                        this.icon:SetTexture(texture)
+                        this.icon:Show()
+                        this.hint:Hide()
+                    end
+                    PickupContainerItem(info.bagID, info.slotID)
+                    Guda_ClearCursorItem()
+                    Guda_CategoryEditor_UpdateRulesDisplay()
+                end
+            end
+        elseif arg1 == "RightButton" then
+            -- Clear
+            this.icon:SetTexture(nil)
+            this.icon:Hide()
+            this.hint:Show()
+            editorRules[idx].value = ""
+            Guda_CategoryEditor_UpdateRulesDisplay()
+        end
+    end)
+
+    -- Tooltip
+    dropZone:SetScript("OnEnter", function()
+        GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+        GameTooltip:AddLine("Item ID Slot", 1, 0.82, 0)
+        GameTooltip:AddLine("Drag an item here to get its ID", 1, 1, 1, true)
+        GameTooltip:AddLine("Right-click to clear", 0.7, 0.7, 0.7)
+        GameTooltip:Show()
+    end)
+    dropZone:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+
+    dropZone:Hide()
+    row.dropZone = dropZone
+
     -- Delete button
     local deleteBtn = CreateFrame("Button", rowName .. "_DeleteBtn", row, "UIPanelCloseButton")
     deleteBtn:SetWidth(22)
     deleteBtn:SetHeight(22)
-    deleteBtn:SetPoint("LEFT", valueBox, "RIGHT", 5, 0)
+    deleteBtn:SetPoint("LEFT", dropZone, "RIGHT", 50, 0)
     deleteBtn.ruleIndex = index
     deleteBtn:SetScript("OnClick", function()
         Guda_CategoryEditor_RemoveRule(this.ruleIndex)
@@ -2320,6 +2431,7 @@ function Guda_CategoryEditor_UpdateRulesDisplay()
                 row.typeBtn:SetText(typeName)
 
                 -- Show appropriate value input
+                local isItemID = (rule.type == "itemID")
                 if RULE_VALUE_OPTIONS[rule.type] then
                     -- Use dropdown for predefined values
                     row.valueBox:Hide()
@@ -2336,6 +2448,41 @@ function Guda_CategoryEditor_UpdateRulesDisplay()
                     row.valueBtn:Hide()
                     row.valueBox:Show()
                     row.valueBox:SetText(tostring(rule.value or ""))
+                end
+
+                -- Show/hide drop zone for itemID rules
+                if row.dropZone then
+                    if isItemID then
+                        row.dropZone:Show()
+                        row.dropZone.label:Show()
+                        -- Update icon if value is a valid item ID
+                        local itemID = tonumber(rule.value)
+                        if itemID and itemID > 0 then
+                            local _, _, _, _, _, _, _, _, _, texture = GetItemInfo(itemID)
+                            if texture then
+                                row.dropZone.icon:SetTexture(texture)
+                                row.dropZone.icon:Show()
+                                row.dropZone.hint:Hide()
+                            else
+                                row.dropZone.icon:Hide()
+                                row.dropZone.hint:Show()
+                            end
+                        else
+                            row.dropZone.icon:Hide()
+                            row.dropZone.hint:Show()
+                        end
+                        -- Reposition delete button after drop zone label
+                        row.deleteBtn:ClearAllPoints()
+                        row.deleteBtn:SetPoint("LEFT", row.dropZone, "RIGHT", 50, 0)
+                    else
+                        row.dropZone:Hide()
+                        row.dropZone.label:Hide()
+                        -- Reposition delete button after value input
+                        row.deleteBtn:ClearAllPoints()
+                        local valueAnchor = row.valueBtn
+                        if row.valueBox:IsShown() then valueAnchor = row.valueBox end
+                        row.deleteBtn:SetPoint("LEFT", valueAnchor, "RIGHT", 5, 0)
+                    end
                 end
 
                 row:Show()
