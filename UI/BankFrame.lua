@@ -1340,15 +1340,25 @@ function BankFrame:ResizeFrame(currentRow, currentCol, columns, overrideHeight)
     end
 end
 
--- Update bank slots info text
+-- Bank bag type display names
+local BANK_BAG_TYPE_NAMES = {
+    soul = "Soul Bag",
+    herb = "Herb Bag",
+    enchant = "Enchanting Bag",
+    quiver = "Quiver",
+    ammo = "Ammo Pouch",
+}
+
+-- Update bank slots info text (show only regular bags, special bags in tooltip)
 function BankFrame:UpdateBankSlotsInfo(bankData, isOtherChar)
     local infoText = getglobal("Guda_BankFrame_Toolbar_BankSlotsInfo_Text")
     if not infoText then return end
 
-    local totalSlots = 0
-    local usedSlots = 0
+    local regularTotal = 0
+    local regularUsed = 0
+    local specialBags = {} -- { [type] = { total, used, name } }
 
-    -- Count slots in bank bags
+    -- Count slots in bank bags, separating regular from special
     for _, bagID in ipairs(addon.Constants.BANK_BAGS) do
         local bag = bankData[bagID]
 
@@ -1361,22 +1371,77 @@ function BankFrame:UpdateBankSlotsInfo(bankData, isOtherChar)
         end
 
         if numSlots and numSlots > 0 then
-            totalSlots = totalSlots + numSlots
+            -- Determine if this is a special bag (main bank slot -1 is always regular)
+            local bagType = nil
+            if bagID ~= -1 then
+                if not isOtherChar then
+                    bagType = addon.Modules.Utils:GetSpecializedBagType(bagID)
+                elseif bag and bag.bagType and bag.bagType ~= "regular" then
+                    bagType = bag.bagType
+                end
+            end
 
             -- Count used slots
+            local used = 0
             if bag and bag.slots then
                 for slot = 1, numSlots do
                     if bag.slots[slot] then
-                        usedSlots = usedSlots + 1
+                        used = used + 1
                     end
                 end
+            end
+
+            if bagType then
+                -- Special bag
+                if not specialBags[bagType] then
+                    specialBags[bagType] = { total = 0, used = 0, name = BANK_BAG_TYPE_NAMES[bagType] or bagType }
+                end
+                specialBags[bagType].total = specialBags[bagType].total + numSlots
+                specialBags[bagType].used = specialBags[bagType].used + used
+            else
+                -- Regular bag (including main bank -1)
+                regularTotal = regularTotal + numSlots
+                regularUsed = regularUsed + used
             end
         end
     end
 
-    -- Format: "24 / 80" (used / total)
-    infoText:SetText(string.format("%d / %d", usedSlots, totalSlots))
+    -- Format: "24 / 80" (used / total) - regular bags only
+    infoText:SetText(string.format("%d / %d", regularUsed, regularTotal))
     infoText:SetTextColor(0.7, 0.7, 0.7)
+
+    -- Store data for tooltip
+    local infoFrame = getglobal("Guda_BankFrame_Toolbar_BankSlotsInfo")
+    if infoFrame then
+        infoFrame.regularTotal = regularTotal
+        infoFrame.regularUsed = regularUsed
+        infoFrame.specialBags = specialBags
+
+        -- Setup tooltip scripts if not already done
+        if not infoFrame.tooltipSetup then
+            infoFrame:EnableMouse(true)
+            infoFrame:SetScript("OnEnter", function()
+                GameTooltip:SetOwner(this, "ANCHOR_TOP")
+                GameTooltip:AddLine("Bank Slots", 1, 1, 1)
+                GameTooltip:AddLine(" ")
+                -- Regular bags
+                if this.regularTotal then
+                    GameTooltip:AddDoubleLine("Regular Slots:", string.format("%d / %d", this.regularUsed, this.regularTotal), 1, 1, 1, 0.8, 0.8, 0.8)
+                end
+                -- Special bags
+                if this.specialBags then
+                    for bagType, data in pairs(this.specialBags) do
+                        GameTooltip:AddDoubleLine(data.name .. ":", string.format("%d / %d", data.used, data.total), 1, 0.82, 0, 0.8, 0.8, 0.8)
+                    end
+                end
+                GameTooltip:Show()
+            end)
+            infoFrame:SetScript("OnLeave", function()
+                GameTooltip:Hide()
+            end)
+            infoFrame.tooltipSetup = true
+        end
+    end
 end
 
 -- Update money display
