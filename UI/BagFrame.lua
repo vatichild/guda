@@ -585,6 +585,7 @@ function BagFrame:UpdateBaglineLayout()
 	local keyring = getglobal("Guda_BagFrame_Toolbar_KeyringButton")
 	local soulbag = getglobal("Guda_BagFrame_Toolbar_SoulBagButton")
 	local info = getglobal("Guda_BagFrame_Toolbar_BagSlotsInfo")
+	local hearthstone = getglobal("Guda_BagFrame_HearthstoneFrame")
 
 	-- Determine last visible special button for info anchor
 	local lastButton = keyring
@@ -626,6 +627,12 @@ function BagFrame:UpdateBaglineLayout()
 			info:ClearAllPoints()
 			info:SetPoint("LEFT", lastButton, "RIGHT", 8, 0)
 		end
+
+		-- Anchor hearthstone next to info
+		if hearthstone then
+			hearthstone:ClearAllPoints()
+			hearthstone:SetPoint("LEFT", info, "RIGHT", 6, 0)
+		end
 	else
 		-- Standard horizontal layout - all bags visible
 		if bag1 then
@@ -662,6 +669,12 @@ function BagFrame:UpdateBaglineLayout()
 			info:Show()
 			info:ClearAllPoints()
 			info:SetPoint("LEFT", lastButton, "RIGHT", 8, 0)
+		end
+
+		-- Anchor hearthstone next to info
+		if hearthstone then
+			hearthstone:ClearAllPoints()
+			hearthstone:SetPoint("LEFT", info, "RIGHT", 6, 0)
 		end
 
 		-- Hide flyout when switching to full bagline
@@ -1624,9 +1637,13 @@ function BagFrame:UpdateBagSlotsInfo(bagData, isOtherChar)
 	infoText:SetText(string.format("%d / %d", regularUsed, regularTotal))
 	infoText:SetTextColor(0.7, 0.7, 0.7)
 
-	-- Store data for tooltip
+	-- Resize info frame to fit text so hearthstone anchors tightly
 	local infoFrame = getglobal("Guda_BagFrame_Toolbar_BagSlotsInfo")
 	if infoFrame then
+		local textWidth = infoText:GetStringWidth()
+		if textWidth and textWidth > 0 then
+			infoFrame:SetWidth(textWidth + 4)
+		end
 		infoFrame.regularTotal = regularTotal
 		infoFrame.regularUsed = regularUsed
 		infoFrame.specialBags = specialBags
@@ -1674,12 +1691,18 @@ function BagFrame:CreateHearthstoneFrame()
 	local frameName = "Guda_BagFrame_HearthstoneFrame"
 	if getglobal(frameName) then return end
 
-	local frame = CreateFrame("Button", frameName, Guda_BagFrame)
+	local toolbar = getglobal("Guda_BagFrame_Toolbar") or Guda_BagFrame
+	local frame = CreateFrame("Button", frameName, toolbar)
 	frame:SetWidth(20)
 	frame:SetHeight(20)
-	frame:SetPoint("BOTTOMRIGHT", Guda_BagFrame, "BOTTOMRIGHT", -150, 16)
-	frame:SetFrameStrata("HIGH")
-	frame:SetFrameLevel(10)
+	-- Default anchor; will be repositioned by UpdateBaglineLayout
+	local info = getglobal("Guda_BagFrame_Toolbar_BagSlotsInfo")
+	if info then
+		frame:SetPoint("LEFT", info, "RIGHT", 6, 0)
+	else
+		frame:SetPoint("LEFT", toolbar, "LEFT", 0, 0)
+	end
+	frame:SetFrameLevel((toolbar:GetFrameLevel() or 5) + 5)
 
 	-- Icon texture
 	local icon = frame:CreateTexture(frameName .. "_Icon", "ARTWORK")
