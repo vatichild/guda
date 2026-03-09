@@ -72,11 +72,11 @@ local themes = {
         },
         titleColor = { r = 1, g = 0.82, b = 0 },
         slotBgAlpha = { empty = 1, filled = 1 },
-        footerButtonBg = { 0.5, 0.06, 0.06, 0.6 },
-        footerButtonBorder = { 0.5, 0.06, 0.06, 1 },
+        footerButtonBg = { 0.12, 0.12, 0.12, 1 },
+        footerButtonBorder = { 0.30, 0.30, 0.30, 1 },
         showHeaderButtonBg = true,
-        headerButtonBg = { 0.5, 0.06, 0.06, 0.6 },
-        headerButtonBorder = { 0.5, 0.06, 0.06, 1 },
+        headerButtonBg = { 0.15, 0.12, 0.10, 0.6 },
+        headerButtonBorder = { 0.45, 0.40, 0.35, 1 },
     },
 }
 

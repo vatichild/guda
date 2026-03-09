@@ -2054,6 +2054,7 @@ function Guda_BagFrame_ToggleCharacterDropdown(button)
 	end
 	UIDropDownMenu_Initialize(menuFrame, Guda_BagCharacterMenu_Initialize, "MENU")
 	ToggleDropDownMenu(1, nil, menuFrame, "cursor", 0, 0)
+	Guda_ScaleDropdownFonts(14)
 end
 
 -- Mailbox character dropdown
@@ -2097,6 +2098,7 @@ function Guda_BagFrame_ToggleMailDropdown(button)
 	end
 	UIDropDownMenu_Initialize(menuFrame, Guda_BagMailboxMenu_Initialize, "MENU")
 	ToggleDropDownMenu(1, nil, menuFrame, "cursor", 0, 0)
+	Guda_ScaleDropdownFonts(14)
 end
 
 -- Bank character dropdown
@@ -2138,6 +2140,7 @@ function Guda_BagFrame_ToggleBankDropdown(button)
 	end
 	UIDropDownMenu_Initialize(menuFrame, Guda_BagBankMenu_Initialize, "MENU")
 	ToggleDropDownMenu(1, nil, menuFrame, "cursor", 0, 0)
+	Guda_ScaleDropdownFonts(14)
 end
 
 -- Show character's bank

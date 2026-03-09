@@ -258,6 +258,22 @@ function Guda_SortCategoryItems(items)
     end)
 end
 
+-- Increase font size on Blizzard UIDropDownMenu buttons after ToggleDropDownMenu
+function Guda_ScaleDropdownFonts(size)
+    local list = getglobal("DropDownList1")
+    if not list then return end
+    for i = 1, 20 do
+        local btn = getglobal("DropDownList1Button" .. i)
+        if btn then
+            local ntxt = getglobal("DropDownList1Button" .. i .. "NormalText")
+            if ntxt then
+                local f, _, fl = ntxt:GetFont()
+                if f then ntxt:SetFont(f, size, fl) end
+            end
+        end
+    end
+end
+
 -- Create or return a section header for a given frame prefix and container
 function Guda_GetSectionHeader(framePrefix, containerName, index)
     local name = framePrefix .. "_SectionHeader" .. index
