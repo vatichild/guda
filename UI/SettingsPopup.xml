@@ -209,54 +209,26 @@
                 </Anchors>
                 <Frames>
                     <!-- Appearance section -->
-                    <!-- Theme Label + Dropdown -->
-                    <Frame name="Guda_SettingsPopup_ThemeRow">
-                        <Size><AbsDimension x="300" y="25"/></Size>
+                    <!-- Theme Dropdown -->
+                    <Frame name="Guda_SettingsPopup_ThemeDropdown" inherits="UIDropDownMenuTemplate">
                         <Anchors>
                             <Anchor point="TOPLEFT">
-                                <Offset><AbsDimension x="5" y="-30"/></Offset>
+                                <Offset><AbsDimension x="-10" y="-45"/></Offset>
                             </Anchor>
                         </Anchors>
-                        <Layers>
-                            <Layer level="ARTWORK">
-                                <FontString name="Guda_SettingsPopup_ThemeLabel" inherits="GameFontNormal">
-                                    <Anchors>
-                                        <Anchor point="LEFT">
-                                            <Offset><AbsDimension x="0" y="0"/></Offset>
-                                        </Anchor>
-                                    </Anchors>
-                                </FontString>
-                            </Layer>
-                        </Layers>
-                        <Frames>
-                            <Button name="Guda_SettingsPopup_ThemeButton" inherits="UIPanelButtonTemplate">
-                                <Size><AbsDimension x="140" y="22"/></Size>
-                                <Anchors>
-                                    <Anchor point="LEFT" relativeTo="Guda_SettingsPopup_ThemeLabel" relativePoint="RIGHT">
-                                        <Offset><AbsDimension x="8" y="0"/></Offset>
-                                    </Anchor>
-                                </Anchors>
-                                <Scripts>
-                                    <OnLoad>
-                                        local label = getglobal("Guda_SettingsPopup_ThemeLabel")
-                                        if label then
-                                            label:SetText("Theme:")
-                                            local f, _, fl = label:GetFont()
-                                            if f then label:SetFont(f, 12, fl) end
-                                        end
-                                    </OnLoad>
-                                    <OnClick>Guda_SettingsPopup_ThemeDropdown_OnClick(this)</OnClick>
-                                </Scripts>
-                            </Button>
-                        </Frames>
+                        <Scripts>
+                            <OnLoad>
+                                Guda_SettingsPopup_ThemeDropdown_OnLoad(this)
+                            </OnLoad>
+                        </Scripts>
                     </Frame>
 
                     <!-- Background Transparency Slider -->
                     <Slider name="Guda_SettingsPopup_BgTransparencySlider" inherits="OptionsSliderTemplate">
                         <Size><AbsDimension x="450" y="17"/></Size>
                         <Anchors>
-                            <Anchor point="TOPLEFT" relativePoint="BOTTOMLEFT" relativeTo="Guda_SettingsPopup_ThemeRow">
-                                <Offset><AbsDimension x="0" y="-25"/></Offset>
+                            <Anchor point="TOPLEFT" relativePoint="BOTTOMLEFT" relativeTo="Guda_SettingsPopup_ThemeDropdown">
+                                <Offset><AbsDimension x="15" y="-25"/></Offset>
                             </Anchor>
                         </Anchors>
                         <Scripts>
@@ -349,39 +321,37 @@
                 </Anchors>
                 <Frames>
                     <!-- View section -->
-                    <!-- Bag View Type Button -->
-                    <Button name="Guda_SettingsPopup_BagViewTypeButton" inherits="UIPanelButtonTemplate">
-                        <Size><AbsDimension x="180" y="25"/></Size>
+                    <!-- Bag View Type Dropdown -->
+                    <Frame name="Guda_SettingsPopup_BagViewDropdown" inherits="UIDropDownMenuTemplate">
                         <Anchors>
                             <Anchor point="TOPLEFT">
-                                <Offset><AbsDimension x="5" y="-30"/></Offset>
+                                <Offset><AbsDimension x="-10" y="-45"/></Offset>
                             </Anchor>
                         </Anchors>
                         <Scripts>
-                            <OnClick>Guda_SettingsPopup_BagViewTypeButton_OnClick()</OnClick>
+                            <OnLoad>Guda_SettingsPopup_BagViewDropdown_OnLoad(this)</OnLoad>
                         </Scripts>
-                    </Button>
+                    </Frame>
 
-                    <!-- Bank View Type Button -->
-                    <Button name="Guda_SettingsPopup_BankViewTypeButton" inherits="UIPanelButtonTemplate">
-                        <Size><AbsDimension x="180" y="25"/></Size>
+                    <!-- Bank View Type Dropdown -->
+                    <Frame name="Guda_SettingsPopup_BankViewDropdown" inherits="UIDropDownMenuTemplate">
                         <Anchors>
-                            <Anchor point="LEFT" relativeTo="Guda_SettingsPopup_BagViewTypeButton" relativePoint="RIGHT">
-                                <Offset><AbsDimension x="55" y="0"/></Offset>
+                            <Anchor point="LEFT" relativeTo="Guda_SettingsPopup_BagViewDropdown" relativePoint="RIGHT">
+                                <Offset><AbsDimension x="30" y="0"/></Offset>
                             </Anchor>
                         </Anchors>
                         <Scripts>
-                            <OnClick>Guda_SettingsPopup_BankViewTypeButton_OnClick()</OnClick>
+                            <OnLoad>Guda_SettingsPopup_BankViewDropdown_OnLoad(this)</OnLoad>
                         </Scripts>
-                    </Button>
+                    </Frame>
 
                     <!-- Columns section -->
                     <!-- Bag Columns Slider -->
                     <Slider name="Guda_SettingsPopup_BagColumnsSlider" inherits="OptionsSliderTemplate">
                         <Size><AbsDimension x="450" y="17"/></Size>
                         <Anchors>
-                            <Anchor point="TOPLEFT" relativePoint="BOTTOMLEFT" relativeTo="Guda_SettingsPopup_BagViewTypeButton">
-                                <Offset><AbsDimension x="0" y="-45"/></Offset>
+                            <Anchor point="TOPLEFT" relativePoint="BOTTOMLEFT" relativeTo="Guda_SettingsPopup_BagViewDropdown">
+                                <Offset><AbsDimension x="15" y="-65"/></Offset>
                             </Anchor>
                         </Anchors>
                         <Scripts>
@@ -409,7 +379,7 @@
                     <CheckButton name="Guda_SettingsPopup_ShowSearchBarCheckbox" inherits="OptionsCheckButtonTemplate">
                         <Anchors>
                             <Anchor point="TOPLEFT" relativePoint="BOTTOMLEFT" relativeTo="Guda_SettingsPopup_BankColumnsSlider">
-                                <Offset><AbsDimension x="0" y="-45"/></Offset>
+                                <Offset><AbsDimension x="0" y="-55"/></Offset>
                             </Anchor>
                         </Anchors>
                         <Scripts>

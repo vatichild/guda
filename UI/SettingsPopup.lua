@@ -61,15 +61,15 @@ function Guda_SettingsPopup_OnLoad(self)
     local generalTab = getglobal("Guda_SettingsPopup_GeneralTab")
     if generalTab then
         CreateSectionHeader(generalTab, "Appearance", -12)
-        CreateSectionHeader(generalTab, "Options", -120)
-        CreateSectionHeader(generalTab, "Automation", -230)
+        CreateSectionHeader(generalTab, "Options", -140)
+        CreateSectionHeader(generalTab, "Automation", -250)
     end
 
     local layoutTab = getglobal("Guda_SettingsPopup_LayoutTab")
     if layoutTab then
         CreateSectionHeader(layoutTab, "View", -12)
-        CreateSectionHeader(layoutTab, "Columns", -72)
-        CreateSectionHeader(layoutTab, "Options", -190)
+        CreateSectionHeader(layoutTab, "Columns", -100)
+        CreateSectionHeader(layoutTab, "Options", -240)
     end
 
     local iconsTab = getglobal("Guda_SettingsPopup_IconsTab")
@@ -193,9 +193,9 @@ function Guda_SettingsPopup_OnShow(self)
     local showTooltipCountsCheckbox = getglobal("Guda_SettingsPopup_ShowTooltipCountsCheckbox")
     local showEquipSetCategoriesCheckbox = getglobal("Guda_SettingsPopup_ShowEquipSetCategoriesCheckbox")
     local markEquipmentSetsCheckbox = getglobal("Guda_SettingsPopup_MarkEquipmentSetsCheckbox")
-    local bagViewButton = getglobal("Guda_SettingsPopup_BagViewTypeButton")
-    local bankViewButton = getglobal("Guda_SettingsPopup_BankViewTypeButton")
-    local themeButton = getglobal("Guda_SettingsPopup_ThemeButton")
+    local bagViewDropdown = getglobal("Guda_SettingsPopup_BagViewDropdown")
+    local bankViewDropdown = getglobal("Guda_SettingsPopup_BankViewDropdown")
+    local themeDropdown = getglobal("Guda_SettingsPopup_ThemeDropdown")
 
     local showTooltipCounts = Guda.Modules.DB:GetSetting("showTooltipCounts")
     if showTooltipCounts == nil then
@@ -308,27 +308,23 @@ function Guda_SettingsPopup_OnShow(self)
         whiteItemsJunkCheckbox:SetChecked(whiteItemsJunk and 1 or 0)
     end
 
-    if bagViewButton then
-        if bagViewType == "single" then
-            bagViewButton:SetText("Bag View: Single")
-        else
-            bagViewButton:SetText("Bag View: Category")
-        end
+    if bagViewDropdown then
+        UIDropDownMenu_SetSelectedValue(bagViewDropdown, bagViewType)
+        UIDropDownMenu_SetText(bagViewType == "single" and "Single" or "Category", bagViewDropdown)
     end
 
-    if bankViewButton then
-        if bankViewType == "single" then
-            bankViewButton:SetText("Bank View: Single")
-        else
-            bankViewButton:SetText("Bank View: Category")
-        end
+    if bankViewDropdown then
+        UIDropDownMenu_SetSelectedValue(bankViewDropdown, bankViewType)
+        UIDropDownMenu_SetText(bankViewType == "single" and "Single" or "Category", bankViewDropdown)
     end
 
-    -- Initialize theme dropdown button text
-    if themeButton then
+    -- Initialize theme dropdown
+    local themeDropdown = getglobal("Guda_SettingsPopup_ThemeDropdown")
+    if themeDropdown then
         local currentTheme = Guda.Modules.DB:GetSetting("theme") or "guda"
         local names = { guda = "Guda", blizzard = "Blizzard" }
-        themeButton:SetText(names[currentTheme] or currentTheme)
+        UIDropDownMenu_SetSelectedValue(themeDropdown, currentTheme)
+        UIDropDownMenu_SetText(names[currentTheme] or currentTheme, themeDropdown)
     end
 
     -- Apply border visibility
@@ -1444,13 +1440,41 @@ function Guda_SettingsPopup_WhiteItemsJunkCheckbox_OnClick(self)
     end
 end
 
--- Theme Dropdown OnClick
-function Guda_SettingsPopup_ThemeDropdown_OnClick(button)
-    local themes = {
-        { text = "Guda", themeId = "guda" },
-        { text = "Blizzard", themeId = "blizzard" },
-    }
-    Guda_ShowSimpleDropdown(button, themes, "theme")
+-- Theme Dropdown (Blizzard UIDropDownMenu)
+local themeOptions = {
+    { text = "Guda", value = "guda" },
+    { text = "Blizzard", value = "blizzard" },
+}
+
+local function Guda_ThemeDropdown_Initialize()
+    local currentTheme = Guda.Modules.DB:GetSetting("theme") or "guda"
+    for _, option in ipairs(themeOptions) do
+        local info = {}
+        info.text = option.text
+        info.value = option.value
+        info.func = function()
+            local val = this.value
+            UIDropDownMenu_SetSelectedValue(getglobal("Guda_SettingsPopup_ThemeDropdown"), val)
+            Guda_SettingsPopup_ApplyTheme(val)
+        end
+        info.checked = (currentTheme == option.value)
+        UIDropDownMenu_AddButton(info)
+    end
+end
+
+function Guda_SettingsPopup_ThemeDropdown_OnLoad(self)
+    UIDropDownMenu_Initialize(self, Guda_ThemeDropdown_Initialize)
+    UIDropDownMenu_SetWidth(130, self)
+    local currentTheme = Guda.Modules.DB:GetSetting("theme") or "guda"
+    local names = { guda = "Guda", blizzard = "Blizzard" }
+    UIDropDownMenu_SetSelectedValue(self, currentTheme)
+    UIDropDownMenu_SetText(names[currentTheme] or currentTheme, self)
+
+    -- Add label above dropdown
+    local label = self:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    label:SetPoint("BOTTOMLEFT", self, "TOPLEFT", 20, 2)
+    label:SetText("Theme")
+    label:SetTextColor(1, 0.82, 0, 1)
 end
 
 -- Apply selected theme
@@ -1462,11 +1486,12 @@ function Guda_SettingsPopup_ApplyTheme(themeId)
         Guda.Modules.Theme:ClearCache()
     end
 
-    -- Update button text
-    local btn = getglobal("Guda_SettingsPopup_ThemeButton")
-    if btn then
+    -- Update dropdown text
+    local dropdown = getglobal("Guda_SettingsPopup_ThemeDropdown")
+    if dropdown then
         local names = { guda = "Guda", blizzard = "Blizzard" }
-        btn:SetText(names[themeId] or themeId)
+        UIDropDownMenu_SetSelectedValue(dropdown, themeId)
+        UIDropDownMenu_SetText(names[themeId] or themeId, dropdown)
     end
 
     -- Apply theme to all frames (also updates slot background alphas)
@@ -1475,54 +1500,82 @@ function Guda_SettingsPopup_ApplyTheme(themeId)
     end
 end
 
--- Bag View Type Button OnClick
-function Guda_SettingsPopup_BagViewTypeButton_OnClick()
+-- Bag View Dropdown
+local bagViewOptions = {
+    { text = "Category", value = "category" },
+    { text = "Single", value = "single" },
+}
+
+local function Guda_BagViewDropdown_Initialize()
     local current = Guda.Modules.DB:GetSetting("bagViewType") or "single"
-    local newValue = (current == "single") and "category" or "single"
-    Guda.Modules.DB:SetSetting("bagViewType", newValue)
-
-    local btn = getglobal("Guda_SettingsPopup_BagViewTypeButton")
-    if btn then
-        btn:SetText(newValue == "single" and "Bag View: Single" or "Bag View: Category")
-    end
-
-    -- Release all buttons so they can be reused when switching views
-    if Guda_ReleaseAllButtons then
-        Guda_ReleaseAllButtons()
-    end
-
-    -- Refresh BOTH frames to ensure buttons are properly distributed
-    if Guda_BagFrame:IsShown() then
-        Guda.Modules.BagFrame:Update()
-    end
-    if Guda_BankFrame and Guda_BankFrame:IsShown() then
-        Guda.Modules.BankFrame:Update()
+    for _, option in ipairs(bagViewOptions) do
+        local info = {}
+        info.text = option.text
+        info.value = option.value
+        info.func = function()
+            local val = this.value
+            UIDropDownMenu_SetSelectedValue(getglobal("Guda_SettingsPopup_BagViewDropdown"), val)
+            UIDropDownMenu_SetText(val == "single" and "Single" or "Category", getglobal("Guda_SettingsPopup_BagViewDropdown"))
+            Guda.Modules.DB:SetSetting("bagViewType", val)
+            if Guda_ReleaseAllButtons then Guda_ReleaseAllButtons() end
+            if Guda_BagFrame:IsShown() then Guda.Modules.BagFrame:Update() end
+            if Guda_BankFrame and Guda_BankFrame:IsShown() then Guda.Modules.BankFrame:Update() end
+        end
+        info.checked = (current == option.value)
+        UIDropDownMenu_AddButton(info)
     end
 end
 
--- Bank View Type Button OnClick
-function Guda_SettingsPopup_BankViewTypeButton_OnClick()
+function Guda_SettingsPopup_BagViewDropdown_OnLoad(self)
+    UIDropDownMenu_Initialize(self, Guda_BagViewDropdown_Initialize)
+    UIDropDownMenu_SetWidth(130, self)
+    local current = Guda.Modules.DB:GetSetting("bagViewType") or "single"
+    UIDropDownMenu_SetSelectedValue(self, current)
+    UIDropDownMenu_SetText(current == "single" and "Single" or "Category", self)
+
+    local label = self:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    label:SetPoint("BOTTOMLEFT", self, "TOPLEFT", 20, 2)
+    label:SetText("Bag View")
+    label:SetTextColor(1, 0.82, 0, 1)
+end
+
+-- Bank View Dropdown
+local bankViewOptions = {
+    { text = "Category", value = "category" },
+    { text = "Single", value = "single" },
+}
+
+local function Guda_BankViewDropdown_Initialize()
     local current = Guda.Modules.DB:GetSetting("bankViewType") or "single"
-    local newValue = (current == "single") and "category" or "single"
-    Guda.Modules.DB:SetSetting("bankViewType", newValue)
+    for _, option in ipairs(bankViewOptions) do
+        local info = {}
+        info.text = option.text
+        info.value = option.value
+        info.func = function()
+            local val = this.value
+            UIDropDownMenu_SetSelectedValue(getglobal("Guda_SettingsPopup_BankViewDropdown"), val)
+            UIDropDownMenu_SetText(val == "single" and "Single" or "Category", getglobal("Guda_SettingsPopup_BankViewDropdown"))
+            Guda.Modules.DB:SetSetting("bankViewType", val)
+            if Guda_ReleaseAllButtons then Guda_ReleaseAllButtons() end
+            if Guda_BankFrame and Guda_BankFrame:IsShown() then Guda.Modules.BankFrame:Update() end
+            if Guda_BagFrame:IsShown() then Guda.Modules.BagFrame:Update() end
+        end
+        info.checked = (current == option.value)
+        UIDropDownMenu_AddButton(info)
+    end
+end
 
-    local btn = getglobal("Guda_SettingsPopup_BankViewTypeButton")
-    if btn then
-        btn:SetText(newValue == "single" and "Bank View: Single" or "Bank View: Category")
-    end
+function Guda_SettingsPopup_BankViewDropdown_OnLoad(self)
+    UIDropDownMenu_Initialize(self, Guda_BankViewDropdown_Initialize)
+    UIDropDownMenu_SetWidth(130, self)
+    local current = Guda.Modules.DB:GetSetting("bankViewType") or "single"
+    UIDropDownMenu_SetSelectedValue(self, current)
+    UIDropDownMenu_SetText(current == "single" and "Single" or "Category", self)
 
-    -- Release all buttons so they can be reused when switching views
-    if Guda_ReleaseAllButtons then
-        Guda_ReleaseAllButtons()
-    end
-
-    -- Refresh BOTH frames to ensure buttons are properly distributed
-    if Guda_BankFrame and Guda_BankFrame:IsShown() then
-        Guda.Modules.BankFrame:Update()
-    end
-    if Guda_BagFrame:IsShown() then
-        Guda.Modules.BagFrame:Update()
-    end
+    local label = self:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    label:SetPoint("BOTTOMLEFT", self, "TOPLEFT", 20, 2)
+    label:SetText("Bank View")
+    label:SetTextColor(1, 0.82, 0, 1)
 end
 
 -- Reverse Stack Sort Checkbox OnLoad
