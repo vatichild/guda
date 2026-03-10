@@ -263,7 +263,7 @@
                         <Anchors>
                             <Anchor point="LEFT">
                                 <Offset>
-                                    <AbsDimension x="16" y="0"/>
+                                    <AbsDimension x="40" y="0"/>
                                 </Offset>
                             </Anchor>
                             <Anchor point="RIGHT">
@@ -305,6 +305,36 @@
                             </OnEscapePressed>
                         </Scripts>
                     </EditBox>
+
+                    <!-- Clear Search Button -->
+                    <Button name="$parent_ClearButton">
+                        <Size>
+                            <AbsDimension x="26" y="26"/>
+                        </Size>
+                        <Anchors>
+                            <Anchor point="LEFT">
+                                <Offset>
+                                    <AbsDimension x="5" y="0"/>
+                                </Offset>
+                            </Anchor>
+                        </Anchors>
+                        <NormalTexture file="Interface\Buttons\UI-Panel-MinimizeButton-Up"/>
+                        <PushedTexture file="Interface\Buttons\UI-Panel-MinimizeButton-Down"/>
+                        <HighlightTexture file="Interface\Buttons\UI-Panel-MinimizeButton-Highlight" alphaMode="ADD"/>
+                        <Scripts>
+                            <OnClick>
+                                Guda_BankFrame_ClearSearch()
+                            </OnClick>
+                            <OnEnter>
+                                GameTooltip:SetOwner(this, "ANCHOR_TOP")
+                                GameTooltip:SetText("Clear search bar")
+                                GameTooltip:Show()
+                            </OnEnter>
+                            <OnLeave>
+                                GameTooltip:Hide()
+                            </OnLeave>
+                        </Scripts>
+                    </Button>
                 </Frames>
             </Frame>
 
