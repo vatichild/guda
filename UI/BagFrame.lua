@@ -3417,18 +3417,31 @@ function BagFrame:Initialize()
 		ScheduleBagFrameUpdate(0.15)
 	end, "BagFrame")
 
-	-- Auto-open bag frame when mail is opened
-	addon.Modules.Events:Register("MAIL_SHOW", function()
-		Guda_BagFrame:Show()
-	end, "BagFrame")
+	-- Auto-open bag frame when interacting with mail, bank, auction, trade
+	local function AutoOpenBags()
+		local autoOpen = addon.Modules.DB:GetSetting("autoOpenBags")
+		if autoOpen == nil then autoOpen = true end
+		if autoOpen then
+			Guda_BagFrame:Show()
+		end
+	end
+
+	addon.Modules.Events:Register("MAIL_SHOW", AutoOpenBags, "BagFrame")
+	addon.Modules.Events:Register("BANKFRAME_OPENED", AutoOpenBags, "BagFrame")
+	addon.Modules.Events:Register("AUCTION_HOUSE_SHOW", AutoOpenBags, "BagFrame")
+	addon.Modules.Events:Register("TRADE_SHOW", AutoOpenBags, "BagFrame")
 
 	-- Track vendor interactions to avoid closing bags when a vendor is opened
 	addon.Modules.Events:Register("MERCHANT_SHOW", function()
 		isMerchantOpen = true
-		-- Optional: ensure bags are visible when a vendor is opened
-		local frameRef = getglobal("Guda_BagFrame")
-		if frameRef and not frameRef:IsShown() then
-			frameRef:Show()
+		-- Auto-open bags when visiting a vendor (respects setting)
+		local autoOpen = addon.Modules.DB:GetSetting("autoOpenBags")
+		if autoOpen == nil then autoOpen = true end
+		if autoOpen then
+			local frameRef = getglobal("Guda_BagFrame")
+			if frameRef and not frameRef:IsShown() then
+				frameRef:Show()
+			end
 		end
 
 		-- Auto-sell junk items (spread across frames to avoid item locking)

@@ -1392,6 +1392,38 @@ function Guda_SettingsPopup_AutoVendorJunkCheckbox_OnClick(self)
     end
 end
 
+-- Auto Open Bags Checkbox OnLoad
+function Guda_SettingsPopup_AutoOpenBagsCheckbox_OnLoad(self)
+    local text = getglobal(self:GetName().."Text")
+    if text then
+        text:SetText("Auto Open Bags")
+
+        local font, _, flags = text:GetFont()
+        if font then
+            text:SetFont(font, 13, flags)
+        end
+    end
+
+    self.tooltipText = "Automatically open bags when interacting with bank, auction house, mail, or trade."
+
+    local enabled = true
+    if Guda and Guda.Modules and Guda.Modules.DB then
+        enabled = Guda.Modules.DB:GetSetting("autoOpenBags")
+        if enabled == nil then enabled = true end
+    end
+
+    self:SetChecked(enabled and 1 or 0)
+end
+
+-- Auto Open Bags Checkbox OnClick
+function Guda_SettingsPopup_AutoOpenBagsCheckbox_OnClick(self)
+    local isChecked = self:GetChecked() == 1
+
+    if Guda and Guda.Modules and Guda.Modules.DB then
+        Guda.Modules.DB:SetSetting("autoOpenBags", isChecked)
+    end
+end
+
 -- White Items as Junk Checkbox OnLoad
 function Guda_SettingsPopup_WhiteItemsJunkCheckbox_OnLoad(self)
     local text = getglobal(self:GetName().."Text")
