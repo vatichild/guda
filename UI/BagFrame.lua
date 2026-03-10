@@ -3491,7 +3491,26 @@ function BagFrame:Initialize()
 
 	addon.Modules.Events:Register("MERCHANT_CLOSED", function()
 		isMerchantOpen = false
+		local autoClose = addon.Modules.DB:GetSetting("autoCloseBags")
+		if autoClose == nil then autoClose = true end
+		if autoClose then
+			Guda_BagFrame:Hide()
+		end
 	end, "BagFrame")
+
+	-- Auto-close bag frame when closing mail, bank, auction, trade
+	local function AutoCloseBags()
+		local autoClose = addon.Modules.DB:GetSetting("autoCloseBags")
+		if autoClose == nil then autoClose = true end
+		if autoClose then
+			Guda_BagFrame:Hide()
+		end
+	end
+
+	addon.Modules.Events:Register("MAIL_CLOSED", AutoCloseBags, "BagFrame")
+	addon.Modules.Events:Register("BANKFRAME_CLOSED", AutoCloseBags, "BagFrame")
+	addon.Modules.Events:Register("AUCTION_HOUSE_CLOSED", AutoCloseBags, "BagFrame")
+	addon.Modules.Events:Register("TRADE_CLOSED", AutoCloseBags, "BagFrame")
 
 	-- Hide character dropdown when clicking on bag frame
 	local bagFrame = getglobal("Guda_BagFrame")

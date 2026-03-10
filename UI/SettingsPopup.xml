@@ -291,29 +291,42 @@
                     </CheckButton>
 
                     <!-- Automation section -->
-                    <!-- Auto Sell Junk Checkbox -->
-                    <CheckButton name="Guda_SettingsPopup_AutoVendorJunkCheckbox" inherits="OptionsCheckButtonTemplate">
+                    <!-- Auto Close Bags Checkbox -->
+                    <CheckButton name="Guda_SettingsPopup_AutoCloseBagsCheckbox" inherits="OptionsCheckButtonTemplate">
                         <Anchors>
                             <Anchor point="TOPLEFT" relativePoint="BOTTOMLEFT" relativeTo="Guda_SettingsPopup_ShowTooltipCountsCheckbox">
                                 <Offset><AbsDimension x="0" y="-35"/></Offset>
                             </Anchor>
                         </Anchors>
                         <Scripts>
-                            <OnLoad>Guda_SettingsPopup_AutoVendorJunkCheckbox_OnLoad(this)</OnLoad>
-                            <OnClick>Guda_SettingsPopup_AutoVendorJunkCheckbox_OnClick(this)</OnClick>
+                            <OnLoad>Guda_SettingsPopup_AutoCloseBagsCheckbox_OnLoad(this)</OnLoad>
+                            <OnClick>Guda_SettingsPopup_AutoCloseBagsCheckbox_OnClick(this)</OnClick>
                         </Scripts>
                     </CheckButton>
 
                     <!-- Auto Open Bags Checkbox -->
                     <CheckButton name="Guda_SettingsPopup_AutoOpenBagsCheckbox" inherits="OptionsCheckButtonTemplate">
                         <Anchors>
-                            <Anchor point="LEFT" relativePoint="RIGHT" relativeTo="Guda_SettingsPopup_AutoVendorJunkCheckbox">
+                            <Anchor point="LEFT" relativePoint="RIGHT" relativeTo="Guda_SettingsPopup_AutoCloseBagsCheckbox">
                                 <Offset><AbsDimension x="200" y="0"/></Offset>
                             </Anchor>
                         </Anchors>
                         <Scripts>
                             <OnLoad>Guda_SettingsPopup_AutoOpenBagsCheckbox_OnLoad(this)</OnLoad>
                             <OnClick>Guda_SettingsPopup_AutoOpenBagsCheckbox_OnClick(this)</OnClick>
+                        </Scripts>
+                    </CheckButton>
+
+                    <!-- Auto Sell Junk Checkbox -->
+                    <CheckButton name="Guda_SettingsPopup_AutoVendorJunkCheckbox" inherits="OptionsCheckButtonTemplate">
+                        <Anchors>
+                            <Anchor point="TOPLEFT" relativePoint="BOTTOMLEFT" relativeTo="Guda_SettingsPopup_AutoCloseBagsCheckbox">
+                                <Offset><AbsDimension x="0" y="-8"/></Offset>
+                            </Anchor>
+                        </Anchors>
+                        <Scripts>
+                            <OnLoad>Guda_SettingsPopup_AutoVendorJunkCheckbox_OnLoad(this)</OnLoad>
+                            <OnClick>Guda_SettingsPopup_AutoVendorJunkCheckbox_OnClick(this)</OnClick>
                         </Scripts>
                     </CheckButton>
                 </Frames>
