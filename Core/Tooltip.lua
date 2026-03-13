@@ -635,6 +635,8 @@ function Tooltip:Initialize()
 	frame:RegisterEvent("BAG_UPDATE")
 	frame:SetScript("OnEvent", function()
 		if event == "BAG_UPDATE" then
+			-- Skip tooltip cache clearing while sorting (items don't change, just move)
+			if addon.Modules.SortEngine and addon.Modules.SortEngine.sortingInProgress then return end
 			if cacheClearPending then return end
 			cacheClearPending = true
 			-- Debounce: batch rapid BAG_UPDATE events (uses pooled timer)

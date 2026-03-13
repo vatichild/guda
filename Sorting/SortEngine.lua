@@ -10,11 +10,11 @@ addon.Modules.SortEngine = SortEngine
 SortEngine.sortingInProgress = false
 
 -- Performance: Max items to move per cycle
--- Baganator uses 5 for manual transfers, but sorting needs more for smooth operation
-local MAX_MOVES_PER_CYCLE = 20
--- Bank needs more moves per cycle due to larger capacity (240 vs 160 slots)
--- But not too many to avoid server-side lock conflicts
-local MAX_BANK_MOVES_PER_CYCLE = 25
+-- Smaller batches prevent overwhelming the server with rapid moves,
+-- which can leave items permanently stuck in a locked (greyed-out) state.
+local MAX_MOVES_PER_CYCLE = 10
+-- Bank needs slightly more due to larger capacity (240 vs 160 slots)
+local MAX_BANK_MOVES_PER_CYCLE = 12
 
 -- Current sort context (set by ExecuteSort, used by ApplySort)
 local currentSortType = "bags"
@@ -40,6 +40,99 @@ local TransferStatus = {
     WaitingUnlock = 2,  -- Item is locked, waiting
     Partial = 3,        -- Some moves done, more pending
 }
+
+--===========================================================================
+-- LOCK TRACKING & EVENT-DRIVEN PASS SCHEDULING
+-- Tracks which slots were recently moved so we can wait for server to
+-- release their locks before starting the next sort pass.
+--===========================================================================
+local sortProcessFrame = CreateFrame("Frame")
+local pendingLockSlots = {}   -- flat array: {bagID1, slot1, bagID2, slot2, ...}
+local pendingLockCount = 0
+local pendingLockSet = {}     -- bagID*1000+slot -> true (O(1) lookup)
+local waitingForLocks = false
+local onLocksCleared = nil    -- callback when all pending locks clear
+
+local function AddPendingLock(bagID, slot)
+	local key = bagID * 1000 + slot
+	if not pendingLockSet[key] then
+		pendingLockSet[key] = true
+		pendingLockCount = pendingLockCount + 1
+		pendingLockSlots[pendingLockCount * 2 - 1] = bagID
+		pendingLockSlots[pendingLockCount * 2] = slot
+	end
+end
+
+local function ClearPendingLocks()
+	for k in pairs(pendingLockSet) do pendingLockSet[k] = nil end
+	for i = 1, pendingLockCount * 2 do pendingLockSlots[i] = nil end
+	pendingLockCount = 0
+end
+
+local function AnyPendingLocked()
+	if pendingLockCount == 0 then return false end
+	for i = 1, pendingLockCount do
+		local bagID = pendingLockSlots[i * 2 - 1]
+		local slot = pendingLockSlots[i * 2]
+		if bagID and slot then
+			local _, _, locked = GetContainerItemInfo(bagID, slot)
+			if locked then return true end
+		end
+	end
+	return false
+end
+
+-- Event handler: when ITEM_LOCK_CHANGED fires, check if all pending locks cleared
+sortProcessFrame:RegisterEvent("ITEM_LOCK_CHANGED")
+sortProcessFrame:SetScript("OnEvent", function()
+	if waitingForLocks and onLocksCleared then
+		if not AnyPendingLocked() then
+			waitingForLocks = false
+			local cb = onLocksCleared
+			onLocksCleared = nil
+			ClearPendingLocks()
+			cb()
+		end
+	end
+end)
+
+-- Wait for all pending locks to clear, then call callback.
+-- Always waits a minimum delay first to let the server process moves,
+-- then uses ITEM_LOCK_CHANGED events with a fallback timeout.
+local function WaitForLocksCleared(callback, timeout)
+	-- Always wait a minimum delay to let the server apply and process locks.
+	-- Without this, GetContainerItemInfo may not yet reflect the lock state,
+	-- causing us to proceed before the server has finished processing.
+	local minDelay = 0.5
+
+	Guda_ScheduleTimer(minDelay, function()
+		-- After minimum delay, check if locks have already cleared
+		if not AnyPendingLocked() then
+			ClearPendingLocks()
+			callback()
+			return
+		end
+
+		-- Still locked — wait for ITEM_LOCK_CHANGED events
+		waitingForLocks = true
+		onLocksCleared = callback
+
+		-- Safety timeout: if locks don't clear via events, proceed anyway
+		local remaining = (timeout or 2.0) - minDelay
+		if remaining < 0.5 then remaining = 0.5 end
+		Guda_ScheduleTimer(remaining, function()
+			if waitingForLocks then
+				addon:DebugSort("Lock wait timed out after %.1fs, proceeding anyway", timeout or 2.0)
+				waitingForLocks = false
+				onLocksCleared = nil
+				ClearPendingLocks()
+				ClearCursor()
+				callback()
+			end
+		end)
+	end)
+end
+
 
 -- Update sort button appearance based on sorting state
 function SortEngine:UpdateSortButtonState(isDisabled)
@@ -597,6 +690,8 @@ local function RouteSpecializedItems(bagIDs, containers)
 		PickupContainerItem(move.fromBag, move.fromSlot)
 		PickupContainerItem(move.toBag, move.toSlot)
 		ClearCursor()
+		AddPendingLock(move.fromBag, move.fromSlot)
+		AddPendingLock(move.toBag, move.toSlot)
 	end
 
 	return table.getn(routingPlan)
@@ -680,6 +775,8 @@ local function ConsolidateStacks(bagIDs)
 										PickupContainerItem(source.bagID, source.slot)
 									end
 									ClearCursor()
+									AddPendingLock(target.bagID, target.slot)
+									AddPendingLock(source.bagID, source.slot)
 
 									source.count = source.count + amountToMove
 									target.count = target.count - amountToMove
@@ -1233,6 +1330,8 @@ local function ApplySort(bagIDs, items, targetPositions)
 				PickupContainerItem(move.sourceBag, move.sourceSlot)
 				PickupContainerItem(move.targetBag, move.targetSlot)
 				ClearCursor()
+				AddPendingLock(move.sourceBag, move.sourceSlot)
+				AddPendingLock(move.targetBag, move.targetSlot)
 				moveCount = moveCount + 1
 			else
 				lockedCount = lockedCount + 1
@@ -1275,6 +1374,8 @@ local function ApplySort(bagIDs, items, targetPositions)
 						PickupContainerItem(move.sourceBag, move.sourceSlot)
 						PickupContainerItem(move.targetBag, move.targetSlot)
 						ClearCursor()
+						AddPendingLock(move.sourceBag, move.sourceSlot)
+						AddPendingLock(move.targetBag, move.targetSlot)
 						moveCount = moveCount + 1
 						swapCount = swapCount + 1
 						currentPassSwaps[swapKey] = true
@@ -1534,27 +1635,40 @@ function SortEngine:SortBagsPass()
         end
     end
 
-    -- Phase 5: Two-phase sort for regular bags in a single pass
+    -- Phase 5: Combined sort for regular bags — single ApplySort call
+    -- Non-greys go to front positions, greys go to tail positions.
+    -- Using a single call avoids within-pass lock conflicts where the first
+    -- ApplySort locks slots that the second one needs.
     local regularMoves = 0
     local regularBagIDs = containers.regular
     if table.getn(regularBagIDs) > 0 then
-        -- Re-collect current state from regular bags
         local allItems = CollectItems(regularBagIDs)
         local nonGreys, greys = SplitGreyItems(allItems)
 
-        -- 1) Non-greys: standard sort to the front positions only
+        local combinedItems = {}
+        local combinedPositions = {}
+
+        -- Non-greys: sorted to front positions
         if table.getn(nonGreys) > 0 then
             local sortedNonGreys = SortItems(nonGreys)
             local frontPositions = BuildTargetPositions(regularBagIDs, table.getn(sortedNonGreys))
-            regularMoves = regularMoves + (ApplySort(regularBagIDs, sortedNonGreys, frontPositions) or 0)
+            for i, item in ipairs(sortedNonGreys) do
+                table.insert(combinedItems, item)
+                table.insert(combinedPositions, frontPositions[i])
+            end
         end
 
-        -- 2) Greys: end->start across bags
-        local afterItems = CollectItems(regularBagIDs)
-        local _, greysNow = SplitGreyItems(afterItems)
-        if table.getn(greysNow) > 0 then
-            local tailPositions = BuildGreyTailPositions(regularBagIDs, table.getn(greysNow))
-            regularMoves = regularMoves + (ApplySort(regularBagIDs, greysNow, tailPositions) or 0)
+        -- Greys: to tail positions (end->start)
+        if table.getn(greys) > 0 then
+            local tailPositions = BuildGreyTailPositions(regularBagIDs, table.getn(greys))
+            for i, item in ipairs(greys) do
+                table.insert(combinedItems, item)
+                table.insert(combinedPositions, tailPositions[i])
+            end
+        end
+
+        if table.getn(combinedItems) > 0 then
+            regularMoves = ApplySort(regularBagIDs, combinedItems, combinedPositions) or 0
         end
     end
 
@@ -1592,34 +1706,39 @@ function SortEngine:SortBags()
 		end
 	end
 
- -- Phase 5: Two-phase sort for regular bags (multi-pass legacy; kept for direct calls)
+ -- Phase 5: Combined sort for regular bags (multi-pass, single ApplySort per pass)
  local regularMoves = 0
  local regularBagIDs = containers.regular
  if table.getn(regularBagIDs) > 0 then
      local maxPasses = 6
      for pass = 1, maxPasses do
-         local passMoves = 0
-
-         -- Re-collect current state from regular bags
          local allItems = CollectItems(regularBagIDs)
          local nonGreys, greys = SplitGreyItems(allItems)
 
-         -- 1) Non-greys: standard sort to the front positions only
+         local combinedItems = {}
+         local combinedPositions = {}
+
          if table.getn(nonGreys) > 0 then
              local sortedNonGreys = SortItems(nonGreys)
              local frontPositions = BuildTargetPositions(regularBagIDs, table.getn(sortedNonGreys))
-             passMoves = passMoves + (ApplySort(regularBagIDs, sortedNonGreys, frontPositions) or 0)
+             for i, item in ipairs(sortedNonGreys) do
+                 table.insert(combinedItems, item)
+                 table.insert(combinedPositions, frontPositions[i])
+             end
          end
 
-         -- 2) Greys: ignore all other sorting rules; place end->start across bags
-         -- Re-collect after possible movements above for accurate positions
-         local afterItems = CollectItems(regularBagIDs)
-         local _, greysNow = SplitGreyItems(afterItems)
-         if table.getn(greysNow) > 0 then
-             local tailPositions = BuildGreyTailPositions(regularBagIDs, table.getn(greysNow))
-             passMoves = passMoves + (ApplySort(regularBagIDs, greysNow, tailPositions) or 0)
+         if table.getn(greys) > 0 then
+             local tailPositions = BuildGreyTailPositions(regularBagIDs, table.getn(greys))
+             for i, item in ipairs(greys) do
+                 table.insert(combinedItems, item)
+                 table.insert(combinedPositions, tailPositions[i])
+             end
          end
 
+         local passMoves = 0
+         if table.getn(combinedItems) > 0 then
+             passMoves = ApplySort(regularBagIDs, combinedItems, combinedPositions) or 0
+         end
          regularMoves = regularMoves + passMoves
          if passMoves == 0 then break end
      end
@@ -1669,24 +1788,35 @@ function SortEngine:SortBankPass()
         end
     end
 
-    -- Phase 5: Regular bank bags — single pass
+    -- Phase 5: Regular bank bags — single combined ApplySort
     local regularBagIDs = containers.regular
     local regularMoves = 0
     if table.getn(regularBagIDs) > 0 then
         local allItems = CollectItems(regularBagIDs)
         local nonGreys, greys = SplitGreyItems(allItems)
 
+        local combinedItems = {}
+        local combinedPositions = {}
+
         if table.getn(nonGreys) > 0 then
             local sortedNonGreys = SortItems(nonGreys)
             local frontPositions = BuildTargetPositions(regularBagIDs, table.getn(sortedNonGreys))
-            regularMoves = regularMoves + (ApplySort(regularBagIDs, sortedNonGreys, frontPositions) or 0)
+            for i, item in ipairs(sortedNonGreys) do
+                table.insert(combinedItems, item)
+                table.insert(combinedPositions, frontPositions[i])
+            end
         end
 
-        local afterItems = CollectItems(regularBagIDs)
-        local _, greysNow = SplitGreyItems(afterItems)
-        if table.getn(greysNow) > 0 then
-            local tailPositions = BuildGreyTailPositions(regularBagIDs, table.getn(greysNow))
-            regularMoves = regularMoves + (ApplySort(regularBagIDs, greysNow, tailPositions) or 0)
+        if table.getn(greys) > 0 then
+            local tailPositions = BuildGreyTailPositions(regularBagIDs, table.getn(greys))
+            for i, item in ipairs(greys) do
+                table.insert(combinedItems, item)
+                table.insert(combinedPositions, tailPositions[i])
+            end
+        end
+
+        if table.getn(combinedItems) > 0 then
+            regularMoves = ApplySort(regularBagIDs, combinedItems, combinedPositions) or 0
         end
     end
 
@@ -1728,30 +1858,39 @@ function SortEngine:SortBank()
      end
  end
 
- -- Phase 5: Regular bank bags — same two-phase approach (non-greys first, greys to tail)
+ -- Phase 5: Regular bank bags — combined sort (single ApplySort per pass)
  local regularBagIDs = containers.regular
  local regularMoves = 0
  if table.getn(regularBagIDs) > 0 then
      local maxPasses = 6
      for pass = 1, maxPasses do
-         local passMoves = 0
-
          local allItems = CollectItems(regularBagIDs)
          local nonGreys, greys = SplitGreyItems(allItems)
+
+         local combinedItems = {}
+         local combinedPositions = {}
 
          if table.getn(nonGreys) > 0 then
              local sortedNonGreys = SortItems(nonGreys)
              local frontPositions = BuildTargetPositions(regularBagIDs, table.getn(sortedNonGreys))
-             passMoves = passMoves + (ApplySort(regularBagIDs, sortedNonGreys, frontPositions) or 0)
+             for i, item in ipairs(sortedNonGreys) do
+                 table.insert(combinedItems, item)
+                 table.insert(combinedPositions, frontPositions[i])
+             end
          end
 
-         local afterItems = CollectItems(regularBagIDs)
-         local _, greysNow = SplitGreyItems(afterItems)
-         if table.getn(greysNow) > 0 then
-             local tailPositions = BuildGreyTailPositions(regularBagIDs, table.getn(greysNow))
-             passMoves = passMoves + (ApplySort(regularBagIDs, greysNow, tailPositions) or 0)
+         if table.getn(greys) > 0 then
+             local tailPositions = BuildGreyTailPositions(regularBagIDs, table.getn(greys))
+             for i, item in ipairs(greys) do
+                 table.insert(combinedItems, item)
+                 table.insert(combinedPositions, tailPositions[i])
+             end
          end
 
+         local passMoves = 0
+         if table.getn(combinedItems) > 0 then
+             passMoves = ApplySort(regularBagIDs, combinedItems, combinedPositions) or 0
+         end
          regularMoves = regularMoves + passMoves
          if passMoves == 0 then break end
      end
@@ -1803,8 +1942,8 @@ function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sort
 
  local passCount = 0
  local maxPasses = math.max(analysis.passes, 1)  -- Use estimated passes, minimum 1
- -- Bank has 50% more slots (240 vs 160), so needs higher safety limit
- local safetyLimit = (sortType == "bank") and math.max(maxPasses * 4, 15) or math.max(maxPasses * 3, 10)
+ -- With smaller batch sizes (10 moves/pass), more passes are needed.
+ local safetyLimit = (sortType == "bank") and math.max(maxPasses * 5, 20) or math.max(maxPasses * 4, 15)
  local totalMoves = 0
  local noProgressPasses = 0
  local lastItemsOutOfPlace = analysis.itemsOutOfPlace
@@ -1828,6 +1967,11 @@ function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sort
 
 	local function FinishSort()
 		if sfxCVar then pcall(SetCVar, sfxCVar, originalSFX) end
+		-- Clean up lock tracking state
+		ClearPendingLocks()
+		waitingForLocks = false
+		onLocksCleared = nil
+		ClearCursor()
 		SortEngine.sortingInProgress = false
 		SortEngine:UpdateSortButtonState(false)
 		currentSortType = "bags"
@@ -1845,6 +1989,9 @@ function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sort
 	local function DoSortPass()
 		passCount = passCount + 1
 
+		-- Clear pending lock tracking from previous pass
+		ClearPendingLocks()
+
 		-- Rotate swap tracking: previous pass swaps become the block list, current pass starts fresh
 		previousPassSwaps = currentPassSwaps
 		currentPassSwaps = {}
@@ -1861,14 +2008,14 @@ function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sort
             addon:DebugSort("%s sort complete! (%d passes, %d total moves)", sortType, passCount, totalMoves)
 
 			-- Final update (cache clearing happens after delay, uses pooled timer)
-			Guda_ScheduleTimer(0.3, FinishSort)
+			WaitForLocksCleared(FinishSort, 1.0)
   elseif passCount >= safetyLimit then
             -- Hit safety limit but not fully sorted
             addon:DebugSort("%s sort stopped at safety limit! (%d/%d items still need sorting after %d passes)",
                 sortType, currentAnalysis.itemsOutOfPlace, currentAnalysis.totalItems, passCount)
 
 			-- Final update (cache clearing happens after delay, uses pooled timer)
-			Guda_ScheduleTimer(0.3, FinishSort)
+			WaitForLocksCleared(FinishSort, 1.0)
   else
             -- No progress guard: stop if we make no moves repeatedly
             if moveCount == 0 then
@@ -1882,11 +2029,13 @@ function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sort
                     sortType, passCount, currentAnalysis.itemsOutOfPlace, currentAnalysis.totalItems)
 
                 -- Final update (cache clearing happens after delay, uses pooled timer)
-                Guda_ScheduleTimer(0.3, FinishSort)
+                WaitForLocksCleared(FinishSort, 1.0)
                 return
             end
 
-            -- Stuck detection: abort if items out of place aren't decreasing despite moves
+            -- Stuck detection: abort if items out of place aren't decreasing despite moves.
+            -- With event-driven lock waiting, swaps can temporarily displace items,
+            -- so allow more passes before declaring stuck.
             if moveCount > 0 and currentAnalysis.itemsOutOfPlace >= lastItemsOutOfPlace then
                 stuckPasses = stuckPasses + 1
             else
@@ -1898,7 +2047,7 @@ function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sort
                 addon:DebugSort("%s sort stuck: items not decreasing after %d passes with moves (remaining: %d/%d)",
                     sortType, stuckPasses, currentAnalysis.itemsOutOfPlace, currentAnalysis.totalItems)
 
-                Guda_ScheduleTimer(0.3, FinishSort)
+                WaitForLocksCleared(FinishSort, 1.0)
                 return
             end
 
@@ -1907,23 +2056,21 @@ function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sort
             addon:DebugSort("%s Pass %d: %d moves, %d/%d items remaining (%.1f%%)",
                 sortType, passCount, moveCount, currentAnalysis.itemsOutOfPlace, currentAnalysis.totalItems, remainingRatio * 100)
 
-			-- PROGRESSIVE DELAY: Short delay to let server process moves
-			-- Bank needs longer delays because bank operations take longer to complete
-			local baseDelay = (sortType == "bank") and 0.35 or 0.2
-			local maxComplexityDelay = (sortType == "bank") and 0.5 or 0.3
-			local complexityDelay = math.min(currentAnalysis.itemsOutOfPlace * 0.01, maxComplexityDelay)
-			local totalDelay = baseDelay + complexityDelay
+			-- EVENT-DRIVEN WAIT: Wait for ITEM_LOCK_CHANGED events to confirm
+			-- the server has processed all moves before starting next pass.
+			-- Falls back to timer if locks don't clear within timeout.
+			local fallbackTimeout = (sortType == "bank") and 3.0 or 2.5
 
-			addon:DebugSort("Waiting %.1f seconds before next pass...", totalDelay)
+			addon:DebugSort("Waiting for item locks to clear before next pass (timeout: %.1fs)...", fallbackTimeout)
 
-			-- Wait with progressive delay, then sort again (uses pooled timer)
-			Guda_ScheduleTimer(totalDelay, DoSortPass)
+			-- Wait for locks to clear via ITEM_LOCK_CHANGED events, then sort again
+			WaitForLocksCleared(DoSortPass, fallbackTimeout)
 		end
 	end
 
 	-- Hard timeout safety net: force-reset sortingInProgress after max reasonable time
-	-- Bank with 240 slots at ~0.5s per pass, 15 passes = ~8s; use 30s as generous limit
-	local hardTimeout = (sortType == "bank") and 30 or 20
+	-- With 10 moves/pass, ~0.5s min delay + up to 2.5s lock wait per pass
+	local hardTimeout = (sortType == "bank") and 45 or 35
 	Guda_ScheduleTimer(hardTimeout, function()
 		if SortEngine.sortingInProgress then
 			addon:DebugSort("%s sort force-stopped after %ds timeout", sortType, hardTimeout)
