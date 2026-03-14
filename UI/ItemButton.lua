@@ -497,14 +497,14 @@ local function AcquireLockIcon()
 		shadow:SetWidth(13)
 		shadow:SetHeight(13)
 		shadow:SetPoint("CENTER", icon, "CENTER", 1, -1)
-		shadow:SetTexture("Interface\\AddOns\\Guda\\Assets\\lock")
+		shadow:SetTexture("Interface\\AddOns\\Guda\\Assets\\lock_glow")
 		shadow:SetVertexColor(0, 0, 0, 1)
 		icon.shadow = shadow
 
 		-- Icon (front)
 		local texture = icon:CreateTexture(nil, "OVERLAY")
 		texture:SetAllPoints(icon)
-		texture:SetTexture("Interface\\AddOns\\Guda\\Assets\\lock")
+		texture:SetTexture("Interface\\AddOns\\Guda\\Assets\\lock_glow")
 		icon.texture = texture
 	end
 	return icon
@@ -989,6 +989,17 @@ function Guda_ItemButton_OnLoad(self)
             end
         end
         
+        -- Shift-click to link cached items to chat (remote bank, read-only, or closed bank)
+        if IsShiftKeyDown() and arg1 == "LeftButton" and this.hasItem then
+            if this.otherChar or this.isReadOnly or (this.isBank and this.bagID == -1 and not (getglobal("BankFrame") and getglobal("BankFrame"):IsVisible())) then
+                local link = this.itemData and this.itemData.link
+                if link and ChatFrameEditBox and ChatFrameEditBox:IsVisible() then
+                    ChatFrameEditBox:Insert(link)
+                    return
+                end
+            end
+        end
+
         -- Default behavior
         if ContainerFrameItemButton_OnClick then
             -- Mailbox clicks should be ignored except for Ctrl+Click (preview)
