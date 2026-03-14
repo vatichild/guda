@@ -565,11 +565,24 @@
                         </Scripts>
                     </CheckButton>
 
-                    <!-- Mark Equipment Sets Checkbox -->
-                    <CheckButton name="Guda_SettingsPopup_MarkEquipmentSetsCheckbox" inherits="OptionsCheckButtonTemplate">
+                    <!-- White Items as Junk Checkbox -->
+                    <CheckButton name="Guda_SettingsPopup_WhiteItemsJunkCheckbox" inherits="OptionsCheckButtonTemplate">
                         <Anchors>
                             <Anchor point="LEFT" relativePoint="RIGHT" relativeTo="Guda_SettingsPopup_MarkUnusableCheckbox">
                                 <Offset><AbsDimension x="200" y="0"/></Offset>
+                            </Anchor>
+                        </Anchors>
+                        <Scripts>
+                            <OnLoad>Guda_SettingsPopup_WhiteItemsJunkCheckbox_OnLoad(this)</OnLoad>
+                            <OnClick>Guda_SettingsPopup_WhiteItemsJunkCheckbox_OnClick(this)</OnClick>
+                        </Scripts>
+                    </CheckButton>
+
+                    <!-- Mark Equipment Sets Checkbox -->
+                    <CheckButton name="Guda_SettingsPopup_MarkEquipmentSetsCheckbox" inherits="OptionsCheckButtonTemplate">
+                        <Anchors>
+                            <Anchor point="TOPLEFT" relativePoint="BOTTOMLEFT" relativeTo="Guda_SettingsPopup_MarkUnusableCheckbox">
+                                <Offset><AbsDimension x="0" y="-8"/></Offset>
                             </Anchor>
                         </Anchors>
                         <Scripts>
@@ -578,16 +591,16 @@
                         </Scripts>
                     </CheckButton>
 
-                    <!-- White Items as Junk Checkbox -->
-                    <CheckButton name="Guda_SettingsPopup_WhiteItemsJunkCheckbox" inherits="OptionsCheckButtonTemplate">
+                    <!-- Auto Lock Set Items Checkbox -->
+                    <CheckButton name="Guda_SettingsPopup_AutoLockSetItemsCheckbox" inherits="OptionsCheckButtonTemplate">
                         <Anchors>
-                            <Anchor point="TOPLEFT" relativePoint="BOTTOMLEFT" relativeTo="Guda_SettingsPopup_MarkUnusableCheckbox">
-                                <Offset><AbsDimension x="0" y="-8"/></Offset>
+                            <Anchor point="LEFT" relativePoint="RIGHT" relativeTo="Guda_SettingsPopup_MarkEquipmentSetsCheckbox">
+                                <Offset><AbsDimension x="200" y="0"/></Offset>
                             </Anchor>
                         </Anchors>
                         <Scripts>
-                            <OnLoad>Guda_SettingsPopup_WhiteItemsJunkCheckbox_OnLoad(this)</OnLoad>
-                            <OnClick>Guda_SettingsPopup_WhiteItemsJunkCheckbox_OnClick(this)</OnClick>
+                            <OnLoad>Guda_SettingsPopup_AutoLockSetItemsCheckbox_OnLoad(this)</OnLoad>
+                            <OnClick>Guda_SettingsPopup_AutoLockSetItemsCheckbox_OnClick(this)</OnClick>
                         </Scripts>
                     </CheckButton>
 

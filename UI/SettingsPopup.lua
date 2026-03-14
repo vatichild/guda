@@ -284,6 +284,14 @@ function Guda_SettingsPopup_OnShow(self)
         markEquipmentSetsCheckbox:SetChecked(markEquipmentSets and 1 or 0)
     end
 
+    -- Auto Lock Set Items checkbox
+    local autoLockSetItemsCheckbox = getglobal("Guda_SettingsPopup_AutoLockSetItemsCheckbox")
+    local autoLockSetItems = Guda.Modules.DB:GetSetting("autoLockSetItems")
+    if autoLockSetItems == nil then autoLockSetItems = true end
+    if autoLockSetItemsCheckbox then
+        autoLockSetItemsCheckbox:SetChecked(autoLockSetItems and 1 or 0)
+    end
+
     -- Show Category Count checkbox
     local showCategoryCountCheckbox = getglobal("Guda_SettingsPopup_ShowCategoryCountCheckbox")
     local showCategoryCount = Guda.Modules.DB:GetSetting("showCategoryCount")
@@ -1315,6 +1323,38 @@ function Guda_SettingsPopup_MarkEquipmentSetsCheckbox_OnClick(self)
     local bankFrame = getglobal("Guda_BankFrame")
     if bankFrame and bankFrame:IsShown() then
         Guda.Modules.BankFrame:Update()
+    end
+end
+
+-- Auto Lock Set Items Checkbox OnLoad
+function Guda_SettingsPopup_AutoLockSetItemsCheckbox_OnLoad(self)
+    local text = getglobal(self:GetName().."Text")
+    if text then
+        text:SetText("Auto Lock Set Items")
+
+        local font, _, flags = text:GetFont()
+        if font then
+            text:SetFont(font, 13, flags)
+        end
+    end
+
+    self.tooltipText = "Prevent selling and deleting items saved in equipment sets."
+
+    local enabled = true
+    if Guda and Guda.Modules and Guda.Modules.DB then
+        enabled = Guda.Modules.DB:GetSetting("autoLockSetItems")
+        if enabled == nil then enabled = true end
+    end
+
+    self:SetChecked(enabled and 1 or 0)
+end
+
+-- Auto Lock Set Items Checkbox OnClick
+function Guda_SettingsPopup_AutoLockSetItemsCheckbox_OnClick(self)
+    local isChecked = self:GetChecked() == 1
+
+    if Guda and Guda.Modules and Guda.Modules.DB then
+        Guda.Modules.DB:SetSetting("autoLockSetItems", isChecked)
     end
 end
 

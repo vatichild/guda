@@ -480,6 +480,149 @@ local function HideJunkIcon(button)
 end
 
 --=====================================================
+-- Lock Icon Pool (same pattern as junk icon pool)
+--=====================================================
+local lockIconPool = {}
+
+local function AcquireLockIcon()
+	local icon = table.remove(lockIconPool)
+	if not icon then
+		icon = CreateFrame("Frame", nil, UIParent)
+		icon:SetFrameStrata("HIGH")
+		icon:SetWidth(13)
+		icon:SetHeight(13)
+
+		-- Shadow (behind)
+		local shadow = icon:CreateTexture(nil, "BACKGROUND")
+		shadow:SetWidth(13)
+		shadow:SetHeight(13)
+		shadow:SetPoint("CENTER", icon, "CENTER", 1, -1)
+		shadow:SetTexture("Interface\\Icons\\INV_Misc_Key_04")
+		shadow:SetVertexColor(0, 0, 0, 1)
+		icon.shadow = shadow
+
+		-- Icon (front)
+		local texture = icon:CreateTexture(nil, "OVERLAY")
+		texture:SetAllPoints(icon)
+		texture:SetTexture("Interface\\Icons\\INV_Misc_Key_04")
+		icon.texture = texture
+	end
+	return icon
+end
+
+local function ReleaseLockIcon(icon)
+	if icon then
+		icon:Hide()
+		icon:ClearAllPoints()
+		table.insert(lockIconPool, icon)
+	end
+end
+
+local function UpdateLockIcon(button, iconSize)
+	local DB = addon.Modules.DB
+	if not DB then return end
+
+	local isLocked = false
+	if button.hasItem and button.itemData and button.itemData.link then
+		local Utils = addon.Modules.Utils
+		local itemID = Utils and Utils.ExtractItemID and Utils:ExtractItemID(button.itemData.link)
+		if itemID and DB:IsItemLocked(itemID) then
+			isLocked = true
+		end
+	end
+
+	if isLocked then
+		if not button.lockIcon then
+			button.lockIcon = AcquireLockIcon()
+		end
+		local lockSize = math.max(10, math.min(14, iconSize * 0.35))
+		button.lockIcon:SetWidth(lockSize)
+		button.lockIcon:SetHeight(lockSize)
+		if button.lockIcon.shadow then
+			button.lockIcon.shadow:SetWidth(lockSize)
+			button.lockIcon.shadow:SetHeight(lockSize)
+		end
+		button.lockIcon:ClearAllPoints()
+		button.lockIcon:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 1, -1)
+		button.lockIcon:SetFrameLevel(button:GetFrameLevel() + 5)
+		button.lockIcon:Show()
+	else
+		if button.lockIcon then
+			ReleaseLockIcon(button.lockIcon)
+			button.lockIcon = nil
+		end
+	end
+end
+
+local function HideLockIcon(button)
+	if button.lockIcon then
+		ReleaseLockIcon(button.lockIcon)
+		button.lockIcon = nil
+	end
+end
+
+-- Hook UseContainerItem to prevent selling protected items at vendor
+local OriginalUseContainerItem = UseContainerItem
+UseContainerItem = function(bag, slot, ...)
+	local DB = addon.Modules.DB
+	if DB and MerchantFrame and MerchantFrame:IsVisible() then
+		local link = GetContainerItemLink(bag, slot)
+		if link then
+			local Utils = addon.Modules.Utils
+			local itemID = Utils and Utils.ExtractItemID and Utils:ExtractItemID(link)
+			if itemID and DB:IsItemProtected(itemID) then
+				addon:Print("Cannot sell " .. link .. " — item is protected")
+				return
+			end
+		end
+	end
+	return OriginalUseContainerItem(bag, slot)
+end
+
+-- Track cursor item for delete protection (GetCursorInfo doesn't exist in 1.12.1)
+local cursorProtectedLink = nil
+
+local OriginalPickupContainerItem = PickupContainerItem
+PickupContainerItem = function(bag, slot, ...)
+	local DB = addon.Modules.DB
+	if DB then
+		local link = GetContainerItemLink(bag, slot)
+		if link then
+			local Utils = addon.Modules.Utils
+			local itemID = Utils and Utils.ExtractItemID and Utils:ExtractItemID(link)
+			if itemID and DB:IsItemProtected(itemID) then
+				cursorProtectedLink = link
+			else
+				cursorProtectedLink = nil
+			end
+		else
+			cursorProtectedLink = nil
+		end
+	end
+	return OriginalPickupContainerItem(bag, slot)
+end
+
+-- Hook delete confirmation popups
+local function HookDeletePopup(dialogName)
+	if not StaticPopupDialogs or not StaticPopupDialogs[dialogName] then return end
+	local originalOnShow = StaticPopupDialogs[dialogName].OnShow
+	StaticPopupDialogs[dialogName].OnShow = function()
+		if cursorProtectedLink then
+			addon:Print("Cannot delete " .. cursorProtectedLink .. " — item is protected")
+			ClearCursor()
+			cursorProtectedLink = nil
+			this:Hide()
+			return
+		end
+		if originalOnShow then
+			return originalOnShow()
+		end
+	end
+end
+HookDeletePopup("DELETE_ITEM")
+HookDeletePopup("DELETE_GOOD_ITEM")
+
+--=====================================================
 -- Unusable item detection (pfUI-inspired implementation)
 -- Adds a red tint overlay to items that your character
 -- cannot use (class/race/skill restrictions), excluding
@@ -761,9 +904,10 @@ function Guda_ItemButton_OnLoad(self)
         self:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     end
 
-    -- Hide junk icon when button is hidden (since it's parented to UIParent)
+    -- Hide junk and lock icons when button is hidden (since they're parented to UIParent)
     self:SetScript("OnHide", function()
         HideJunkIcon(this)
+        HideLockIcon(this)
     end)
 
     -- Track cursor item on drag start for category drag-drop
@@ -775,6 +919,38 @@ function Guda_ItemButton_OnLoad(self)
     end)
 
     self:SetScript("OnClick", function()
+        -- Lock/unlock item with Ctrl+Right-Click
+        if IsControlKeyDown() and arg1 == "RightButton" and this.hasItem and not this.otherChar and not this.isReadOnly then
+            local link = GetContainerItemLink(this.bagID, this.slotID)
+            if link and addon and addon.Modules and addon.Modules.Utils and addon.Modules.DB then
+                local itemID = addon.Modules.Utils:ExtractItemID(link)
+                if itemID then
+                    -- Skip if already protected by equipment set
+                    if addon.Modules.DB:GetSetting("autoLockSetItems") then
+                        local EquipSets = addon.Modules.EquipmentSets
+                        if EquipSets and EquipSets.IsInSet and EquipSets:IsInSet(itemID) then
+                            addon:Print(link .. " is already protected by equipment set")
+                            return
+                        end
+                    end
+                    local isNowLocked = addon.Modules.DB:ToggleItemLock(itemID)
+                    if isNowLocked then
+                        addon:Print(link .. " locked")
+                    else
+                        addon:Print(link .. " unlocked")
+                    end
+                    -- Refresh bag/bank frames
+                    if addon.Modules.BagFrame and addon.Modules.BagFrame.Update then
+                        addon.Modules.BagFrame:Update()
+                    end
+                    if addon.Modules.BankFrame and addon.Modules.BankFrame.Update then
+                        addon.Modules.BankFrame:Update()
+                    end
+                end
+            end
+            return
+        end
+
         if IsAltKeyDown() and arg1 == "LeftButton" and this.hasItem and not this.otherChar and not this.isReadOnly then
             local link = GetContainerItemLink(this.bagID, this.slotID)
             if link and addon and addon.Modules and addon.Modules.Utils then
@@ -1197,6 +1373,9 @@ local function ClearItemButton(self, emptySlotBg, countText, bagID)
     -- Hide junk icon
     HideJunkIcon(self)
 
+    -- Hide lock icon
+    HideLockIcon(self)
+
     -- Hide normal texture
     self:SetNormalTexture("")
     local normalBorder = getglobal(self:GetName().."NormalTexture")
@@ -1336,6 +1515,9 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
             check:Hide()
         end
     end
+
+    -- Update lock icon
+    UpdateLockIcon(self, iconSize)
 
     -- Extend empty slot bg 9px past button edges for rounded corner coverage
     if emptySlotBg then

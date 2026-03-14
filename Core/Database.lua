@@ -139,6 +139,14 @@ function DB:Initialize()
 	if Guda_CharDB.settings.whiteItemsJunk == nil then
 		Guda_CharDB.settings.whiteItemsJunk = false
 	end
+	if Guda_CharDB.settings.autoLockSetItems == nil then
+		Guda_CharDB.settings.autoLockSetItems = true
+	end
+
+	-- Initialize locked items storage
+	if not Guda_CharDB.lockedItems then
+		Guda_CharDB.lockedItems = {}
+	end
 
 	-- Initialize CategoryManager for custom categories
 	if addon.Modules.CategoryManager then
@@ -442,6 +450,40 @@ function DB:SetSetting(key, value)
 		Guda_CharDB.settings = {}
 	end
 	Guda_CharDB.settings[key] = value
+end
+
+-------------------------------------------------
+-- Locked Items (per-character, itemID-based)
+-------------------------------------------------
+
+function DB:IsItemLocked(itemID)
+	if not itemID or not Guda_CharDB or not Guda_CharDB.lockedItems then return false end
+	return Guda_CharDB.lockedItems[itemID] and true or false
+end
+
+function DB:ToggleItemLock(itemID)
+	if not itemID or not Guda_CharDB then return false end
+	if not Guda_CharDB.lockedItems then
+		Guda_CharDB.lockedItems = {}
+	end
+	if Guda_CharDB.lockedItems[itemID] then
+		Guda_CharDB.lockedItems[itemID] = nil
+		return false
+	else
+		Guda_CharDB.lockedItems[itemID] = true
+		return true
+	end
+end
+
+-- Check if an item is protected (user-locked or in equipment set with autoLockSetItems)
+function DB:IsItemProtected(itemID)
+	if not itemID then return false end
+	if self:IsItemLocked(itemID) then return true end
+	if self:GetSetting("autoLockSetItems") then
+		local EquipSets = addon.Modules.EquipmentSets
+		if EquipSets and EquipSets.IsInSet and EquipSets:IsInSet(itemID) then return true end
+	end
+	return false
 end
 
 -- Cleanup old characters (not updated in 90 days)

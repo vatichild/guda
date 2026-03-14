@@ -3449,12 +3449,23 @@ function BagFrame:Initialize()
 		if autoVendor == nil then autoVendor = true end
 		if autoVendor then
 			local junkItems = {}
+			local DB = addon.Modules.DB
+			local Utils = addon.Modules.Utils
 			for bag = 0, 4 do
 				local numSlots = GetContainerNumSlots(bag)
 				for slot = 1, numSlots do
 					local link = GetContainerItemLink(bag, slot)
 					if link and string.find(link, "|cff9d9d9d") then
-						table.insert(junkItems, { bag = bag, slot = slot })
+						local skip = false
+						if DB and Utils then
+							local itemID = Utils:ExtractItemID(link)
+							if itemID and DB:IsItemProtected(itemID) then
+								skip = true
+							end
+						end
+						if not skip then
+							table.insert(junkItems, { bag = bag, slot = slot })
+						end
 					end
 				end
 			end
