@@ -535,7 +535,7 @@ local function UpdateLockIcon(button, iconSize)
 		if not button.lockIcon then
 			button.lockIcon = AcquireLockIcon()
 		end
-		local lockSize = math.max(10, math.min(14, iconSize * 0.35))
+		local lockSize = math.max(8, math.min(12, iconSize * 0.35 - 2))
 		button.lockIcon:SetWidth(lockSize)
 		button.lockIcon:SetHeight(lockSize)
 		if button.lockIcon.shadow then
@@ -543,7 +543,7 @@ local function UpdateLockIcon(button, iconSize)
 			button.lockIcon.shadow:SetHeight(lockSize)
 		end
 		button.lockIcon:ClearAllPoints()
-		button.lockIcon:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 1, -1)
+		button.lockIcon:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 3, -3)
 		button.lockIcon:SetFrameLevel(button:GetFrameLevel() + 5)
 		button.lockIcon:Show()
 	else
@@ -561,18 +561,27 @@ local function HideLockIcon(button)
 	end
 end
 
--- Hook UseContainerItem to prevent selling protected items at vendor
+-- Hook UseContainerItem to prevent selling/disenchanting protected items
 local OriginalUseContainerItem = UseContainerItem
 UseContainerItem = function(bag, slot, ...)
 	local DB = addon.Modules.DB
-	if DB and MerchantFrame and MerchantFrame:IsVisible() then
+	if DB then
 		local link = GetContainerItemLink(bag, slot)
 		if link then
 			local Utils = addon.Modules.Utils
 			local itemID = Utils and Utils.ExtractItemID and Utils:ExtractItemID(link)
 			if itemID and DB:IsItemProtected(itemID) then
-				addon:Print("Cannot sell " .. link .. " — item is protected")
-				return
+				-- Block selling at merchant
+				if MerchantFrame and MerchantFrame:IsVisible() then
+					addon:Print("Cannot sell " .. link .. " — item is protected")
+					return
+				end
+				-- Block disenchant/milling/prospecting (spell targeting an item)
+				if SpellIsTargeting and SpellIsTargeting() then
+					SpellStopTargeting()
+					addon:Print("Cannot disenchant " .. link .. " — item is protected")
+					return
+				end
 			end
 		end
 	end
@@ -995,6 +1004,19 @@ function Guda_ItemButton_OnLoad(self)
                 local link = this.itemData and this.itemData.link
                 if link and ChatFrameEditBox and ChatFrameEditBox:IsVisible() then
                     ChatFrameEditBox:Insert(link)
+                    return
+                end
+            end
+        end
+
+        -- Block disenchant/milling/prospecting on protected items
+        if SpellIsTargeting and SpellIsTargeting() and this.hasItem and this.bagID and this.slotID then
+            local link = GetContainerItemLink(this.bagID, this.slotID)
+            if link and addon and addon.Modules and addon.Modules.Utils and addon.Modules.DB then
+                local itemID = addon.Modules.Utils:ExtractItemID(link)
+                if itemID and addon.Modules.DB:IsItemProtected(itemID) then
+                    SpellStopTargeting()
+                    addon:Print("Cannot disenchant " .. link .. " — item is protected")
                     return
                 end
             end
