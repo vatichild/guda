@@ -608,7 +608,7 @@
                     <Slider name="Guda_SettingsPopup_JunkOpacitySlider" inherits="OptionsSliderTemplate">
                         <Size><AbsDimension x="450" y="17"/></Size>
                         <Anchors>
-                            <Anchor point="TOPLEFT" relativePoint="BOTTOMLEFT" relativeTo="Guda_SettingsPopup_WhiteItemsJunkCheckbox">
+                            <Anchor point="TOPLEFT" relativePoint="BOTTOMLEFT" relativeTo="Guda_SettingsPopup_MarkEquipmentSetsCheckbox">
                                 <Offset><AbsDimension x="0" y="-25"/></Offset>
                             </Anchor>
                         </Anchors>
