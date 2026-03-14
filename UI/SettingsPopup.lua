@@ -52,6 +52,11 @@ function Guda_SettingsPopup_OnLoad(self)
                      "Tracked items will appear in the Tracked Item Bar.\n" ..
                      "Left Click on an item in the bar to use it.\n" ..
                      "Alt + Left Click on an item in the bar to untrack it.\n\n" ..
+                     "|cffffd100Locked Items:|r\n" ..
+                     "Ctrl + Right Click on any item to lock/unlock it.\n" ..
+                     "Locked items cannot be sold at vendors or deleted.\n" ..
+                     "Equipment set items are automatically protected.\n" ..
+                     "A lock icon appears on the bottom-right corner.\n\n" ..
                      "|cffffd100Moving Bars:|r\n" ..
                      "Shift + Left Click and drag any item on the Quest Item Bar or Tracked Item Bar to move the bar.\n"
         instructions:SetText(text)

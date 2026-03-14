@@ -497,14 +497,14 @@ local function AcquireLockIcon()
 		shadow:SetWidth(13)
 		shadow:SetHeight(13)
 		shadow:SetPoint("CENTER", icon, "CENTER", 1, -1)
-		shadow:SetTexture("Interface\\Icons\\INV_Misc_Key_04")
+		shadow:SetTexture("Interface\\AddOns\\Guda\\Assets\\lock")
 		shadow:SetVertexColor(0, 0, 0, 1)
 		icon.shadow = shadow
 
 		-- Icon (front)
 		local texture = icon:CreateTexture(nil, "OVERLAY")
 		texture:SetAllPoints(icon)
-		texture:SetTexture("Interface\\Icons\\INV_Misc_Key_04")
+		texture:SetTexture("Interface\\AddOns\\Guda\\Assets\\lock")
 		icon.texture = texture
 	end
 	return icon
