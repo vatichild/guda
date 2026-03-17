@@ -1268,7 +1268,12 @@ function BankFrame:ResizeFrame(currentRow, currentCol, columns, overrideHeight)
     local spacing = addon.Modules.DB:GetSetting("iconSpacing") or addon.Constants.BUTTON_SPACING
 
     -- Calculate actual number of rows used
-    local totalRows = (currentRow or 0) + 1
+    -- if col==0, row was already incremented (full row), so totalRows = row
+    -- if col>0, partial row, so totalRows = row + 1
+    local totalRows = (currentRow or 0)
+    if (currentCol or 0) > 0 then
+        totalRows = totalRows + 1
+    end
     if totalRows < 1 then
         totalRows = 1
     end

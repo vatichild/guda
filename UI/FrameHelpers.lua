@@ -422,7 +422,13 @@ function Guda_ResizeFrame(frameName, containerName, currentRow, currentCol, colu
     local buttonSize = addon.Modules.DB:GetSetting("iconSize") or addon.Constants.BUTTON_SIZE
     local spacing = addon.Modules.DB:GetSetting("iconSpacing") or addon.Constants.BUTTON_SPACING
 
-    local totalRows = (currentRow or 0) + 1
+    -- currentRow/currentCol reflect position after last item:
+    -- if col==0, row was already incremented (full row), so totalRows = row
+    -- if col>0, partial row, so totalRows = row + 1
+    local totalRows = (currentRow or 0)
+    if (currentCol or 0) > 0 then
+        totalRows = totalRows + 1
+    end
     if totalRows < 1 then totalRows = 1 end
 
     -- Get theme-aware padding

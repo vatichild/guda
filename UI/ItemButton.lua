@@ -350,6 +350,14 @@ end
 -- Show inner shadow with a given quality color
 local function ShowInnerShadow(shadow, r, g, b)
     if not shadow then return end
+    -- Skip inner glow in square/pfUI style
+    if addon.Modules and addon.Modules.Theme and addon.Modules.Theme:GetSlotStyle() == "square" then
+        shadow.top:Hide()
+        shadow.bottom:Hide()
+        shadow.left:Hide()
+        shadow.right:Hide()
+        return
+    end
     local a = INNER_SHADOW_ALPHA
     shadow.top:SetGradientAlpha("VERTICAL", r, g, b, 0, r, g, b, a)
     shadow.top:Show()
@@ -1818,13 +1826,17 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
             if not self.categoryMarkIcon then
                 self.categoryMarkIcon = self:CreateTexture(nil, "OVERLAY", 7)
             end
-            local markSize = math.max(10, math.floor(iconSize * 0.3)) + 3
+            local markSize = math.max(10, math.floor(iconSize * 0.3)) + 6
             self.categoryMarkIcon:SetWidth(markSize)
             self.categoryMarkIcon:SetHeight(markSize)
             self.categoryMarkIcon:ClearAllPoints()
-            self.categoryMarkIcon:SetPoint("BOTTOMLEFT", anchor, "BOTTOMLEFT", 2, 2)
+            local markOffX, markOffY = 2, 2
+            if addon.Modules and addon.Modules.Theme and addon.Modules.Theme:GetSlotStyle() == "square" then
+                markOffX, markOffY = -2, -2
+            end
+            self.categoryMarkIcon:SetPoint("BOTTOMLEFT", anchor, "BOTTOMLEFT", markOffX, markOffY)
             self.categoryMarkIcon:SetTexture(categoryMarkTexture)
-            self.categoryMarkIcon:SetVertexColor(1, 1, 1, 1)
+            self.categoryMarkIcon:SetVertexColor(0.85, 0.65, 0.13, 1)
             self.categoryMarkIcon:SetAlpha(1)
             self.categoryMarkIcon:Show()
         else

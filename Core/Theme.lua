@@ -153,10 +153,10 @@ function Theme:GetFramePadding()
             frameExtra = 10,      -- added to containerWidth for frame width
             titleHeight = 28,
             searchBarHeight = 28,
-            footerHeight = 35,
+            footerHeight = 55,
             footerHiddenHeight = 5,
             startX = 10,
-            startY = -2,
+            startY = -5,
         }
     else
         return {
@@ -164,7 +164,7 @@ function Theme:GetFramePadding()
             frameExtra = 20,
             titleHeight = 40,
             searchBarHeight = 30,
-            footerHeight = 45,
+            footerHeight = 55,
             footerHiddenHeight = 10,
             startX = 10,
             startY = -2,
