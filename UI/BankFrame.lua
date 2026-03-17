@@ -834,8 +834,12 @@ function BankFrame:DisplayItemsByCategory(bankData, isOtherChar, charName)
         end
     end
 
-    -- Layout
-    local startX, startY = 5, -10
+    -- Layout (theme-aware padding)
+    local _pad = { startX = 5, startY = -10 }
+    if addon.Modules and addon.Modules.Theme and addon.Modules.Theme.GetFramePadding then
+        _pad = addon.Modules.Theme:GetFramePadding()
+    end
+    local startX, startY = _pad.startX, _pad.startY
     local currentX, currentY = 0, 0
     local rowMaxHeight = 0
     local headerIdx = 1
@@ -1108,7 +1112,11 @@ end
 
 -- Display items
 function BankFrame:DisplayItems(bankData, isOtherChar, charName)
-    local x, y = 5, -10
+    local _pad = { startX = 5, startY = -10 }
+    if addon.Modules and addon.Modules.Theme and addon.Modules.Theme.GetFramePadding then
+        _pad = addon.Modules.Theme:GetFramePadding()
+    end
+    local x, y = _pad.startX, _pad.startY
     local row = 0
     local col = 0
     local buttonSize = addon.Modules.DB:GetSetting("iconSize") or addon.Constants.BUTTON_SIZE
@@ -1270,10 +1278,16 @@ function BankFrame:ResizeFrame(currentRow, currentCol, columns, overrideHeight)
         columns = 1
     end
 
-    -- Calculate required dimensions
-    local containerWidth = (columns * (buttonSize + spacing)) + 10
-    local containerHeight = overrideHeight or ((totalRows * (buttonSize + spacing)) + 20)
-    local frameWidth = containerWidth + 30
+    -- Get theme-aware padding
+    local pad = { containerExtra = 20, frameExtra = 20, titleHeight = 40, searchBarHeight = 30, footerHeight = 45, footerHiddenHeight = 10 }
+    if addon.Modules and addon.Modules.Theme and addon.Modules.Theme.GetFramePadding then
+        pad = addon.Modules.Theme:GetFramePadding()
+    end
+
+    -- Calculate required dimensions (symmetric: startX padding on both sides, no trailing spacing)
+    local containerWidth = columns * (buttonSize + spacing) - spacing + 2 * pad.startX
+    local containerHeight = overrideHeight or (totalRows * (buttonSize + spacing) - spacing + 2 * math.abs(pad.startY))
+    local frameWidth = containerWidth + pad.frameExtra
 
     -- Check if search bar is visible
     local showSearchBar = addon.Modules.DB:GetSetting("showSearchBar")
@@ -1281,28 +1295,26 @@ function BankFrame:ResizeFrame(currentRow, currentCol, columns, overrideHeight)
         showSearchBar = true
     end
 
-    -- Adjust frame height based on search bar visibility
-    -- Footer height varies: less space when search bar is hidden
-    local titleHeight = 40
-    local searchBarHeight = 30
-    local footerHeight = 40
+    local titleHeight = pad.titleHeight
+    local searchBarHeight = pad.searchBarHeight
+    local footerHeight = pad.footerHeight
     local frameHeight
 
     local hideFooter = addon.Modules.DB:GetSetting("hideFooter")
 
     if hideFooter then
-        footerHeight = 10 -- Small padding at bottom
+        footerHeight = pad.footerHiddenHeight
         frameHeight = containerHeight + titleHeight + (showSearchBar and searchBarHeight or 0) + footerHeight
     elseif showSearchBar then
-        frameHeight = containerHeight + titleHeight + searchBarHeight + footerHeight  -- 125 total
+        frameHeight = containerHeight + titleHeight + searchBarHeight + footerHeight
     else
-        frameHeight = containerHeight + titleHeight + footerHeight  -- 80 total
+        frameHeight = containerHeight + titleHeight + footerHeight
     end
 
     -- Minimum sizes
     if containerWidth < 200 then
         containerWidth = 200
-        frameWidth = 230
+        frameWidth = 200 + pad.frameExtra
     end
     if containerHeight < 150 then
         containerHeight = 150

@@ -1033,8 +1033,12 @@ function BagFrame:DisplayItemsByCategory(bagData, isOtherChar, charName)
         end
     end
 
-    -- Layout
-    local startX, startY = 10, -10
+    -- Layout (theme-aware padding)
+    local _pad = { startX = 10, startY = -10 }
+    if addon.Modules and addon.Modules.Theme and addon.Modules.Theme.GetFramePadding then
+        _pad = addon.Modules.Theme:GetFramePadding()
+    end
+    local startX, startY = _pad.startX, _pad.startY
     local currentX, currentY = 0, 0
     local rowMaxHeight = 0
     local headerIdx = 1
@@ -1347,7 +1351,11 @@ end
 
 -- Display items
 function BagFrame:DisplayItems(bagData, isOtherChar, charName)
-	local x, y = 10, -10
+	local _pad = { startX = 10, startY = -10 }
+	if addon.Modules and addon.Modules.Theme and addon.Modules.Theme.GetFramePadding then
+		_pad = addon.Modules.Theme:GetFramePadding()
+	end
+	local x, y = _pad.startX, _pad.startY
 	local row = 0
 	local col = 0
 	local buttonSize = addon.Modules.DB:GetSetting("iconSize") or addon.Constants.BUTTON_SIZE

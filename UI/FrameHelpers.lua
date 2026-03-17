@@ -425,21 +425,27 @@ function Guda_ResizeFrame(frameName, containerName, currentRow, currentCol, colu
     local totalRows = (currentRow or 0) + 1
     if totalRows < 1 then totalRows = 1 end
 
-    local containerWidth = (columns * (buttonSize + spacing)) + 20
-    local containerHeight = overrideHeight or ((totalRows * (buttonSize + spacing)) + 20)
-    local frameWidth = containerWidth + 20
+    -- Get theme-aware padding
+    local pad = { containerExtra = 20, frameExtra = 20, titleHeight = 40, searchBarHeight = 30, footerHeight = 45, footerHiddenHeight = 10 }
+    if addon.Modules and addon.Modules.Theme and addon.Modules.Theme.GetFramePadding then
+        pad = addon.Modules.Theme:GetFramePadding()
+    end
+
+    local containerWidth = columns * (buttonSize + spacing) - spacing + 2 * pad.startX
+    local containerHeight = overrideHeight or (totalRows * (buttonSize + spacing) - spacing + 2 * math.abs(pad.startY))
+    local frameWidth = containerWidth + pad.frameExtra
 
     local showSearchBar = addon.Modules.DB:GetSetting("showSearchBar")
     if showSearchBar == nil then showSearchBar = true end
 
-    local titleHeight = 40
-    local searchBarHeight = 30
-    local footerHeight = 45
+    local titleHeight = pad.titleHeight
+    local searchBarHeight = pad.searchBarHeight
+    local footerHeight = pad.footerHeight
     local frameHeight
 
     local hideFooter = addon.Modules.DB:GetSetting("hideFooter")
     if hideFooter then
-        footerHeight = 10
+        footerHeight = pad.footerHiddenHeight
         frameHeight = containerHeight + titleHeight + (showSearchBar and searchBarHeight or 0) + footerHeight
     elseif showSearchBar then
         frameHeight = containerHeight + titleHeight + searchBarHeight + footerHeight

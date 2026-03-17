@@ -144,6 +144,34 @@ function Theme:GetQualityBorderStyle()
     return self:GetValue("qualityBorderStyle") or "rounded"
 end
 
+-- Get frame padding values (reduced for pfUI borderless style)
+function Theme:GetFramePadding()
+    local style = self:GetSlotStyle()
+    if style == "square" then
+        return {
+            containerExtra = 10,  -- added to columns*size for container width
+            frameExtra = 10,      -- added to containerWidth for frame width
+            titleHeight = 28,
+            searchBarHeight = 28,
+            footerHeight = 35,
+            footerHiddenHeight = 5,
+            startX = 10,
+            startY = -2,
+        }
+    else
+        return {
+            containerExtra = 20,
+            frameExtra = 20,
+            titleHeight = 40,
+            searchBarHeight = 30,
+            footerHeight = 45,
+            footerHiddenHeight = 10,
+            startX = 10,
+            startY = -2,
+        }
+    end
+end
+
 -- Get border config based on hideBorders setting
 local function GetBorderConfig(t)
     local hideBorders = false
@@ -498,6 +526,12 @@ function Theme:ApplyToAllFrames()
     -- Update header button backgrounds
     self:ApplyHeaderButtonBackgrounds()
 
+    -- Update search box styling
+    self:ApplySearchBoxStyle()
+
+    -- Adjust frame padding for borderless/pfUI themes
+    self:ApplyFramePadding()
+
     ThemeDebug("=== ApplyToAllFrames done ===")
 end
 
@@ -591,6 +625,95 @@ function Theme:ApplyHeaderButtonBackgrounds()
         local btn = getglobal(name)
         if btn then
             self:ApplyHeaderButtonBg(btn)
+        end
+    end
+end
+
+-- Apply square/rounded styling to search boxes
+function Theme:ApplySearchBoxStyle()
+    local slotStyle = self:GetSlotStyle()
+    local searchBoxNames = {
+        "Guda_BagFrame_SearchBar_SearchBox",
+        "Guda_BankFrame_SearchBar_SearchBox",
+    }
+    for _, name in ipairs(searchBoxNames) do
+        local box = getglobal(name)
+        if box then
+            -- Hide InputBoxTemplate border textures (Left, Right, Middle)
+            local left = getglobal(name .. "Left")
+            local right = getglobal(name .. "Right")
+            local mid = getglobal(name .. "Middle")
+            if slotStyle == "square" then
+                if left then left:Hide() end
+                if right then right:Hide() end
+                if mid then mid:Hide() end
+                -- Apply pfUI-style backdrop
+                box:SetBackdrop({
+                    bgFile = "Interface\\Buttons\\WHITE8x8",
+                    edgeFile = "Interface\\Buttons\\WHITE8x8",
+                    edgeSize = 1,
+                    insets = { left = -1, right = -1, top = -1, bottom = -1 },
+                })
+                box:SetBackdropColor(0, 0, 0, 1)
+                box:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
+                -- Reposition flush left at x=10
+                box:ClearAllPoints()
+                box:SetPoint("LEFT", box:GetParent(), "LEFT", 8, 0)
+                box:SetPoint("RIGHT", box:GetParent(), "RIGHT", -7, 0)
+                -- Add text padding inside the field
+                box:SetTextInsets(5, 5, 0, 0)
+            else
+                if left then left:Show() end
+                if right then right:Show() end
+                if mid then mid:Show() end
+                box:SetBackdrop(nil)
+                -- Restore default anchors
+                box:ClearAllPoints()
+                box:SetPoint("LEFT", box:GetParent(), "LEFT", 15, 0)
+                box:SetPoint("RIGHT", box:GetParent(), "RIGHT", -12, 0)
+                -- Restore default text insets
+                box:SetTextInsets(3, 3, 0, 0)
+            end
+        end
+    end
+end
+
+-- Adjust header/footer padding to match theme border style
+function Theme:ApplyFramePadding()
+    local slotStyle = self:GetSlotStyle()
+    -- Only adjust for pfUI/square style; otherwise restore defaults
+    local isPfui = (slotStyle == "square")
+
+    -- BagFrame adjustments
+    local bagFrameElements = {
+        { name = "Guda_BagFrame_Title",       pfui = { "TOP", nil, "TOP", 0, -8 },        default = { "TOP", nil, "TOP", 0, -12 } },
+        { name = "Guda_BagFrame_CloseButton", pfui = { "TOPRIGHT", nil, "TOPRIGHT", -5, -5 }, default = { "TOPRIGHT", nil, "TOPRIGHT", -13, -10 } },
+        { name = "Guda_BagFrame_CharsButton", pfui = { "TOPLEFT", nil, "TOPLEFT", 10, -8 },   default = { "TOPLEFT", nil, "TOPLEFT", 21, -15 } },
+        { name = "Guda_BagFrame_SearchBar",   pfui = { "TOP", nil, "TOP", 0, -28 },       default = { "TOP", nil, "TOP", 0, -40 } },
+        { name = "Guda_BagFrame_Toolbar",     pfui = { "BOTTOMLEFT", nil, "BOTTOMLEFT", 5, 5 }, default = { "BOTTOMLEFT", nil, "BOTTOMLEFT", 10, 5 } },
+    }
+    for _, elem in ipairs(bagFrameElements) do
+        local frame = getglobal(elem.name)
+        if frame then
+            local pos = isPfui and elem.pfui or elem.default
+            local parent = frame:GetParent()
+            frame:ClearAllPoints()
+            frame:SetPoint(pos[1], parent, pos[3], pos[4], pos[5])
+        end
+    end
+
+    -- BankFrame adjustments (similar structure)
+    local bankFrameElements = {
+        { name = "Guda_BankFrame_Title",       pfui = { "TOP", nil, "TOP", 0, -8 },        default = { "TOP", nil, "TOP", 0, -12 } },
+        { name = "Guda_BankFrame_CloseButton", pfui = { "TOPRIGHT", nil, "TOPRIGHT", -5, -5 }, default = { "TOPRIGHT", nil, "TOPRIGHT", -13, -10 } },
+    }
+    for _, elem in ipairs(bankFrameElements) do
+        local frame = getglobal(elem.name)
+        if frame then
+            local pos = isPfui and elem.pfui or elem.default
+            local parent = frame:GetParent()
+            frame:ClearAllPoints()
+            frame:SetPoint(pos[1], parent, pos[3], pos[4], pos[5])
         end
     end
 end
