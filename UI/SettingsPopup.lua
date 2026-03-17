@@ -33,6 +33,8 @@ end
 
 -- OnLoad
 function Guda_SettingsPopup_OnLoad(self)
+    self:SetClampedToScreen(true)
+
     -- Set up initial backdrop
     Guda:ApplyBackdrop(self, "DEFAULT_FRAME")
 

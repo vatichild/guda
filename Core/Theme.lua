@@ -704,8 +704,11 @@ function Theme:ApplyFramePadding()
 
     -- BankFrame adjustments (similar structure)
     local bankFrameElements = {
-        { name = "Guda_BankFrame_Title",       pfui = { "TOP", nil, "TOP", 0, -8 },        default = { "TOP", nil, "TOP", 0, -12 } },
-        { name = "Guda_BankFrame_CloseButton", pfui = { "TOPRIGHT", nil, "TOPRIGHT", -5, -5 }, default = { "TOPRIGHT", nil, "TOPRIGHT", -13, -10 } },
+        { name = "Guda_BankFrame_Title",          pfui = { "TOP", nil, "TOP", 0, -8 },            default = { "TOP", nil, "TOP", 0, -12 } },
+        { name = "Guda_BankFrame_CloseButton",  pfui = { "TOPRIGHT", nil, "TOPRIGHT", -5, -5 }, default = { "TOPRIGHT", nil, "TOPRIGHT", -13, -10 } },
+        { name = "Guda_BankFrame_BlizzardUIButton", pfui = { "TOPLEFT", nil, "TOPLEFT", 10, -8 }, default = { "TOPLEFT", nil, "TOPLEFT", 23, -15 } },
+        { name = "Guda_BankFrame_SearchBar",    pfui = { "TOP", nil, "TOP", 0, -28 },       default = { "TOP", nil, "TOP", 0, -40 } },
+        { name = "Guda_BankFrame_Toolbar",      pfui = { "BOTTOMLEFT", nil, "BOTTOMLEFT", 5, 5 }, default = { "BOTTOMLEFT", nil, "BOTTOMLEFT", 15, 5 } },
     }
     for _, elem in ipairs(bankFrameElements) do
         local frame = getglobal(elem.name)

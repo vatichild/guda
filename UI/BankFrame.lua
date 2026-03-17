@@ -127,6 +127,8 @@ end
 
 -- OnLoad
 function Guda_BankFrame_OnLoad(self)
+    self:SetClampedToScreen(true)
+
     -- Set up initial backdrop
     addon:ApplyBackdrop(self, "DEFAULT_FRAME")
 

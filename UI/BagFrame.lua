@@ -144,6 +144,9 @@ end
 
 -- OnLoad
 function Guda_BagFrame_OnLoad(self)
+    -- Prevent frame from being dragged off screen
+    self:SetClampedToScreen(true)
+
     -- Set up initial backdrop
     addon:ApplyBackdrop(self, "DEFAULT_FRAME")
 

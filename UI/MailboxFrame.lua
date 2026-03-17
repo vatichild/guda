@@ -17,6 +17,8 @@ local mailboxClickCatcher = nil
 
 -- OnLoad
 function Guda_MailboxFrame_OnLoad(self)
+    self:SetClampedToScreen(true)
+
     -- Apply border visibility setting
     if MailboxFrame.UpdateBorderVisibility then
         MailboxFrame:UpdateBorderVisibility()
