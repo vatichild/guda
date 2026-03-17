@@ -385,8 +385,8 @@ local qualityBorderBackdrop = {
 
 local qualityBorderBackdropSquare = {
     edgeFile = "Interface\\Buttons\\WHITE8x8",
-    edgeSize = 2,
-    insets = { left = 0, right = 0, top = 0, bottom = 0 },
+    edgeSize = 1,
+    insets = { left = -1, right = -1, top = -1, bottom = -1 },
 }
 
 -- Get or create the quality border frame for a button
@@ -899,6 +899,35 @@ function Guda_ItemButton_OnLoad(self)
     self.itemData = nil
     self.isBank = false
     self.otherChar = nil
+
+    -- In square slot style, hide all rounded Blizzard template textures
+    local slotStyle = "rounded"
+    if addon.Modules and addon.Modules.Theme then
+        slotStyle = addon.Modules.Theme:GetSlotStyle()
+    end
+    if slotStyle == "square" then
+        -- Hide the rounded NormalTexture from ContainerFrameItemButtonTemplate
+        self:SetNormalTexture("")
+        local normalTex = getglobal(self:GetName() .. "NormalTexture")
+        if normalTex then
+            normalTex:SetTexture(nil)
+            normalTex:Hide()
+        end
+        -- Hide the QualityRing (rounded UI-EmptySlot)
+        local qRing = getglobal(self:GetName() .. "_QualityRing")
+        if qRing then
+            qRing:Hide()
+        end
+        -- Update EmptySlotBg to square style
+        local emptySlotBg = getglobal(self:GetName() .. "_EmptySlotBg")
+        if emptySlotBg then
+            emptySlotBg:SetTexture("Interface\\Buttons\\WHITE8x8")
+            emptySlotBg:SetVertexColor(0.05, 0.05, 0.05, 1)
+            emptySlotBg:ClearAllPoints()
+            emptySlotBg:SetPoint("TOPLEFT", self, "TOPLEFT", 0, 0)
+            emptySlotBg:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", 0, 0)
+        end
+    end
 
     -- Create inner shadow for quality color glow (anchored to icon texture)
     if not self.innerShadow then
@@ -1753,10 +1782,20 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
             normalBorder:SetTexture("")
         end
 
-        -- Always show slot background so rounded corners cover the icon
+        -- Show slot background overlay on filled items
         if emptySlotBg then
-            emptySlotBg:Show()
-            emptySlotBg:SetAlpha(1)
+            local slotStyle = "rounded"
+            if addon.Modules and addon.Modules.Theme then
+                slotStyle = addon.Modules.Theme:GetSlotStyle()
+            end
+            if slotStyle == "square" then
+                -- Square mode: no rounded overlay needed, hide the slot bg
+                emptySlotBg:Hide()
+            else
+                -- Rounded mode: show UI-EmptySlot so rounded corners cover the icon
+                emptySlotBg:Show()
+                emptySlotBg:SetAlpha(1)
+            end
         end
 
         -- Check if item is junk and get category mark using the CategoryManager
@@ -1960,8 +1999,16 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
             iconTexture:SetPoint("CENTER", self, "CENTER", 0, 0)
             iconTexture:SetWidth(iconDisplaySize)
             iconTexture:SetHeight(iconDisplaySize)
-            -- Crop icon edges slightly
-            iconTexture:SetTexCoord(0, 1, 0, 1)
+            -- Crop icon edges: pfUI-style inset in square mode, full in rounded
+            local slotStyle = "rounded"
+            if addon.Modules and addon.Modules.Theme then
+                slotStyle = addon.Modules.Theme:GetSlotStyle()
+            end
+            if slotStyle == "square" then
+                iconTexture:SetTexCoord(.08, .92, .08, .92)
+            else
+                iconTexture:SetTexCoord(0, 1, 0, 1)
+            end
             iconTexture:Show()
 
             -- Position quest icon in top-right corner
