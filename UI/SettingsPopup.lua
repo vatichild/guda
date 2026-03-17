@@ -58,7 +58,13 @@ function Guda_SettingsPopup_OnLoad(self)
                      "Ctrl + Right Click on any item to lock/unlock it.\n" ..
                      "Locked items cannot be sold at vendors, deleted, or disenchanted.\n" ..
                      "Equipment set items are automatically protected.\n" ..
+                     "Ctrl + Right Click a set item to toggle its protection.\n" ..
                      "A lock icon appears on the bottom-right corner.\n\n" ..
+                     "|cffffd100Pin Slot:|r\n" ..
+                     "Alt + Right Click on any bag slot to pin/unpin it.\n" ..
+                     "Pinned slots are skipped during sorting.\n" ..
+                     "The pin stays on the slot, not the item.\n" ..
+                     "A pin icon appears on the top-left corner.\n\n" ..
                      "|cffffd100Moving Bars:|r\n" ..
                      "Shift + Left Click and drag any item on the Quest Item Bar or Tracked Item Bar to move the bar.\n"
         instructions:SetText(text)

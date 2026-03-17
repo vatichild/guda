@@ -259,8 +259,17 @@ function QuestItemBar:Update()
             button.slotID = nil
             
             local icon = getglobal(button:GetName() .. "IconTexture")
-            icon:SetTexture("Interface\\Buttons\\UI-EmptySlot")
-            icon:SetVertexColor(0.5, 0.5, 0.5, 0.5)
+            local slotStyle = "rounded"
+            if addon.Modules and addon.Modules.Theme then
+                slotStyle = addon.Modules.Theme:GetSlotStyle()
+            end
+            if slotStyle == "square" then
+                icon:SetTexture("Interface\\Buttons\\WHITE8x8")
+                icon:SetVertexColor(0.05, 0.05, 0.05, 0.5)
+            else
+                icon:SetTexture("Interface\\Buttons\\UI-EmptySlot")
+                icon:SetVertexColor(0.5, 0.5, 0.5, 0.5)
+            end
             
             local countText = getglobal(button:GetName() .. "Count")
             countText:Hide()
@@ -324,18 +333,44 @@ function QuestItemBar:Update()
         end
 
         -- Scale border proportionally (64/37 is the standard ratio for WoW item buttons)
-        local borderSize = buttonSize * 64 / 37
+        local slotStyle = "rounded"
+        if addon.Modules and addon.Modules.Theme then
+            slotStyle = addon.Modules.Theme:GetSlotStyle()
+        end
+
         local normalTex = getglobal(button:GetName() .. "NormalTexture")
-        if normalTex then
-            normalTex:SetWidth(borderSize)
-            normalTex:SetHeight(borderSize)
+        if slotStyle == "square" then
+            -- Hide rounded border in pfUI mode
+            button:SetNormalTexture("")
+            if normalTex then
+                normalTex:SetTexture(nil)
+                normalTex:Hide()
+            end
+            -- Crop icon for pfUI style
+            if icon then
+                icon:SetTexCoord(.08, .92, .08, .92)
+            end
+        else
+            local borderSize = buttonSize * 64 / 37
+            if normalTex then
+                normalTex:SetWidth(borderSize)
+                normalTex:SetHeight(borderSize)
+            end
         end
 
         -- Resize empty slot background
         local emptyBg = getglobal(button:GetName() .. "_EmptySlotBg")
         if emptyBg then
-            emptyBg:SetWidth(buttonSize)
-            emptyBg:SetHeight(buttonSize)
+            if slotStyle == "square" then
+                emptyBg:SetTexture("Interface\\Buttons\\WHITE8x8")
+                emptyBg:SetVertexColor(0.05, 0.05, 0.05, 1)
+                emptyBg:ClearAllPoints()
+                emptyBg:SetPoint("TOPLEFT", button, "TOPLEFT", 0, 0)
+                emptyBg:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 0, 0)
+            else
+                emptyBg:SetWidth(buttonSize)
+                emptyBg:SetHeight(buttonSize)
+            end
         end
 
         -- Update visual overlays (cooldown, etc)
@@ -562,12 +597,27 @@ function QuestItemBar:UpdateFlyout(parent)
             btnIcon:SetHeight(buttonSize)
         end
 
-        -- Scale border proportionally (64/37 is the standard ratio for WoW item buttons)
-        local borderSize = buttonSize * 64 / 37
+        -- Scale or hide border based on theme
         local btnNormalTex = getglobal(btn:GetName() .. "NormalTexture")
-        if btnNormalTex then
-            btnNormalTex:SetWidth(borderSize)
-            btnNormalTex:SetHeight(borderSize)
+        local flyoutSlotStyle = "rounded"
+        if addon.Modules and addon.Modules.Theme then
+            flyoutSlotStyle = addon.Modules.Theme:GetSlotStyle()
+        end
+        if flyoutSlotStyle == "square" then
+            btn:SetNormalTexture("")
+            if btnNormalTex then
+                btnNormalTex:SetTexture(nil)
+                btnNormalTex:Hide()
+            end
+            if btnIcon then
+                btnIcon:SetTexCoord(.08, .92, .08, .92)
+            end
+        else
+            local borderSize = buttonSize * 64 / 37
+            if btnNormalTex then
+                btnNormalTex:SetWidth(borderSize)
+                btnNormalTex:SetHeight(borderSize)
+            end
         end
 
         -- Resize empty slot background

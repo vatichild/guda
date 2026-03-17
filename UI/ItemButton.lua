@@ -530,7 +530,6 @@ local function AcquireLockIcon()
 	local icon = table.remove(lockIconPool)
 	if not icon then
 		icon = CreateFrame("Frame", nil, UIParent)
-		icon:SetFrameStrata("HIGH")
 		icon:SetWidth(13)
 		icon:SetHeight(13)
 
@@ -556,6 +555,7 @@ local function ReleaseLockIcon(icon)
 	if icon then
 		icon:Hide()
 		icon:ClearAllPoints()
+		icon:SetParent(UIParent)
 		table.insert(lockIconPool, icon)
 	end
 end
@@ -577,6 +577,7 @@ local function UpdateLockIcon(button, iconSize)
 		if not button.lockIcon then
 			button.lockIcon = AcquireLockIcon()
 		end
+		button.lockIcon:SetParent(button)
 		local lockSize = math.max(8, math.min(12, iconSize * 0.35 - 3))
 		button.lockIcon:SetWidth(lockSize)
 		button.lockIcon:SetHeight(lockSize)
@@ -612,7 +613,6 @@ local function AcquirePinIcon()
 	local icon = table.remove(pinIconPool)
 	if not icon then
 		icon = CreateFrame("Frame", nil, UIParent)
-		icon:SetFrameStrata("HIGH")
 		icon:SetWidth(13)
 		icon:SetHeight(13)
 
@@ -638,6 +638,7 @@ local function ReleasePinIcon(icon)
 	if icon then
 		icon:Hide()
 		icon:ClearAllPoints()
+		icon:SetParent(UIParent)
 		table.insert(pinIconPool, icon)
 	end
 end
@@ -655,6 +656,7 @@ local function UpdatePinIcon(button, iconSize)
 		if not button.pinIcon then
 			button.pinIcon = AcquirePinIcon()
 		end
+		button.pinIcon:SetParent(button)
 		local pinSize = math.max(10, math.min(14, iconSize * 0.35))
 		button.pinIcon:SetWidth(pinSize)
 		button.pinIcon:SetHeight(pinSize)
