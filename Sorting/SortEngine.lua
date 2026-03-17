@@ -1208,9 +1208,9 @@ local function CollectItems(bagIDs, pinnedSlots)
 					})
 				end
 			end -- if pinnedSlots
-			end
-		end
-	end
+			end -- for slot
+		end -- if isBagValid
+	end -- for bagID
 
 	return items
 end
@@ -1524,6 +1524,7 @@ end
 function SortEngine:AnalyzeContainer(bagIDs, containerType)
 -- Detect specialized bags (same as SortBags)
 	local containers = DetectSpecializedBags(bagIDs)
+	local pinnedSlots = addon.Modules.DB and addon.Modules.DB:GetPinnedSlotSet() or {}
 
 	local totalOutOfPlace = 0
 	local totalItems = 0
@@ -1532,10 +1533,10 @@ function SortEngine:AnalyzeContainer(bagIDs, containerType)
  for _, bagType in ipairs({"enchant", "herb", "soul", "quiver", "ammo"}) do
      local specialBags = containers[bagType]
      for _, bagID in ipairs(specialBags) do
-         local items = CollectItems({bagID})
+         local items = CollectItems({bagID}, pinnedSlots)
          if table.getn(items) > 0 then
              local sortedItems = SortItems(items)
-				local targetPositions = BuildTargetPositions({bagID}, table.getn(items))
+				local targetPositions = BuildTargetPositions({bagID}, table.getn(items), pinnedSlots)
 
 				for i, item in ipairs(sortedItems) do
 					local target = targetPositions[i]
@@ -1560,7 +1561,7 @@ function SortEngine:AnalyzeContainer(bagIDs, containerType)
 	end
 
 	if table.getn(validRegularBags) > 0 then
-		local allItems = CollectItems(validRegularBags)
+		local allItems = CollectItems(validRegularBags, pinnedSlots)
 		totalItems = totalItems + table.getn(allItems)
 
 		-- Split greys/non-greys like SortBags does
@@ -1569,7 +1570,7 @@ function SortEngine:AnalyzeContainer(bagIDs, containerType)
 		-- Check non-grey positioning (should be in front positions)
 		if table.getn(nonGreys) > 0 then
 			local sortedNonGreys = SortItems(nonGreys)
-			local frontPositions = BuildTargetPositions(validRegularBags, table.getn(sortedNonGreys))
+			local frontPositions = BuildTargetPositions(validRegularBags, table.getn(sortedNonGreys), pinnedSlots)
 
 			for i, item in ipairs(sortedNonGreys) do
 				local target = frontPositions[i]
@@ -1582,7 +1583,7 @@ function SortEngine:AnalyzeContainer(bagIDs, containerType)
 		-- Check grey positioning (should be in tail positions)
 		if table.getn(greys) > 0 then
 		-- CRITICAL FIX: Only use bags that actually exist and have slots
-			local tailPositions = BuildGreyTailPositions(validRegularBags, table.getn(greys))
+			local tailPositions = BuildGreyTailPositions(validRegularBags, table.getn(greys), pinnedSlots)
 
 			for i, item in ipairs(greys) do
 				local target = tailPositions[i]
