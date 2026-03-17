@@ -1953,7 +1953,7 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
             end
             self.categoryMarkIcon:SetPoint("BOTTOMLEFT", anchor, "BOTTOMLEFT", markOffX, markOffY)
             self.categoryMarkIcon:SetTexture(categoryMarkTexture)
-            self.categoryMarkIcon:SetVertexColor(0.85, 0.65, 0.13, 1)
+            self.categoryMarkIcon:SetVertexColor(1, 1, 1, 1)
             self.categoryMarkIcon:SetAlpha(1)
             self.categoryMarkIcon:Show()
         else

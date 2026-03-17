@@ -642,7 +642,7 @@ end
 -- PHASE 2: Specialized Item Routing
 --===========================================================================
 
-local function RouteSpecializedItems(bagIDs, containers)
+local function RouteSpecializedItems(bagIDs, containers, pinnedSlots)
 	local routingPlan = {}
 
 	-- Scan all items and plan moves to specialized containers
@@ -650,6 +650,8 @@ local function RouteSpecializedItems(bagIDs, containers)
 		local numSlots = addon.Modules.Utils:GetBagSlotCount(bagID)
 		if numSlots and numSlots > 0 then
 			for slot = 1, numSlots do
+				-- Skip pinned slots
+				if not (pinnedSlots and pinnedSlots[bagID * 1000 + slot]) then
 				local link = GetContainerItemLink(bagID, slot)
 				if link then
 					local preferredType = addon.Modules.Utils:GetItemPreferredContainer(link)
@@ -665,7 +667,8 @@ local function RouteSpecializedItems(bagIDs, containers)
 								if not foundSlot then
 									local targetSlots = addon.Modules.Utils:GetBagSlotCount(targetBagID)
 									for targetSlot = 1, targetSlots do
-										if not GetContainerItemLink(targetBagID, targetSlot) then
+										if not GetContainerItemLink(targetBagID, targetSlot)
+										   and not (pinnedSlots and pinnedSlots[targetBagID * 1000 + targetSlot]) then
 											table.insert(routingPlan, {
 												fromBag = bagID,
 												fromSlot = slot,
@@ -681,6 +684,7 @@ local function RouteSpecializedItems(bagIDs, containers)
 						end
 					end
 				end
+				end -- pinned check
 			end
 		end
 	end
@@ -701,7 +705,7 @@ end
 -- PHASE 3: Stack Consolidation
 --===========================================================================
 
-local function ConsolidateStacks(bagIDs)
+local function ConsolidateStacks(bagIDs, pinnedSlots)
 	local itemGroups = {}
 
 	-- Collect all items with their locations
@@ -709,6 +713,10 @@ local function ConsolidateStacks(bagIDs)
 		local numSlots = addon.Modules.Utils:GetBagSlotCount(bagID)
 		if numSlots and numSlots > 0 then
 			for slot = 1, numSlots do
+				-- Skip pinned slots
+				if pinnedSlots and pinnedSlots[bagID * 1000 + slot] then
+					-- do nothing
+				else
 				local link = GetContainerItemLink(bagID, slot)
 				if link then
 					local texture, count = GetContainerItemInfo(bagID, slot)
@@ -733,6 +741,7 @@ local function ConsolidateStacks(bagIDs)
 						priority = tonumber(addon.Modules.Utils:GetContainerPriority(bagID)) or 0
 					})
 				end
+				end -- pinned check
 			end
 		end
 	end
@@ -1626,10 +1635,10 @@ function SortEngine:SortBagsPass()
     local containers = DetectSpecializedBags(bagIDs)
 
     -- Phase 2: Route specialized items to their bags
-    local routeCount = RouteSpecializedItems(bagIDs, containers)
+    local routeCount = RouteSpecializedItems(bagIDs, containers, pinnedSlots)
 
     -- Phase 3: Consolidate stacks in ALL bags (including specialized)
-    local consolidateCount = ConsolidateStacks(bagIDs)
+    local consolidateCount = ConsolidateStacks(bagIDs, pinnedSlots)
 
     -- Phase 4: Sort items WITHIN each specialized bag (enchant, herb, soul, quiver, ammo)
     local specializedMoves = 0
@@ -1782,10 +1791,10 @@ function SortEngine:SortBankPass()
     local containers = DetectSpecializedBags(bagIDs)
 
     -- Phase 2: Route specialized items
-    local routeCount = RouteSpecializedItems(bagIDs, containers)
+    local routeCount = RouteSpecializedItems(bagIDs, containers, pinnedSlots)
 
     -- Phase 3: Consolidate stacks
-    local consolidateCount = ConsolidateStacks(bagIDs)
+    local consolidateCount = ConsolidateStacks(bagIDs, pinnedSlots)
 
     -- Phase 4: Sort items WITHIN each specialized bag (single pass)
     local specializedMoves = 0
