@@ -383,17 +383,51 @@ local qualityBorderBackdrop = {
     insets = { left = 0, right = 0, top = 0, bottom = 0 },
 }
 
+local qualityBorderBackdropSquare = {
+    edgeFile = "Interface\\Buttons\\WHITE8x8",
+    edgeSize = 2,
+    insets = { left = 0, right = 0, top = 0, bottom = 0 },
+}
+
 -- Get or create the quality border frame for a button
 local function GetQualityBorderFrame(button)
-    if button._qualityBorder then return button._qualityBorder end
+    local qStyle = "rounded"
+    if addon.Modules and addon.Modules.Theme then
+        qStyle = addon.Modules.Theme:GetQualityBorderStyle()
+    end
+
+    if button._qualityBorder then
+        -- Update backdrop if style changed
+        if button._qualityBorderStyle ~= qStyle then
+            button._qualityBorderStyle = qStyle
+            local pad = QUALITY_BORDER_PADDING
+            button._qualityBorder:ClearAllPoints()
+            if qStyle == "square" then
+                button._qualityBorder:SetBackdrop(qualityBorderBackdropSquare)
+                button._qualityBorder:SetPoint("TOPLEFT", button, "TOPLEFT", -pad, pad)
+                button._qualityBorder:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", pad, -pad)
+            else
+                button._qualityBorder:SetBackdrop(qualityBorderBackdrop)
+                button._qualityBorder:SetPoint("TOPLEFT", button, "TOPLEFT", -pad, pad)
+                button._qualityBorder:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", pad, -pad)
+            end
+        end
+        return button._qualityBorder
+    end
+
     local frame = CreateFrame("Frame", nil, button)
     frame:SetFrameLevel(button:GetFrameLevel() + 3)
     local pad = QUALITY_BORDER_PADDING
     frame:SetPoint("TOPLEFT", button, "TOPLEFT", -pad, pad)
     frame:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", pad, -pad)
-    frame:SetBackdrop(qualityBorderBackdrop)
+    if qStyle == "square" then
+        frame:SetBackdrop(qualityBorderBackdropSquare)
+    else
+        frame:SetBackdrop(qualityBorderBackdrop)
+    end
     frame:Hide()
     button._qualityBorder = frame
+    button._qualityBorderStyle = qStyle
     return frame
 end
 
@@ -1240,15 +1274,30 @@ local function UpdateTrackingCheckmark(self, Utils)
     end
 end
 
--- Resize empty slot background to match icon size
+-- Resize empty slot background to match icon size and slot style
 local function UpdateEmptySlotBackground(self, emptySlotBg, iconSize)
     if not emptySlotBg then return end
 
-    -- Extend 9px past button edges so the rounded corners of UI-EmptySlot
-    -- cover the square corners of the icon texture (same as GudaBags)
+    local slotStyle = "rounded"
+    if addon.Modules and addon.Modules.Theme then
+        slotStyle = addon.Modules.Theme:GetSlotStyle()
+    end
+
     emptySlotBg:ClearAllPoints()
-    emptySlotBg:SetPoint("TOPLEFT", self, "TOPLEFT", -9, 9)
-    emptySlotBg:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", 9, -9)
+    if slotStyle == "square" then
+        -- Flush anchors for pixel-perfect squared slots
+        emptySlotBg:SetTexture("Interface\\Buttons\\WHITE8x8")
+        emptySlotBg:SetVertexColor(0.05, 0.05, 0.05, 1)
+        emptySlotBg:SetPoint("TOPLEFT", self, "TOPLEFT", 0, 0)
+        emptySlotBg:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", 0, 0)
+    else
+        -- Extend 9px past button edges so the rounded corners of UI-EmptySlot
+        -- cover the square corners of the icon texture (same as GudaBags)
+        emptySlotBg:SetTexture("Interface\\Buttons\\UI-EmptySlot")
+        emptySlotBg:SetVertexColor(1, 1, 1, 1)
+        emptySlotBg:SetPoint("TOPLEFT", self, "TOPLEFT", -9, 9)
+        emptySlotBg:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", 9, -9)
+    end
     emptySlotBg:SetTexCoord(0, 1, 0, 1)
 end
 
@@ -1552,13 +1601,8 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
     -- Update lock icon
     UpdateLockIcon(self, iconSize)
 
-    -- Extend empty slot bg 9px past button edges for rounded corner coverage
-    if emptySlotBg then
-        emptySlotBg:ClearAllPoints()
-        emptySlotBg:SetPoint("TOPLEFT", self, "TOPLEFT", -9, 9)
-        emptySlotBg:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", 9, -9)
-        emptySlotBg:SetTexCoord(0, 1, 0, 1)
-    end
+    -- Update empty slot bg anchors/texture based on slot style
+    UpdateEmptySlotBackground(self, emptySlotBg, iconSize)
 
     -- Also resize the underlying slot textures so the border/background scale with the button.
     -- On 1.12/Turtle, ItemButtonTemplate uses fixed-size textures, so we explicitly size them

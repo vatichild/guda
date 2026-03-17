@@ -30,8 +30,8 @@ local themes = {
             insets = { left = 11, right = 12, top = 12, bottom = 11 }
         },
         borderMinimal = {
-            edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-            edgeSize = 2,
+            edgeFile = "",
+            edgeSize = 0,
             insets = { left = 0, right = 0, top = 0, bottom = 0 }
         },
         nineSlice = {
@@ -59,8 +59,8 @@ local themes = {
             insets = { left = 11, right = 12, top = 12, bottom = 11 }
         },
         borderMinimal = {
-            edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-            edgeSize = 2,
+            edgeFile = "",
+            edgeSize = 0,
             insets = { left = 0, right = 0, top = 0, bottom = 0 }
         },
         nineSlice = {
@@ -77,6 +77,31 @@ local themes = {
         showHeaderButtonBg = true,
         headerButtonBg = { 0.15, 0.12, 0.10, 0.6 },
         headerButtonBorder = { 0.45, 0.40, 0.35, 1 },
+    },
+    pfui = {
+        bgTexture = "Interface\\Buttons\\WHITE8x8",
+        bgColor = { r = 0, g = 0, b = 0 },
+        bgTile = false,
+        bgTileSize = 1,
+        border = {
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+            insets = { left = -1, right = -1, top = -1, bottom = -1 }
+        },
+        borderMinimal = {
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+            insets = { left = -1, right = -1, top = -1, bottom = -1 }
+        },
+        nineSlice = nil,
+        titleColor = { r = 1, g = 1, b = 1 },
+        slotBgAlpha = { empty = 0.5, filled = 0.3 },
+        footerButtonBg = { 0, 0, 0, 1 },
+        footerButtonBorder = { 0.2, 0.2, 0.2, 1 },
+        showHeaderButtonBg = false,
+        slotStyle = "square",
+        borderColor = { 0.2, 0.2, 0.2, 1 },
+        qualityBorderStyle = "square",
     },
 }
 
@@ -109,6 +134,16 @@ function Theme:GetValue(key)
     return t[key]
 end
 
+-- Get slot style (square for pfUI, rounded for others)
+function Theme:GetSlotStyle()
+    return self:GetValue("slotStyle") or "rounded"
+end
+
+-- Get quality border style
+function Theme:GetQualityBorderStyle()
+    return self:GetValue("qualityBorderStyle") or "rounded"
+end
+
 -- Get border config based on hideBorders setting
 local function GetBorderConfig(t)
     local hideBorders = false
@@ -134,15 +169,16 @@ end
 -- Apply or hide a TGA background texture (for themes where bgFile TGA doesn't work with SetBackdrop)
 -- Uses ARTWORK layer so it always renders above the backdrop's BACKGROUND fill,
 -- preventing the intermittent z-order issue where both share the same BACKGROUND layer.
-local function ApplyBgTexture(frame, texturePath, alpha)
+local function ApplyBgTexture(frame, texturePath, alpha, padding)
     if not frame._gudaBgTex then
         frame._gudaBgTex = frame:CreateTexture(nil, "ARTWORK")
     end
+    local p = padding or 6
     local tex = frame._gudaBgTex
     tex:ClearAllPoints()
     tex:SetTexture(texturePath)
-    tex:SetPoint("TOPLEFT", frame, "TOPLEFT", 6, -6)
-    tex:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -6, 6)
+    tex:SetPoint("TOPLEFT", frame, "TOPLEFT", p, -p)
+    tex:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -p, p)
     tex:SetAlpha(alpha or 1)
     tex:Show()
 end
@@ -328,28 +364,47 @@ function Theme:ApplyToFrame(frame)
         ApplyNineSlice(frame, t.nineSlice)
         ThemeDebug("  SetBackdrop done (bgFile + NineSlice border)")
     else
-        -- Standard backdrop with edgeFile border
-        local backdrop = {
-            bgFile = t.bgTexture,
-            edgeFile = borderCfg.edgeFile,
-            tile = true,
-            tileSize = t.bgTileSize,
-            edgeSize = borderCfg.edgeSize,
-            insets = {
-                left = borderCfg.insets.left,
-                right = borderCfg.insets.right,
-                top = borderCfg.insets.top,
-                bottom = borderCfg.insets.bottom,
+        -- Standard backdrop with edgeFile border (or no border when hidden)
+        local hasEdge = borderCfg.edgeFile and borderCfg.edgeFile ~= ""
+        local backdrop
+        if hasEdge then
+            backdrop = {
+                bgFile = t.bgTexture,
+                edgeFile = borderCfg.edgeFile,
+                tile = true,
+                tileSize = t.bgTileSize,
+                edgeSize = borderCfg.edgeSize,
+                insets = {
+                    left = borderCfg.insets.left,
+                    right = borderCfg.insets.right,
+                    top = borderCfg.insets.top,
+                    bottom = borderCfg.insets.bottom,
+                }
             }
-        }
+        else
+            -- No border: omit edgeFile key entirely (WoW 1.12 renders a black
+            -- line when edgeFile is "" or nil inside the table)
+            backdrop = {
+                bgFile = t.bgTexture,
+                tile = true,
+                tileSize = t.bgTileSize,
+                edgeSize = 0,
+                insets = { left = 0, right = 0, top = 0, bottom = 0 }
+            }
+        end
         frame:SetBackdrop(nil)
         frame:SetBackdrop(backdrop)
         HideNineSlice(frame)
-        ThemeDebug("  SetBackdrop done (bgFile + edgeFile border)")
+        ThemeDebug("  SetBackdrop done (bgFile + %s border)", hasEdge and "edgeFile" or "none")
     end
 
-    if isMinimal then
-        frame:SetBackdropBorderColor(1, 1, 1, 1)
+    -- Apply border color when an edge is present
+    local hasEdge = borderCfg.edgeFile and borderCfg.edgeFile ~= ""
+    if hasEdge then
+        local bc = t.borderColor or { 1, 1, 1, 1 }
+        if isMinimal or t.borderColor then
+            frame:SetBackdropBorderColor(bc[1], bc[2], bc[3], bc[4])
+        end
     end
 
     -- Background quadrant textures (disabled for testing)
@@ -361,7 +416,8 @@ function Theme:ApplyToFrame(frame)
         if addon.Modules and addon.Modules.DB then
             transparency = addon.Modules.DB:GetSetting("bgTransparency") or 0.15
         end
-        ApplyBgTexture(frame, t.bgOverlay, 1.0 - transparency)
+        local bgPadding = isMinimal and 0 or 6
+        ApplyBgTexture(frame, t.bgOverlay, 1.0 - transparency, bgPadding)
     else
         HideBgTexture(frame)
     end
@@ -445,14 +501,31 @@ function Theme:ApplyToAllFrames()
     ThemeDebug("=== ApplyToAllFrames done ===")
 end
 
--- Update emptySlotBg alpha on all visible item buttons
+-- Update emptySlotBg alpha and style on all visible item buttons
 function Theme:UpdateAllSlotBackgrounds(sa)
+    local slotStyle = self:GetSlotStyle()
     local i = 1
     while true do
         local btn = getglobal("Guda_ItemButton" .. i)
         if not btn then break end
         local bg = getglobal(btn:GetName() .. "_EmptySlotBg")
         if bg then
+            -- Update texture and anchors based on slot style
+            if slotStyle == "square" then
+                bg:SetTexture("Interface\\Buttons\\WHITE8x8")
+                bg:SetVertexColor(0.05, 0.05, 0.05, 1)
+                bg:ClearAllPoints()
+                bg:SetPoint("TOPLEFT", btn, "TOPLEFT", 0, 0)
+                bg:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", 0, 0)
+                bg:SetTexCoord(0, 1, 0, 1)
+            else
+                bg:SetTexture("Interface\\Buttons\\UI-EmptySlot")
+                bg:SetVertexColor(1, 1, 1, 1)
+                bg:ClearAllPoints()
+                bg:SetPoint("TOPLEFT", btn, "TOPLEFT", -9, 9)
+                bg:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", 9, -9)
+                bg:SetTexCoord(0, 1, 0, 1)
+            end
             local alpha = btn.hasItem and sa.filled or sa.empty
             if alpha > 0 then
                 bg:SetAlpha(alpha)

@@ -1553,6 +1553,7 @@ end
 local themeOptions = {
     { text = "Guda", value = "guda" },
     { text = "Blizzard", value = "blizzard" },
+    { text = "pfUI", value = "pfui" },
 }
 
 local function Guda_ThemeDropdown_Initialize()
@@ -1575,7 +1576,7 @@ function Guda_SettingsPopup_ThemeDropdown_OnLoad(self)
     UIDropDownMenu_Initialize(self, Guda_ThemeDropdown_Initialize)
     UIDropDownMenu_SetWidth(130, self)
     local currentTheme = Guda.Modules.DB:GetSetting("theme") or "guda"
-    local names = { guda = "Guda", blizzard = "Blizzard" }
+    local names = { guda = "Guda", blizzard = "Blizzard", pfui = "pfUI" }
     UIDropDownMenu_SetSelectedValue(self, currentTheme)
     UIDropDownMenu_SetText(names[currentTheme] or currentTheme, self)
 
@@ -1588,7 +1589,35 @@ end
 
 -- Apply selected theme
 function Guda_SettingsPopup_ApplyTheme(themeId)
-    Guda.Modules.DB:SetSetting("theme", themeId)
+    local DB = Guda.Modules.DB
+    local oldTheme = DB:GetSetting("theme") or "guda"
+
+    -- Save current hideBorders/bgTransparency when leaving pfUI theme
+    if oldTheme == "pfui" and themeId ~= "pfui" then
+        -- Restore previously saved values (from before pfUI was applied)
+        local prevHide = DB:GetSetting("_prePfui_hideBorders")
+        local prevTransp = DB:GetSetting("_prePfui_bgTransparency")
+        if prevHide ~= nil then
+            DB:SetSetting("hideBorders", prevHide)
+        else
+            DB:SetSetting("hideBorders", false)
+        end
+        if prevTransp ~= nil then
+            DB:SetSetting("bgTransparency", prevTransp)
+        else
+            DB:SetSetting("bgTransparency", 0.15)
+        end
+    end
+
+    -- Save current values before switching to pfUI, then apply pfUI defaults
+    if themeId == "pfui" and oldTheme ~= "pfui" then
+        DB:SetSetting("_prePfui_hideBorders", DB:GetSetting("hideBorders"))
+        DB:SetSetting("_prePfui_bgTransparency", DB:GetSetting("bgTransparency"))
+        DB:SetSetting("hideBorders", true)
+        DB:SetSetting("bgTransparency", 0)
+    end
+
+    DB:SetSetting("theme", themeId)
 
     -- Clear theme cache
     if Guda.Modules.Theme then
@@ -1598,7 +1627,7 @@ function Guda_SettingsPopup_ApplyTheme(themeId)
     -- Update dropdown text
     local dropdown = getglobal("Guda_SettingsPopup_ThemeDropdown")
     if dropdown then
-        local names = { guda = "Guda", blizzard = "Blizzard" }
+        local names = { guda = "Guda", blizzard = "Blizzard", pfui = "pfUI" }
         UIDropDownMenu_SetSelectedValue(dropdown, themeId)
         UIDropDownMenu_SetText(names[themeId] or themeId, dropdown)
     end
@@ -1606,6 +1635,17 @@ function Guda_SettingsPopup_ApplyTheme(themeId)
     -- Apply theme to all frames (also updates slot background alphas)
     if Guda.Modules.Theme then
         Guda.Modules.Theme:ApplyToAllFrames()
+    end
+
+    -- Refresh settings UI controls to reflect changed hideBorders/bgTransparency
+    local hideBordersCheckbox = getglobal("Guda_SettingsPopup_HideBordersCheckbox")
+    if hideBordersCheckbox then
+        local hb = DB:GetSetting("hideBorders")
+        hideBordersCheckbox:SetChecked(hb and 1 or 0)
+    end
+    local bgTransparencySlider = getglobal("Guda_SettingsPopup_BgTransparencySlider")
+    if bgTransparencySlider then
+        bgTransparencySlider:SetValue(DB:GetSetting("bgTransparency") or 0.15)
     end
 end
 

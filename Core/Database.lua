@@ -143,6 +143,15 @@ function DB:Initialize()
 		Guda_CharDB.settings.autoLockSetItems = true
 	end
 
+	-- Auto-detect pfUI on first load (theme not yet set)
+	if Guda_CharDB.settings.theme == nil then
+		if pfUI then
+			Guda_CharDB.settings.theme = "pfui"
+			Guda_CharDB.settings.hideBorders = true
+			Guda_CharDB.settings.bgTransparency = 0
+		end
+	end
+
 	-- Initialize locked items storage
 	if not Guda_CharDB.lockedItems then
 		Guda_CharDB.lockedItems = {}

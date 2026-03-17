@@ -2867,12 +2867,22 @@ end
 -- Apply footer button backdrop styling
 function Guda_BagSlot_ApplyBackdrop(button)
 	local Theme = addon.Modules.Theme
-	button:SetBackdrop({
-		bgFile = "Interface\\Buttons\\WHITE8x8",
-		edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-		edgeSize = 8,
-		insets = { left = 2, right = 2, top = 2, bottom = 2 },
-	})
+	local qStyle = Theme:GetQualityBorderStyle()
+	if qStyle == "square" then
+		button:SetBackdrop({
+			bgFile = "Interface\\Buttons\\WHITE8x8",
+			edgeFile = "Interface\\Buttons\\WHITE8x8",
+			edgeSize = 1,
+			insets = { left = -1, right = -1, top = -1, bottom = -1 },
+		})
+	else
+		button:SetBackdrop({
+			bgFile = "Interface\\Buttons\\WHITE8x8",
+			edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+			edgeSize = 8,
+			insets = { left = 2, right = 2, top = 2, bottom = 2 },
+		})
+	end
 	local fbBg = Theme:GetValue("footerButtonBg") or { 0.12, 0.12, 0.12, 1 }
 	local fbBorder = Theme:GetValue("footerButtonBorder") or { 0.30, 0.30, 0.30, 1 }
 	button:SetBackdropColor(fbBg[1], fbBg[2], fbBg[3], fbBg[4])
