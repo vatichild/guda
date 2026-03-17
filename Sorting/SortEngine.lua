@@ -642,7 +642,7 @@ end
 -- PHASE 2: Specialized Item Routing
 --===========================================================================
 
-local function RouteSpecializedItems(bagIDs, containers)
+local function RouteSpecializedItems(bagIDs, containers, pinnedSlots)
 	local routingPlan = {}
 
 	-- Scan all items and plan moves to specialized containers
@@ -650,6 +650,8 @@ local function RouteSpecializedItems(bagIDs, containers)
 		local numSlots = addon.Modules.Utils:GetBagSlotCount(bagID)
 		if numSlots and numSlots > 0 then
 			for slot = 1, numSlots do
+				-- Skip pinned slots
+				if not (pinnedSlots and pinnedSlots[bagID * 1000 + slot]) then
 				local link = GetContainerItemLink(bagID, slot)
 				if link then
 					local preferredType = addon.Modules.Utils:GetItemPreferredContainer(link)
@@ -665,7 +667,8 @@ local function RouteSpecializedItems(bagIDs, containers)
 								if not foundSlot then
 									local targetSlots = addon.Modules.Utils:GetBagSlotCount(targetBagID)
 									for targetSlot = 1, targetSlots do
-										if not GetContainerItemLink(targetBagID, targetSlot) then
+										if not GetContainerItemLink(targetBagID, targetSlot)
+										   and not (pinnedSlots and pinnedSlots[targetBagID * 1000 + targetSlot]) then
 											table.insert(routingPlan, {
 												fromBag = bagID,
 												fromSlot = slot,
@@ -681,6 +684,7 @@ local function RouteSpecializedItems(bagIDs, containers)
 						end
 					end
 				end
+				end -- pinned check
 			end
 		end
 	end
@@ -701,7 +705,7 @@ end
 -- PHASE 3: Stack Consolidation
 --===========================================================================
 
-local function ConsolidateStacks(bagIDs)
+local function ConsolidateStacks(bagIDs, pinnedSlots)
 	local itemGroups = {}
 
 	-- Collect all items with their locations
@@ -709,6 +713,10 @@ local function ConsolidateStacks(bagIDs)
 		local numSlots = addon.Modules.Utils:GetBagSlotCount(bagID)
 		if numSlots and numSlots > 0 then
 			for slot = 1, numSlots do
+				-- Skip pinned slots
+				if pinnedSlots and pinnedSlots[bagID * 1000 + slot] then
+					-- do nothing
+				else
 				local link = GetContainerItemLink(bagID, slot)
 				if link then
 					local texture, count = GetContainerItemInfo(bagID, slot)
@@ -733,6 +741,7 @@ local function ConsolidateStacks(bagIDs)
 						priority = tonumber(addon.Modules.Utils:GetContainerPriority(bagID)) or 0
 					})
 				end
+				end -- pinned check
 			end
 		end
 	end
@@ -1147,7 +1156,7 @@ end
 -- PHASE 5: Empty Slot Management & Apply Sort
 --===========================================================================
 
-local function CollectItems(bagIDs)
+local function CollectItems(bagIDs, pinnedSlots)
 	local items = {}
 	local sequence = 0  -- Add sequence number for stable sort
 
@@ -1156,6 +1165,10 @@ local function CollectItems(bagIDs)
 
 		if addon.Modules.Utils:IsBagValid(bagID) then
 			for slot = 1, numSlots do
+				-- Skip pinned slots — they are not touched by sorting
+				if pinnedSlots and pinnedSlots[bagID * 1000 + slot] then
+					-- do nothing, slot is pinned
+				else
 				-- Scan directly from game API instead of cached data
 				local texture, itemCount, locked = GetContainerItemInfo(bagID, slot)
 				local itemLink = GetContainerItemLink(bagID, slot)
@@ -1194,14 +1207,15 @@ local function CollectItems(bagIDs)
 						class = category or "",
 					})
 				end
-			end
-		end
-	end
+			end -- if pinnedSlots
+			end -- for slot
+		end -- if isBagValid
+	end -- for bagID
 
 	return items
 end
 
-local function BuildTargetPositions(bagIDs, itemCount)
+local function BuildTargetPositions(bagIDs, itemCount, pinnedSlots)
 	local positions = {}
 	local index = 1
 
@@ -1234,8 +1248,11 @@ local function BuildTargetPositions(bagIDs, itemCount)
 		if addon.Modules.Utils:IsBagValid(bagID) then
 			for slot = 1, numSlots do
 				if index <= itemCount then
-					positions[index] = {bag = bagID, slot = slot}
-					index = index + 1
+					-- Skip pinned slots
+					if not (pinnedSlots and pinnedSlots[bagID * 1000 + slot]) then
+						positions[index] = {bag = bagID, slot = slot}
+						index = index + 1
+					end
 				else
 					break
 				end
@@ -1402,7 +1419,7 @@ end
 -- Build tail positions (end-to-start) for a given count across the provided bags,
 -- starting from the "last" regular bag (lowest priority, then highest bagID),
 -- and spilling into previous bags when needed.
-local function BuildGreyTailPositions(bagIDs, greyCount)
+local function BuildGreyTailPositions(bagIDs, greyCount, pinnedSlots)
 	local positions = {}
 	if greyCount <= 0 then return positions end
 
@@ -1439,7 +1456,7 @@ local function BuildGreyTailPositions(bagIDs, greyCount)
 	local tailSlots = {}
 	for _, info in ipairs(ordered) do
 		for slot = info.numSlots, 1, -1 do
-			if table.getn(tailSlots) < greyCount then
+			if table.getn(tailSlots) < greyCount and not (pinnedSlots and pinnedSlots[info.bagID * 1000 + slot]) then
 				table.insert(tailSlots, { bag = info.bagID, slot = slot })
 			else
 				break
@@ -1507,6 +1524,7 @@ end
 function SortEngine:AnalyzeContainer(bagIDs, containerType)
 -- Detect specialized bags (same as SortBags)
 	local containers = DetectSpecializedBags(bagIDs)
+	local pinnedSlots = addon.Modules.DB and addon.Modules.DB:GetPinnedSlotSet() or {}
 
 	local totalOutOfPlace = 0
 	local totalItems = 0
@@ -1515,10 +1533,10 @@ function SortEngine:AnalyzeContainer(bagIDs, containerType)
  for _, bagType in ipairs({"enchant", "herb", "soul", "quiver", "ammo"}) do
      local specialBags = containers[bagType]
      for _, bagID in ipairs(specialBags) do
-         local items = CollectItems({bagID})
+         local items = CollectItems({bagID}, pinnedSlots)
          if table.getn(items) > 0 then
              local sortedItems = SortItems(items)
-				local targetPositions = BuildTargetPositions({bagID}, table.getn(items))
+				local targetPositions = BuildTargetPositions({bagID}, table.getn(items), pinnedSlots)
 
 				for i, item in ipairs(sortedItems) do
 					local target = targetPositions[i]
@@ -1543,7 +1561,7 @@ function SortEngine:AnalyzeContainer(bagIDs, containerType)
 	end
 
 	if table.getn(validRegularBags) > 0 then
-		local allItems = CollectItems(validRegularBags)
+		local allItems = CollectItems(validRegularBags, pinnedSlots)
 		totalItems = totalItems + table.getn(allItems)
 
 		-- Split greys/non-greys like SortBags does
@@ -1552,7 +1570,7 @@ function SortEngine:AnalyzeContainer(bagIDs, containerType)
 		-- Check non-grey positioning (should be in front positions)
 		if table.getn(nonGreys) > 0 then
 			local sortedNonGreys = SortItems(nonGreys)
-			local frontPositions = BuildTargetPositions(validRegularBags, table.getn(sortedNonGreys))
+			local frontPositions = BuildTargetPositions(validRegularBags, table.getn(sortedNonGreys), pinnedSlots)
 
 			for i, item in ipairs(sortedNonGreys) do
 				local target = frontPositions[i]
@@ -1565,7 +1583,7 @@ function SortEngine:AnalyzeContainer(bagIDs, containerType)
 		-- Check grey positioning (should be in tail positions)
 		if table.getn(greys) > 0 then
 		-- CRITICAL FIX: Only use bags that actually exist and have slots
-			local tailPositions = BuildGreyTailPositions(validRegularBags, table.getn(greys))
+			local tailPositions = BuildGreyTailPositions(validRegularBags, table.getn(greys), pinnedSlots)
 
 			for i, item in ipairs(greys) do
 				local target = tailPositions[i]
@@ -1611,24 +1629,27 @@ end
 function SortEngine:SortBagsPass()
     local bagIDs = addon.Constants.BAGS
 
+    -- Cache pinned slots for this pass
+    local pinnedSlots = addon.Modules.DB and addon.Modules.DB:GetPinnedSlotSet() or {}
+
     -- Phase 1: Detect specialized bags
     local containers = DetectSpecializedBags(bagIDs)
 
     -- Phase 2: Route specialized items to their bags
-    local routeCount = RouteSpecializedItems(bagIDs, containers)
+    local routeCount = RouteSpecializedItems(bagIDs, containers, pinnedSlots)
 
     -- Phase 3: Consolidate stacks in ALL bags (including specialized)
-    local consolidateCount = ConsolidateStacks(bagIDs)
+    local consolidateCount = ConsolidateStacks(bagIDs, pinnedSlots)
 
     -- Phase 4: Sort items WITHIN each specialized bag (enchant, herb, soul, quiver, ammo)
     local specializedMoves = 0
     for _, bagType in ipairs({"enchant", "herb", "soul", "quiver", "ammo"}) do
         local specialBags = containers[bagType]
         for _, bagID in ipairs(specialBags) do
-            local items = CollectItems({bagID})
+            local items = CollectItems({bagID}, pinnedSlots)
             if table.getn(items) > 0 then
                 items = SortItems(items)
-                local targetPositions = BuildTargetPositions({bagID}, table.getn(items))
+                local targetPositions = BuildTargetPositions({bagID}, table.getn(items), pinnedSlots)
                 local moveCount = ApplySort({bagID}, items, targetPositions)
                 specializedMoves = specializedMoves + moveCount
             end
@@ -1642,7 +1663,7 @@ function SortEngine:SortBagsPass()
     local regularMoves = 0
     local regularBagIDs = containers.regular
     if table.getn(regularBagIDs) > 0 then
-        local allItems = CollectItems(regularBagIDs)
+        local allItems = CollectItems(regularBagIDs, pinnedSlots)
         local nonGreys, greys = SplitGreyItems(allItems)
 
         local combinedItems = {}
@@ -1651,7 +1672,7 @@ function SortEngine:SortBagsPass()
         -- Non-greys: sorted to front positions
         if table.getn(nonGreys) > 0 then
             local sortedNonGreys = SortItems(nonGreys)
-            local frontPositions = BuildTargetPositions(regularBagIDs, table.getn(sortedNonGreys))
+            local frontPositions = BuildTargetPositions(regularBagIDs, table.getn(sortedNonGreys), pinnedSlots)
             for i, item in ipairs(sortedNonGreys) do
                 table.insert(combinedItems, item)
                 table.insert(combinedPositions, frontPositions[i])
@@ -1660,7 +1681,7 @@ function SortEngine:SortBagsPass()
 
         -- Greys: to tail positions (end->start)
         if table.getn(greys) > 0 then
-            local tailPositions = BuildGreyTailPositions(regularBagIDs, table.getn(greys))
+            local tailPositions = BuildGreyTailPositions(regularBagIDs, table.getn(greys), pinnedSlots)
             for i, item in ipairs(greys) do
                 table.insert(combinedItems, item)
                 table.insert(combinedPositions, tailPositions[i])
@@ -1764,24 +1785,27 @@ function SortEngine:SortBankPass()
 
     local bagIDs = addon.Constants.BANK_BAGS
 
+    -- Cache pinned slots for this pass
+    local pinnedSlots = addon.Modules.DB and addon.Modules.DB:GetPinnedSlotSet() or {}
+
     -- Phase 1: Detect specialized bags
     local containers = DetectSpecializedBags(bagIDs)
 
     -- Phase 2: Route specialized items
-    local routeCount = RouteSpecializedItems(bagIDs, containers)
+    local routeCount = RouteSpecializedItems(bagIDs, containers, pinnedSlots)
 
     -- Phase 3: Consolidate stacks
-    local consolidateCount = ConsolidateStacks(bagIDs)
+    local consolidateCount = ConsolidateStacks(bagIDs, pinnedSlots)
 
     -- Phase 4: Sort items WITHIN each specialized bag (single pass)
     local specializedMoves = 0
     for _, bagType in ipairs({"enchant", "herb", "soul", "quiver", "ammo"}) do
         local specialBags = containers[bagType]
         for _, bagID in ipairs(specialBags) do
-            local items = CollectItems({bagID})
+            local items = CollectItems({bagID}, pinnedSlots)
             if table.getn(items) > 0 then
                 items = SortItems(items)
-                local targetPositions = BuildTargetPositions({bagID}, table.getn(items))
+                local targetPositions = BuildTargetPositions({bagID}, table.getn(items), pinnedSlots)
                 local moved = ApplySort({bagID}, items, targetPositions)
                 specializedMoves = specializedMoves + moved
             end
@@ -1792,7 +1816,7 @@ function SortEngine:SortBankPass()
     local regularBagIDs = containers.regular
     local regularMoves = 0
     if table.getn(regularBagIDs) > 0 then
-        local allItems = CollectItems(regularBagIDs)
+        local allItems = CollectItems(regularBagIDs, pinnedSlots)
         local nonGreys, greys = SplitGreyItems(allItems)
 
         local combinedItems = {}
@@ -1800,7 +1824,7 @@ function SortEngine:SortBankPass()
 
         if table.getn(nonGreys) > 0 then
             local sortedNonGreys = SortItems(nonGreys)
-            local frontPositions = BuildTargetPositions(regularBagIDs, table.getn(sortedNonGreys))
+            local frontPositions = BuildTargetPositions(regularBagIDs, table.getn(sortedNonGreys), pinnedSlots)
             for i, item in ipairs(sortedNonGreys) do
                 table.insert(combinedItems, item)
                 table.insert(combinedPositions, frontPositions[i])
@@ -1808,7 +1832,7 @@ function SortEngine:SortBankPass()
         end
 
         if table.getn(greys) > 0 then
-            local tailPositions = BuildGreyTailPositions(regularBagIDs, table.getn(greys))
+            local tailPositions = BuildGreyTailPositions(regularBagIDs, table.getn(greys), pinnedSlots)
             for i, item in ipairs(greys) do
                 table.insert(combinedItems, item)
                 table.insert(combinedPositions, tailPositions[i])

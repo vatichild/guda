@@ -149,6 +149,7 @@ function DB:Initialize()
 			Guda_CharDB.settings.theme = "pfui"
 			Guda_CharDB.settings.hideBorders = true
 			Guda_CharDB.settings.bgTransparency = 0
+			Guda_CharDB.settings.iconSpacing = 8
 		end
 	end
 
@@ -160,6 +161,11 @@ function DB:Initialize()
 	-- Initialize set protection exceptions storage
 	if not Guda_CharDB.setProtectionExceptions then
 		Guda_CharDB.setProtectionExceptions = {}
+	end
+
+	-- Initialize pinned slots storage
+	if not Guda_CharDB.pinnedSlots then
+		Guda_CharDB.pinnedSlots = {}
 	end
 
 	-- Initialize CategoryManager for custom categories
@@ -538,6 +544,37 @@ function DB:IsItemProtected(itemID)
 		end
 	end
 	return false
+end
+
+-------------------------------------------------
+-- Pinned Slots (per-character, slot-based)
+-- Slots pinned by the user are skipped during sorting.
+-- Key format: bagID * 1000 + slot
+-------------------------------------------------
+
+function DB:IsPinnedSlot(bagID, slot)
+	if not bagID or not slot or not Guda_CharDB or not Guda_CharDB.pinnedSlots then return false end
+	return Guda_CharDB.pinnedSlots[bagID * 1000 + slot] and true or false
+end
+
+function DB:TogglePinnedSlot(bagID, slot)
+	if not bagID or not slot or not Guda_CharDB then return false end
+	if not Guda_CharDB.pinnedSlots then
+		Guda_CharDB.pinnedSlots = {}
+	end
+	local key = bagID * 1000 + slot
+	if Guda_CharDB.pinnedSlots[key] then
+		Guda_CharDB.pinnedSlots[key] = nil
+		return false  -- unpinned
+	else
+		Guda_CharDB.pinnedSlots[key] = true
+		return true   -- pinned
+	end
+end
+
+function DB:GetPinnedSlotSet()
+	if not Guda_CharDB or not Guda_CharDB.pinnedSlots then return {} end
+	return Guda_CharDB.pinnedSlots
 end
 
 -- Cleanup old characters (not updated in 90 days)

@@ -530,7 +530,6 @@ local function AcquireLockIcon()
 	local icon = table.remove(lockIconPool)
 	if not icon then
 		icon = CreateFrame("Frame", nil, UIParent)
-		icon:SetFrameStrata("HIGH")
 		icon:SetWidth(13)
 		icon:SetHeight(13)
 
@@ -556,6 +555,7 @@ local function ReleaseLockIcon(icon)
 	if icon then
 		icon:Hide()
 		icon:ClearAllPoints()
+		icon:SetParent(UIParent)
 		table.insert(lockIconPool, icon)
 	end
 end
@@ -577,6 +577,7 @@ local function UpdateLockIcon(button, iconSize)
 		if not button.lockIcon then
 			button.lockIcon = AcquireLockIcon()
 		end
+		button.lockIcon:SetParent(button)
 		local lockSize = math.max(8, math.min(12, iconSize * 0.35 - 3))
 		button.lockIcon:SetWidth(lockSize)
 		button.lockIcon:SetHeight(lockSize)
@@ -600,6 +601,85 @@ local function HideLockIcon(button)
 	if button.lockIcon then
 		ReleaseLockIcon(button.lockIcon)
 		button.lockIcon = nil
+	end
+end
+
+--=====================================================
+-- Pin Icon Pool (indicates slot is pinned / sort-protected)
+--=====================================================
+local pinIconPool = {}
+
+local function AcquirePinIcon()
+	local icon = table.remove(pinIconPool)
+	if not icon then
+		icon = CreateFrame("Frame", nil, UIParent)
+		icon:SetWidth(13)
+		icon:SetHeight(13)
+
+		-- Shadow (behind)
+		local shadow = icon:CreateTexture(nil, "BACKGROUND")
+		shadow:SetWidth(15)
+		shadow:SetHeight(15)
+		shadow:SetPoint("CENTER", icon, "CENTER", 0, 0)
+		shadow:SetTexture("Interface\\AddOns\\Guda\\Assets\\pin")
+		shadow:SetVertexColor(0, 0, 0, 0.9)
+		icon.shadow = shadow
+
+		-- Icon (front)
+		local texture = icon:CreateTexture(nil, "OVERLAY")
+		texture:SetAllPoints(icon)
+		texture:SetTexture("Interface\\AddOns\\Guda\\Assets\\pin")
+		icon.texture = texture
+	end
+	return icon
+end
+
+local function ReleasePinIcon(icon)
+	if icon then
+		icon:Hide()
+		icon:ClearAllPoints()
+		icon:SetParent(UIParent)
+		table.insert(pinIconPool, icon)
+	end
+end
+
+local function UpdatePinIcon(button, iconSize)
+	local DB = addon.Modules.DB
+	if not DB then return end
+
+	local isPinned = false
+	if button.bagID and button.slotID and not button.otherChar and not button.isReadOnly then
+		isPinned = DB:IsPinnedSlot(button.bagID, button.slotID)
+	end
+
+	if isPinned then
+		if not button.pinIcon then
+			button.pinIcon = AcquirePinIcon()
+		end
+		button.pinIcon:SetParent(button)
+		local pinSize = math.max(10, math.min(14, iconSize * 0.35))
+		button.pinIcon:SetWidth(pinSize)
+		button.pinIcon:SetHeight(pinSize)
+		if button.pinIcon.shadow then
+			button.pinIcon.shadow:SetWidth(pinSize + 2)
+			button.pinIcon.shadow:SetHeight(pinSize + 2)
+		end
+		button.pinIcon:ClearAllPoints()
+		button.pinIcon:SetPoint("TOPLEFT", button, "TOPLEFT", -2, 2)
+		button.pinIcon:SetFrameLevel(button:GetFrameLevel() + 5)
+		button.pinIcon:Show()
+	else
+		if button.pinIcon then
+			ReleasePinIcon(button.pinIcon)
+			button.pinIcon = nil
+		end
+	end
+end
+
+local function HidePinIcon(button)
+	if button.pinIcon then
+		ReleasePinIcon(button.pinIcon)
+		button.pinIcon = nil
 	end
 end
 
@@ -988,6 +1068,7 @@ function Guda_ItemButton_OnLoad(self)
     self:SetScript("OnHide", function()
         HideJunkIcon(this)
         HideLockIcon(this)
+        HidePinIcon(this)
     end)
 
     -- Track cursor item on drag start for category drag-drop
@@ -1038,6 +1119,30 @@ function Guda_ItemButton_OnLoad(self)
                     if addon.Modules.BankFrame and addon.Modules.BankFrame.Update then
                         addon.Modules.BankFrame:Update()
                     end
+                end
+            end
+            return
+        end
+
+        -- Pin/unpin slot with Alt+Right-Click
+        if IsAltKeyDown() and arg1 == "RightButton" and not this.otherChar and not this.isReadOnly then
+            if this.bagID ~= nil and this.slotID and addon.Modules.DB then
+                local isNowPinned = addon.Modules.DB:TogglePinnedSlot(this.bagID, this.slotID)
+                local itemName = ""
+                if this.hasItem and this.itemData and this.itemData.link then
+                    itemName = " " .. this.itemData.link
+                end
+                if isNowPinned then
+                    addon:Print("Slot pinned" .. itemName .. " (skipped during sort)")
+                else
+                    addon:Print("Slot unpinned" .. itemName)
+                end
+                -- Refresh to show/hide pin icon
+                if addon.Modules.BagFrame and addon.Modules.BagFrame.Update then
+                    addon.Modules.BagFrame:Update()
+                end
+                if addon.Modules.BankFrame and addon.Modules.BankFrame.Update then
+                    addon.Modules.BankFrame:Update()
                 end
             end
             return
@@ -1504,8 +1609,9 @@ local function ClearItemButton(self, emptySlotBg, countText, bagID)
     -- Hide junk icon
     HideJunkIcon(self)
 
-    -- Hide lock icon
+    -- Hide lock and pin icons
     HideLockIcon(self)
+    HidePinIcon(self)
 
     -- Hide normal texture
     self:SetNormalTexture("")
@@ -1647,8 +1753,9 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
         end
     end
 
-    -- Update lock icon
+    -- Update lock and pin icons
     UpdateLockIcon(self, iconSize)
+    UpdatePinIcon(self, iconSize)
 
     -- Update empty slot bg anchors/texture based on slot style
     UpdateEmptySlotBackground(self, emptySlotBg, iconSize)
@@ -1838,17 +1945,17 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
             if not self.categoryMarkIcon then
                 self.categoryMarkIcon = self:CreateTexture(nil, "OVERLAY", 7)
             end
-            local markSize = math.max(10, math.floor(iconSize * 0.3)) + 6
+            local markSize = math.max(10, math.floor(iconSize * 0.3)) + 3
             self.categoryMarkIcon:SetWidth(markSize)
             self.categoryMarkIcon:SetHeight(markSize)
             self.categoryMarkIcon:ClearAllPoints()
-            local markOffX, markOffY = 2, 2
+            local markOffX, markOffY = 1, 2
             if addon.Modules and addon.Modules.Theme and addon.Modules.Theme:GetSlotStyle() == "square" then
-                markOffX, markOffY = -2, -2
+                markOffX, markOffY = -1, -1
             end
             self.categoryMarkIcon:SetPoint("BOTTOMLEFT", anchor, "BOTTOMLEFT", markOffX, markOffY)
             self.categoryMarkIcon:SetTexture(categoryMarkTexture)
-            self.categoryMarkIcon:SetVertexColor(0.85, 0.65, 0.13, 1)
+            self.categoryMarkIcon:SetVertexColor(1, 1, 1, 1)
             self.categoryMarkIcon:SetAlpha(1)
             self.categoryMarkIcon:Show()
         else
