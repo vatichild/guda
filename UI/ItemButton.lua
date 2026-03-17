@@ -568,7 +568,7 @@ local function UpdateLockIcon(button, iconSize)
 	if button.hasItem and button.itemData and button.itemData.link then
 		local Utils = addon.Modules.Utils
 		local itemID = Utils and Utils.ExtractItemID and Utils:ExtractItemID(button.itemData.link)
-		if itemID and DB:IsItemLocked(itemID) then
+		if itemID and DB:IsItemProtected(itemID) then
 			isLocked = true
 		end
 	end
@@ -577,7 +577,7 @@ local function UpdateLockIcon(button, iconSize)
 		if not button.lockIcon then
 			button.lockIcon = AcquireLockIcon()
 		end
-		local lockSize = math.max(8, math.min(12, iconSize * 0.35 - 2))
+		local lockSize = math.max(8, math.min(12, iconSize * 0.35 - 3))
 		button.lockIcon:SetWidth(lockSize)
 		button.lockIcon:SetHeight(lockSize)
 		if button.lockIcon.shadow then
@@ -585,7 +585,7 @@ local function UpdateLockIcon(button, iconSize)
 			button.lockIcon.shadow:SetHeight(lockSize)
 		end
 		button.lockIcon:ClearAllPoints()
-		button.lockIcon:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 3, -3)
+		button.lockIcon:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 4, -3)
 		button.lockIcon:SetFrameLevel(button:GetFrameLevel() + 5)
 		button.lockIcon:Show()
 	else
@@ -1005,11 +1005,23 @@ function Guda_ItemButton_OnLoad(self)
             if link and addon and addon.Modules and addon.Modules.Utils and addon.Modules.DB then
                 local itemID = addon.Modules.Utils:ExtractItemID(link)
                 if itemID then
-                    -- Skip if already protected by equipment set
+                    -- If item is in an equipment set, toggle set protection exception
                     if addon.Modules.DB:GetSetting("autoLockSetItems") then
                         local EquipSets = addon.Modules.EquipmentSets
                         if EquipSets and EquipSets.IsInSet and EquipSets:IsInSet(itemID) then
-                            addon:Print(link .. " is already protected by equipment set")
+                            local isNowExcepted = addon.Modules.DB:ToggleSetProtectionException(itemID)
+                            if isNowExcepted then
+                                addon:Print(link .. " set protection removed")
+                            else
+                                addon:Print(link .. " set protection restored")
+                            end
+                            -- Refresh bag/bank frames
+                            if addon.Modules.BagFrame and addon.Modules.BagFrame.Update then
+                                addon.Modules.BagFrame:Update()
+                            end
+                            if addon.Modules.BankFrame and addon.Modules.BankFrame.Update then
+                                addon.Modules.BankFrame:Update()
+                            end
                             return
                         end
                     end

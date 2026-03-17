@@ -157,6 +157,11 @@ function DB:Initialize()
 		Guda_CharDB.lockedItems = {}
 	end
 
+	-- Initialize set protection exceptions storage
+	if not Guda_CharDB.setProtectionExceptions then
+		Guda_CharDB.setProtectionExceptions = {}
+	end
+
 	-- Initialize CategoryManager for custom categories
 	if addon.Modules.CategoryManager then
 		addon.Modules.CategoryManager:Initialize()
@@ -484,13 +489,53 @@ function DB:ToggleItemLock(itemID)
 	end
 end
 
+-------------------------------------------------
+-- Set Protection Exceptions (per-character)
+-- Items in equipment sets that the user explicitly
+-- chose to unprotect via Ctrl+Right-Click
+-------------------------------------------------
+
+function DB:IsSetProtectionException(itemID)
+	if not itemID or not Guda_CharDB or not Guda_CharDB.setProtectionExceptions then return false end
+	return Guda_CharDB.setProtectionExceptions[itemID] and true or false
+end
+
+function DB:ToggleSetProtectionException(itemID)
+	if not itemID or not Guda_CharDB then return false end
+	if not Guda_CharDB.setProtectionExceptions then
+		Guda_CharDB.setProtectionExceptions = {}
+	end
+	if Guda_CharDB.setProtectionExceptions[itemID] then
+		Guda_CharDB.setProtectionExceptions[itemID] = nil
+		return false  -- protection restored
+	else
+		Guda_CharDB.setProtectionExceptions[itemID] = true
+		return true   -- protection removed (excepted)
+	end
+end
+
+-- Remove exceptions for items no longer in any equipment set
+function DB:PruneSetProtectionExceptions()
+	if not Guda_CharDB or not Guda_CharDB.setProtectionExceptions then return end
+	local EquipSets = addon.Modules.EquipmentSets
+	if not EquipSets or not EquipSets.IsInSet then return end
+	for itemID in pairs(Guda_CharDB.setProtectionExceptions) do
+		if not EquipSets:IsInSet(itemID) then
+			Guda_CharDB.setProtectionExceptions[itemID] = nil
+		end
+	end
+end
+
 -- Check if an item is protected (user-locked or in equipment set with autoLockSetItems)
 function DB:IsItemProtected(itemID)
 	if not itemID then return false end
 	if self:IsItemLocked(itemID) then return true end
 	if self:GetSetting("autoLockSetItems") then
 		local EquipSets = addon.Modules.EquipmentSets
-		if EquipSets and EquipSets.IsInSet and EquipSets:IsInSet(itemID) then return true end
+		if EquipSets and EquipSets.IsInSet and EquipSets:IsInSet(itemID)
+		   and not self:IsSetProtectionException(itemID) then
+			return true
+		end
 	end
 	return false
 end
