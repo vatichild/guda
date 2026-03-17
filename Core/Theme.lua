@@ -691,6 +691,7 @@ function Theme:ApplyFramePadding()
         { name = "Guda_BagFrame_CharsButton", pfui = { "TOPLEFT", nil, "TOPLEFT", 10, -8 },   default = { "TOPLEFT", nil, "TOPLEFT", 21, -15 } },
         { name = "Guda_BagFrame_SearchBar",   pfui = { "TOP", nil, "TOP", 0, -28 },       default = { "TOP", nil, "TOP", 0, -40 } },
         { name = "Guda_BagFrame_Toolbar",     pfui = { "BOTTOMLEFT", nil, "BOTTOMLEFT", 5, 5 }, default = { "BOTTOMLEFT", nil, "BOTTOMLEFT", 10, 5 } },
+        { name = "Guda_BagFrame_MoneyFrame", pfui = { "BOTTOMRIGHT", nil, "BOTTOMRIGHT", -5, 7 }, default = { "BOTTOMRIGHT", nil, "BOTTOMRIGHT", -5, 7 } },
     }
     for _, elem in ipairs(bagFrameElements) do
         local frame = getglobal(elem.name)
