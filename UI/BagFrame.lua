@@ -375,9 +375,55 @@ function BagFrame:UpdateChangedSlots(bagID)
     local isCategoryView = (viewType == "category")
 
     if isCategoryView then
-        -- Category view: always do full redraw since items may change categories
-        return -1
-    else
+        -- In Category View: update slots that HAVE button mappings in-place
+        -- AND check for NEW items that arrived in slots without buttons
+        local updatedCount = 0
+        for slotID, targetButton in pairs(slotToButton[bagID]) do
+            local currentLink = GetContainerItemLink(bagID, slotID)
+            local cachedLink = targetButton.itemData and targetButton.itemData.link or nil
+
+            local needsUpdate = false
+            if currentLink ~= cachedLink then
+                needsUpdate = true
+            elseif currentLink then
+                local _, currentCount = GetContainerItemInfo(bagID, slotID)
+                local cachedCount = targetButton.itemData and targetButton.itemData.count or 0
+                if currentCount ~= cachedCount then
+                    needsUpdate = true
+                end
+            end
+
+            if needsUpdate then
+                addon:DebugCategory("  bag %d slot %d: needs update (had=%s, now=%s)", bagID, slotID,
+                    cachedLink and "item" or "empty", currentLink and "item" or "empty")
+                if self:UpdateSingleSlot(bagID, slotID, targetButton) then
+                    updatedCount = updatedCount + 1
+                else
+                    addon:DebugCategory("  bag %d slot %d: UpdateSingleSlot failed -> full redraw", bagID, slotID)
+                    return -1
+                end
+            end
+        end
+
+        -- CRITICAL: Check for NEW items that arrived in slots WITHOUT button mappings
+        -- Category View only has buttons for filled slots, so new items need full redraw
+        local numSlots = GetContainerNumSlots(bagID)
+        if numSlots and numSlots > 0 then
+            for checkSlotID = 1, numSlots do
+                local hasButton = slotToButton[bagID][checkSlotID] or slotToButton[bagID][tostring(checkSlotID)]
+                if not hasButton then
+                    local currentLink = GetContainerItemLink(bagID, checkSlotID)
+                    if currentLink then
+                        addon:DebugCategory("  bag %d slot %d: NEW item arrived (no button) -> full redraw", bagID, checkSlotID)
+                        return -1  -- Trigger full redraw to categorize new item
+                    end
+                end
+            end
+        end
+
+        addon:DebugCategory("UpdateChangedSlots (category): bag=%d, success, updated %d slots", bagID, updatedCount)
+        return updatedCount
+    elseif not isCategoryView then
         -- In Single View: check all slots
         local numSlots = GetContainerNumSlots(bagID)
         if not numSlots or numSlots == 0 then return -1 end

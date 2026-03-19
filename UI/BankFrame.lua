@@ -2276,6 +2276,7 @@ function BankFrame:Initialize()
         local viewType = addon.Modules.DB:GetSetting("bankViewType") or "single"
         if viewType == "category" then
             -- Only update lock visual states, don't trigger full redraw
+            -- (pseudo empty placeholders would be destroyed by full redraw)
             BankFrame:UpdateLockStates()
             return
         end
@@ -2336,6 +2337,10 @@ function BankFrame:Initialize()
                             addon:DebugCategory("  -> slot emptied, incremental update done, no full redraw needed")
                         else
                             addon:DebugCategory("  -> item added, incremental update done")
+                            -- Safety-net: item appeared, verify with full redraw in category view
+                            if viewType == "category" then
+                                ScheduleBankFrameUpdate(0.3)
+                            end
                         end
                         return
                     end
@@ -2410,8 +2415,9 @@ function BankFrame:Initialize()
                         -- The cache will be updated on next full redraw if needed
                         return
                     elseif realItems == cacheItems then
-                        -- No change in item count - might be item swap, skip update
-                        addon:DebugCategory("  -> item count unchanged (%d), skipping", realItems)
+                        -- No change in item count - might be item swap or stale data
+                        addon:DebugCategory("  -> item count unchanged (%d), scheduling safety-net redraw", realItems)
+                        ScheduleBankFrameUpdate(0.3)
                         return
                     end
                     -- Items were added - need full redraw
@@ -2444,6 +2450,13 @@ function BankFrame:Initialize()
                     if result >= 0 then
                         -- Incremental update succeeded - no need for full redraw for THIS bag
                         -- But don't cancel pending redraws - other changes might need them
+                        -- Safety-net for category view when items were added (result > 0 = slots changed)
+                        if result > 0 then
+                            local catViewType = addon.Modules.DB:GetSetting("bankViewType") or "single"
+                            if catViewType == "category" then
+                                ScheduleBankFrameUpdate(0.3)
+                            end
+                        end
                         return
                     end
                     -- Fall through to full redraw
