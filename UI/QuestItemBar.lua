@@ -15,6 +15,55 @@ local flyoutButtons = {}
 local flyoutFrame
 
 --=====================================================
+-- Quest border (yellow) for quest item bar buttons
+--=====================================================
+local QUEST_BORDER_PADDING = 1
+
+local function GetOrCreateQuestBorder(button)
+    if button._questBorder then return button._questBorder end
+
+    local qStyle = "rounded"
+    if addon.Modules and addon.Modules.Theme then
+        qStyle = addon.Modules.Theme:GetQualityBorderStyle()
+    end
+
+    local frame = CreateFrame("Frame", nil, button)
+    frame:SetFrameLevel(button:GetFrameLevel() + 3)
+    local pad = QUEST_BORDER_PADDING
+    frame:SetPoint("TOPLEFT", button, "TOPLEFT", -pad, pad)
+    frame:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", pad, -pad)
+    if qStyle == "square" then
+        frame:SetBackdrop({
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+            insets = { left = -1, right = -1, top = -1, bottom = -1 },
+        })
+    else
+        frame:SetBackdrop({
+            edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+            edgeSize = 12,
+            insets = { left = 0, right = 0, top = 0, bottom = 0 },
+        })
+    end
+    frame:SetBackdropBorderColor(1, 1, 0, 1) -- yellow
+    frame:Hide()
+    button._questBorder = frame
+    return frame
+end
+
+local function ShowQuestBorder(button)
+    local frame = GetOrCreateQuestBorder(button)
+    frame:SetBackdropBorderColor(1, 1, 0, 1)
+    frame:Show()
+end
+
+local function HideQuestBorder(button)
+    if button._questBorder then
+        button._questBorder:Hide()
+    end
+end
+
+--=====================================================
 -- Quest Item Detection (using centralized ItemDetection)
 --=====================================================
 
@@ -148,20 +197,23 @@ function QuestItemBar:Update()
             button:SetScript("OnReceiveDrag", function() end)
             button:SetScript("OnMouseDown", function()
                 if arg1 == "LeftButton" then
-                    if IsShiftKeyDown() and not (CursorHasItem and CursorHasItem()) then
-                        this:GetParent():StartMoving()
-                        this:GetParent().isMoving = true
+                    local parent = this:GetParent()
+                    if parent and IsShiftKeyDown() and not parent.isMoving and not (CursorHasItem and CursorHasItem()) then
+                        parent:StartMoving()
+                        parent.isMoving = true
                     end
                 end
             end)
             button:SetScript("OnMouseUp", function()
                 if arg1 == "LeftButton" then
                     local parent = this:GetParent()
-                    if parent.isMoving then
+                    if parent and parent.isMoving then
                         parent:StopMovingOrSizing()
                         parent.isMoving = false
                         local point, _, relativePoint, x, y = parent:GetPoint()
-                        addon.Modules.DB:SetSetting("questBarPosition", {point = point, relativePoint = relativePoint, x = x, y = y})
+                        if point then
+                            addon.Modules.DB:SetSetting("questBarPosition", {point = point, relativePoint = relativePoint, x = x, y = y})
+                        end
                     end
                 end
             end)
@@ -251,9 +303,11 @@ function QuestItemBar:Update()
                 end
             end)
             
+            ShowQuestBorder(button)
             button:Show()
         else
             -- Empty slot
+            HideQuestBorder(button)
             button.hasItem = false
             button.bagID = nil
             button.slotID = nil
@@ -673,7 +727,7 @@ function QuestItemBar:Initialize()
     -- Handle dragging
     frame:RegisterForDrag("LeftButton")
     frame:SetScript("OnMouseDown", function()
-        if arg1 == "LeftButton" then
+        if arg1 == "LeftButton" and IsShiftKeyDown() and not this.isMoving then
             this:StartMoving()
             this.isMoving = true
         end
@@ -683,7 +737,9 @@ function QuestItemBar:Initialize()
             this:StopMovingOrSizing()
             this.isMoving = false
             local point, _, relativePoint, x, y = this:GetPoint()
-            addon.Modules.DB:SetSetting("questBarPosition", {point = point, relativePoint = relativePoint, x = x, y = y})
+            if point then
+                addon.Modules.DB:SetSetting("questBarPosition", {point = point, relativePoint = relativePoint, x = x, y = y})
+            end
         end
     end)
     

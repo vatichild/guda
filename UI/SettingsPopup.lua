@@ -510,7 +510,7 @@ function Guda_ApplyBackgroundTransparency()
     local transparency = Guda.Modules.DB:GetSetting("bgTransparency") or 0.15
     local alpha = 1.0 - transparency
 
-    local frames = { "Guda_BagFrame", "Guda_BankFrame", "Guda_MailboxFrame", "Guda_SettingsPopup", "Guda_QuestItemBar" }
+    local frames = { "Guda_BagFrame", "Guda_BankFrame", "Guda_MailboxFrame", "Guda_SettingsPopup" }
     for _, frameName in ipairs(frames) do
         local frame = getglobal(frameName)
         if frame then

@@ -528,7 +528,7 @@ end
 -- Apply theme to all main frames
 function Theme:ApplyToAllFrames()
     ThemeDebug("=== ApplyToAllFrames ===")
-    local frameNames = { "Guda_BagFrame", "Guda_BankFrame", "Guda_MailboxFrame", "Guda_SettingsPopup", "Guda_CategoryEditor", "Guda_QuestItemBar" }
+    local frameNames = { "Guda_BagFrame", "Guda_BankFrame", "Guda_MailboxFrame", "Guda_SettingsPopup", "Guda_CategoryEditor" }
     for _, frameName in ipairs(frameNames) do
         local frame = getglobal(frameName)
         if frame then
@@ -791,7 +791,7 @@ SlashCmdList["GUDATHEME"] = function(msg)
         addon.DEBUG_THEME = prev
     elseif msg == "inspect" then
         -- Dump backdrop state for all frames without reapplying
-        local frameNames = { "Guda_BagFrame", "Guda_BankFrame", "Guda_MailboxFrame", "Guda_SettingsPopup", "Guda_CategoryEditor", "Guda_QuestItemBar" }
+        local frameNames = { "Guda_BagFrame", "Guda_BankFrame", "Guda_MailboxFrame", "Guda_SettingsPopup", "Guda_CategoryEditor" }
         -- Show current transparency setting
         local transp = "N/A"
         if addon.Modules and addon.Modules.DB then
