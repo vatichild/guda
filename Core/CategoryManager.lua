@@ -60,7 +60,7 @@ local GROUP_CLASS = "Class"
 -- Default category definitions that replicate the existing hardcoded behavior
 local DEFAULT_CATEGORIES = {
     order = {
-        "BoE", "Weapon", "Armor", "Consumable", "Food", "Drink",
+        "BoE", "Weapon", "Armor", "Trinket", "Consumable", "Food", "Drink",
         "Trade Goods", "Reagent", "Recipe", "Quiver", "Container",
         "Soul Bag", "Miscellaneous", "Quest", "Junk",
         "Class Items", "Keyring",
@@ -100,6 +100,18 @@ local DEFAULT_CATEGORIES = {
             },
             matchMode = "all",
             priority = 70,
+            enabled = true,
+            isBuiltIn = true,
+            group = GROUP_MAIN,
+        },
+        ["Trinket"] = {
+            name = "Trinket",
+            icon = "Interface\\Icons\\INV_Trinket_Naaru_01",
+            rules = {
+                { type = "itemSubtype", value = "INVTYPE_TRINKET" }
+            },
+            matchMode = "all",
+            priority = 72,
             enabled = true,
             isBuiltIn = true,
             group = GROUP_MAIN,
@@ -1047,6 +1059,24 @@ function CategoryManager:CategorizeItem(itemData, bagID, slotID, isOtherChar)
         return categoryCache[cacheKey]
     end
     cacheMisses = cacheMisses + 1
+
+    -- Reclassify equippable items that have wrong itemType (e.g. Trade Goods trinkets/devices)
+    -- If subclass indicates an equip slot, treat as Armor
+    if itemData and itemData.subclass then
+        local sub = itemData.subclass
+        if sub == "INVTYPE_TRINKET" or sub == "INVTYPE_FINGER" or sub == "INVTYPE_NECK"
+            or sub == "INVTYPE_HEAD" or sub == "INVTYPE_SHOULDER" or sub == "INVTYPE_CHEST"
+            or sub == "INVTYPE_WAIST" or sub == "INVTYPE_LEGS" or sub == "INVTYPE_FEET"
+            or sub == "INVTYPE_WRIST" or sub == "INVTYPE_HAND" or sub == "INVTYPE_CLOAK"
+            or sub == "INVTYPE_ROBE" or sub == "INVTYPE_BODY" then
+            if itemData.class ~= "Armor" and itemData.class ~= "Weapon" then
+                local override = {}
+                for k, v in pairs(itemData) do override[k] = v end
+                override.class = "Armor"
+                itemData = override
+            end
+        end
+    end
 
     -- Check item overrides first (flat map: itemID -> categoryId)
     local itemID
