@@ -16,6 +16,27 @@ local function ThemeDebug(msg, a1, a2, a3, a4, a5, a6, a7)
     end
 end
 
+-- Read a color from pfUI_config.appearance.border (e.g. "background" or "color")
+-- pfUI stores colors as comma-separated strings: "R,G,B,A"
+local function ParseColorString(str)
+    if not str then return nil end
+    local vals = {}
+    for v in string.gfind(str, "[^,]+") do
+        table.insert(vals, tonumber(v))
+    end
+    if vals[1] then
+        return vals[1], vals[2], vals[3], vals[4]
+    end
+    return nil
+end
+
+local function GetPfUIColor(key)
+    if pfUI_config and pfUI_config.appearance and pfUI_config.appearance.border then
+        return ParseColorString(pfUI_config.appearance.border[key])
+    end
+    return nil
+end
+
 -- Theme definitions
 -- Background is rendered via a standalone Texture child (not bgFile).
 local themes = {
@@ -124,7 +145,29 @@ function Theme:Get()
         return cachedTheme
     end
     cachedThemeName = name
-    cachedTheme = themes[name] or themes.guda
+    local base = themes[name] or themes.guda
+
+    -- When pfUI theme is active and pfUI is loaded, inherit pfUI's colors
+    if name == "pfui" then
+        -- Shallow copy so we don't mutate the static theme table
+        local t = {}
+        for k, v in pairs(base) do t[k] = v end
+
+        local br, bg, bb, ba = GetPfUIColor("background")
+        if br then
+            t.bgColor = { r = br, g = bg, b = bb }
+            t.footerButtonBg = { br, bg, bb, ba or 1 }
+        end
+        local er, eg, eb, ea = GetPfUIColor("color")
+        if er then
+            t.borderColor = { er, eg, eb, ea or 1 }
+            t.footerButtonBorder = { er, eg, eb, ea or 1 }
+        end
+        cachedTheme = t
+    else
+        cachedTheme = base
+    end
+
     return cachedTheme
 end
 
@@ -654,8 +697,11 @@ function Theme:ApplySearchBoxStyle()
                     edgeSize = 1,
                     insets = { left = -1, right = -1, top = -1, bottom = -1 },
                 })
-                box:SetBackdropColor(0, 0, 0, 1)
-                box:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
+                local t = self:Get()
+                local sbg = t.bgColor
+                box:SetBackdropColor(sbg.r, sbg.g, sbg.b, 1)
+                local sbc = t.borderColor or { 0.2, 0.2, 0.2, 1 }
+                box:SetBackdropBorderColor(sbc[1], sbc[2], sbc[3], sbc[4])
                 -- Reposition flush left at x=10
                 box:ClearAllPoints()
                 box:SetPoint("LEFT", box:GetParent(), "LEFT", 8, 0)

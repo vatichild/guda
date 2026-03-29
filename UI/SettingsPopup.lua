@@ -1622,7 +1622,7 @@ function Guda_SettingsPopup_ApplyTheme(themeId)
         DB:SetSetting("_prePfui_hideBorders", DB:GetSetting("hideBorders"))
         DB:SetSetting("_prePfui_bgTransparency", DB:GetSetting("bgTransparency"))
         DB:SetSetting("hideBorders", true)
-        DB:SetSetting("bgTransparency", 0)
+        DB:SetSetting("bgTransparency", Guda.Constants.PFUI_DEFAULT_BG_TRANSPARENCY)
     end
 
     DB:SetSetting("theme", themeId)

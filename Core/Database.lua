@@ -148,7 +148,7 @@ function DB:Initialize()
 		if pfUI then
 			Guda_CharDB.settings.theme = "pfui"
 			Guda_CharDB.settings.hideBorders = true
-			Guda_CharDB.settings.bgTransparency = 0
+			Guda_CharDB.settings.bgTransparency = Guda.Constants.PFUI_DEFAULT_BG_TRANSPARENCY
 			Guda_CharDB.settings.iconSpacing = 8
 		end
 	end

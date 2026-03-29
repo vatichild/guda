@@ -228,4 +228,9 @@ C.TOOLTIP = {
     MAX_MONEY_FRAMES = 8, -- Maximum number of money frames to search
 }
 
+--=============================================================================
+-- pfUI Theme Defaults
+--=============================================================================
+C.PFUI_DEFAULT_BG_TRANSPARENCY = 0.4
+
 addon:Debug("Constants module loaded")

@@ -5,6 +5,7 @@
 ## Version: 2.1.6
 ## SavedVariables: Guda_DB
 ## SavedVariablesPerCharacter: Guda_CharDB
+## OptionalDeps: pfUI
 
 Localization.lua
 
