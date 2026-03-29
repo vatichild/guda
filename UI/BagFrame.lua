@@ -638,6 +638,7 @@ function BagFrame:UpdateBaglineLayout()
 	local soulbag = getglobal("Guda_BagFrame_Toolbar_SoulBagButton")
 	local info = getglobal("Guda_BagFrame_Toolbar_BagSlotsInfo")
 	local hearthstone = getglobal("Guda_BagFrame_HearthstoneFrame")
+	local disenchant = getglobal("Guda_BagFrame_DisenchantFrame")
 
 	-- Determine last visible special button for info anchor
 	local lastButton = keyring
@@ -685,6 +686,13 @@ function BagFrame:UpdateBaglineLayout()
 			hearthstone:ClearAllPoints()
 			hearthstone:SetPoint("LEFT", info, "RIGHT", 6, 0)
 		end
+
+		-- Anchor disenchant next to hearthstone
+		if disenchant and disenchant:IsShown() then
+			disenchant:ClearAllPoints()
+			local anchor = hearthstone or info
+			disenchant:SetPoint("LEFT", anchor, "RIGHT", 6, 0)
+		end
 	else
 		-- Standard horizontal layout - all bags visible
 		if bag1 then
@@ -727,6 +735,13 @@ function BagFrame:UpdateBaglineLayout()
 		if hearthstone then
 			hearthstone:ClearAllPoints()
 			hearthstone:SetPoint("LEFT", info, "RIGHT", 6, 0)
+		end
+
+		-- Anchor disenchant next to hearthstone
+		if disenchant and disenchant:IsShown() then
+			disenchant:ClearAllPoints()
+			local anchor = hearthstone or info
+			disenchant:SetPoint("LEFT", anchor, "RIGHT", 6, 0)
 		end
 
 		-- Hide flyout when switching to full bagline
@@ -895,6 +910,9 @@ function BagFrame:Update()
 
 	-- Update hearthstone
 	self:UpdateHearthstone()
+
+	-- Update disenchant button
+	self:UpdateDisenchant()
 
 	-- Update bag slots info
 	self:UpdateBagSlotsInfo(bagData, isOtherChar)
@@ -1881,6 +1899,82 @@ function BagFrame:UseHearthstone()
 	local frame = getglobal("Guda_BagFrame_HearthstoneFrame")
 	if frame and frame.bag and frame.slot then
 		UseContainerItem(frame.bag, frame.slot)
+	end
+end
+
+-- Check if player has Disenchant spell (i.e. has Enchanting profession)
+function BagFrame:HasDisenchant()
+	local i = 1
+	while true do
+		local name = GetSpellName(i, BOOKTYPE_SPELL)
+		if not name then break end
+		if name == "Disenchant" then return true end
+		i = i + 1
+	end
+	return false
+end
+
+-- Create disenchant button in footer
+function BagFrame:CreateDisenchantFrame()
+	local frameName = "Guda_BagFrame_DisenchantFrame"
+	if getglobal(frameName) then return end
+
+	local toolbar = getglobal("Guda_BagFrame_Toolbar") or Guda_BagFrame
+	local frame = CreateFrame("Button", frameName, toolbar)
+	frame:SetWidth(20)
+	frame:SetHeight(20)
+	-- Default anchor; will be repositioned by UpdateBaglineLayout
+	local hs = getglobal("Guda_BagFrame_HearthstoneFrame")
+	if hs then
+		frame:SetPoint("LEFT", hs, "RIGHT", 6, 0)
+	else
+		frame:SetPoint("LEFT", toolbar, "LEFT", 0, 0)
+	end
+	frame:SetFrameLevel((toolbar:GetFrameLevel() or 5) + 5)
+
+	-- Icon texture
+	local icon = frame:CreateTexture(frameName .. "_Icon", "ARTWORK")
+	icon:SetAllPoints(frame)
+	icon:SetTexture("Interface\\Icons\\Spell_Holy_RemoveCurse")
+
+	-- Enable mouse and clicks
+	frame:EnableMouse(true)
+	frame:RegisterForClicks("LeftButtonUp")
+
+	frame:SetScript("OnEnter", function()
+		GameTooltip:SetOwner(this, "ANCHOR_TOP")
+		GameTooltip:ClearLines()
+		GameTooltip:AddLine("Disenchant", 1, 1, 1)
+		GameTooltip:AddLine("Click to cast Disenchant", 0.7, 0.7, 0.7)
+		GameTooltip:Show()
+	end)
+	frame:SetScript("OnLeave", function()
+		GameTooltip:Hide()
+	end)
+	frame:SetScript("OnClick", function()
+		CastSpellByName("Disenchant")
+	end)
+
+	addon:Debug("DisenchantFrame created")
+end
+
+-- Update disenchant button visibility
+function BagFrame:UpdateDisenchant()
+	local hideFooter = addon.Modules.DB:GetSetting("hideFooter")
+	local frame = getglobal("Guda_BagFrame_DisenchantFrame")
+
+	if hideFooter or not self:HasDisenchant() then
+		if frame then frame:Hide() end
+		return
+	end
+
+	if not frame then
+		self:CreateDisenchantFrame()
+		frame = getglobal("Guda_BagFrame_DisenchantFrame")
+	end
+
+	if frame then
+		frame:Show()
 	end
 end
 
@@ -2902,11 +2996,13 @@ function BagFrame:UpdateFooterVisibility()
 	local toolbar = getglobal("Guda_BagFrame_Toolbar")
 	local moneyFrame = getglobal("Guda_BagFrame_MoneyFrame")
 	local hearthstoneFrame = getglobal("Guda_BagFrame_HearthstoneFrame")
+	local disenchantFrame = getglobal("Guda_BagFrame_DisenchantFrame")
 
 	if hideFooter then
 		if toolbar then toolbar:Hide() end
 		if moneyFrame then moneyFrame:Hide() end
 		if hearthstoneFrame then hearthstoneFrame:Hide() end
+		if disenchantFrame then disenchantFrame:Hide() end
 	else
 		if toolbar then toolbar:Show() end
 		if moneyFrame then moneyFrame:Show() end
@@ -2916,6 +3012,7 @@ function BagFrame:UpdateFooterVisibility()
 		self:UpdateBaglineLayout()
 		self:UpdateMoney()
 		self:UpdateHearthstone()
+		self:UpdateDisenchant()
 	end
 end
 
