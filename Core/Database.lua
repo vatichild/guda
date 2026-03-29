@@ -149,6 +149,7 @@ function DB:Initialize()
 			Guda_CharDB.settings.theme = "pfui"
 			Guda_CharDB.settings.hideBorders = true
 			Guda_CharDB.settings.bgTransparency = Guda.Constants.PFUI_DEFAULT_BG_TRANSPARENCY
+			Guda_CharDB.settings.usePfUITransparency = true
 			Guda_CharDB.settings.iconSpacing = 8
 		end
 	end

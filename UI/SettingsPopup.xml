@@ -223,6 +223,19 @@
                         </Scripts>
                     </Frame>
 
+                    <!-- pfUI Transparency Checkbox (visible only when pfUI theme selected) -->
+                    <CheckButton name="Guda_SettingsPopup_UsePfUITransparencyCheckbox" inherits="OptionsCheckButtonTemplate">
+                        <Anchors>
+                            <Anchor point="LEFT" relativePoint="RIGHT" relativeTo="Guda_SettingsPopup_ThemeDropdown">
+                                <Offset><AbsDimension x="130" y="2"/></Offset>
+                            </Anchor>
+                        </Anchors>
+                        <Scripts>
+                            <OnLoad>Guda_SettingsPopup_UsePfUITransparencyCheckbox_OnLoad(this)</OnLoad>
+                            <OnClick>Guda_SettingsPopup_UsePfUITransparencyCheckbox_OnClick(this)</OnClick>
+                        </Scripts>
+                    </CheckButton>
+
                     <!-- Background Transparency Slider -->
                     <Slider name="Guda_SettingsPopup_BgTransparencySlider" inherits="OptionsSliderTemplate">
                         <Size><AbsDimension x="450" y="17"/></Size>

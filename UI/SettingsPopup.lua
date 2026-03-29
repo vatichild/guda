@@ -259,6 +259,20 @@ function Guda_SettingsPopup_OnShow(self)
         hideBordersCheckbox:SetChecked(hideBorders and 1 or 0)
     end
 
+    -- Refresh pfUI transparency checkbox visibility
+    local pfuiTranspCB = getglobal("Guda_SettingsPopup_UsePfUITransparencyCheckbox")
+    if pfuiTranspCB then
+        local currentTheme = Guda.Modules.DB:GetSetting("theme") or "guda"
+        if currentTheme == "pfui" then
+            local val = Guda.Modules.DB:GetSetting("usePfUITransparency")
+            if val == nil then val = true end
+            pfuiTranspCB:SetChecked(val and 1 or 0)
+            pfuiTranspCB:Show()
+        else
+            pfuiTranspCB:Hide()
+        end
+    end
+
     if qualityBorderEquipmentCheckbox then
         qualityBorderEquipmentCheckbox:SetChecked(showQualityBorderEquipment and 1 or 0)
     end
@@ -1564,6 +1578,44 @@ local themeOptions = {
     { text = "pfUI", value = "pfui" },
 }
 
+-- pfUI Transparency checkbox
+function Guda_SettingsPopup_UsePfUITransparencyCheckbox_OnLoad(self)
+    local text = getglobal(self:GetName().."Text")
+    if text then
+        text:SetText("pfUI Transparency")
+        local font, _, flags = text:GetFont()
+        if font then
+            text:SetFont(font, 13, flags)
+        end
+    end
+    self.tooltipText = "When enabled, uses pfUI's background transparency instead of the slider below."
+
+    local val = true
+    if Guda and Guda.Modules and Guda.Modules.DB then
+        local stored = Guda.Modules.DB:GetSetting("usePfUITransparency")
+        if stored ~= nil then val = stored end
+    end
+    self:SetChecked(val and 1 or 0)
+
+    -- Only show when pfUI theme is active
+    local theme = "guda"
+    if Guda and Guda.Modules and Guda.Modules.DB then
+        theme = Guda.Modules.DB:GetSetting("theme") or "guda"
+    end
+    if theme == "pfui" then self:Show() else self:Hide() end
+end
+
+function Guda_SettingsPopup_UsePfUITransparencyCheckbox_OnClick(self)
+    local isChecked = self:GetChecked() == 1
+    if Guda and Guda.Modules and Guda.Modules.DB then
+        Guda.Modules.DB:SetSetting("usePfUITransparency", isChecked)
+    end
+    if Guda.Modules and Guda.Modules.Theme then
+        Guda.Modules.Theme:ClearCache()
+        Guda.Modules.Theme:ApplyToAllFrames()
+    end
+end
+
 local function Guda_ThemeDropdown_Initialize()
     local currentTheme = Guda.Modules.DB:GetSetting("theme") or "guda"
     for _, option in ipairs(themeOptions) do
@@ -1623,6 +1675,10 @@ function Guda_SettingsPopup_ApplyTheme(themeId)
         DB:SetSetting("_prePfui_bgTransparency", DB:GetSetting("bgTransparency"))
         DB:SetSetting("hideBorders", true)
         DB:SetSetting("bgTransparency", Guda.Constants.PFUI_DEFAULT_BG_TRANSPARENCY)
+        -- Default to using pfUI transparency
+        if DB:GetSetting("usePfUITransparency") == nil then
+            DB:SetSetting("usePfUITransparency", true)
+        end
     end
 
     DB:SetSetting("theme", themeId)
@@ -1654,6 +1710,19 @@ function Guda_SettingsPopup_ApplyTheme(themeId)
     local bgTransparencySlider = getglobal("Guda_SettingsPopup_BgTransparencySlider")
     if bgTransparencySlider then
         bgTransparencySlider:SetValue(DB:GetSetting("bgTransparency") or 0.15)
+    end
+
+    -- Show/hide pfUI transparency checkbox based on theme
+    local pfuiTranspCB = getglobal("Guda_SettingsPopup_UsePfUITransparencyCheckbox")
+    if pfuiTranspCB then
+        if themeId == "pfui" then
+            local val = DB:GetSetting("usePfUITransparency")
+            if val == nil then val = true end
+            pfuiTranspCB:SetChecked(val and 1 or 0)
+            pfuiTranspCB:Show()
+        else
+            pfuiTranspCB:Hide()
+        end
     end
 end
 

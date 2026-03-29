@@ -495,11 +495,21 @@ function Theme:ApplyToFrame(frame)
 
     -- Background color / alpha
     local bg = t.bgColor
-    local transparency = 0.15
+    local alpha
+    local usePfUITransp = false
     if addon.Modules and addon.Modules.DB then
-        transparency = addon.Modules.DB:GetSetting("bgTransparency") or 0.15
+        usePfUITransp = addon.Modules.DB:GetSetting("usePfUITransparency")
     end
-    local alpha = 1.0 - transparency
+    if cachedThemeName == "pfui" and usePfUITransp ~= false then
+        local _, _, _, ba = GetPfUIColor("background")
+        alpha = ba or 1
+    else
+        local transparency = 0.15
+        if addon.Modules and addon.Modules.DB then
+            transparency = addon.Modules.DB:GetSetting("bgTransparency") or 0.15
+        end
+        alpha = 1.0 - transparency
+    end
     frame:SetBackdropColor(bg.r, bg.g, bg.b, alpha)
     ThemeDebug("  SetBackdropColor(%s,%s,%s,%s)", tostring(bg.r), tostring(bg.g), tostring(bg.b), tostring(alpha))
 
