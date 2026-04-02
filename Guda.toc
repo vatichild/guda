@@ -28,6 +28,7 @@ Data\EquipmentScanner.lua
 Data\EquipmentSets.lua
 
 Sorting\SortEngine.lua
+Sorting\BagReplacer.lua
 
 # UI Lua must load before XML so OnLoad handlers exist
 UI\ItemButton.lua

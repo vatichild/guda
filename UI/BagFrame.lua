@@ -3,6 +3,9 @@
 
 local addon = Guda
 
+-- Forward declaration (defined later near bag slot handlers)
+local Guda_TryEquipBagOnSlot
+
 local BagFrame = {}
 addon.Modules.BagFrame = BagFrame
 
@@ -555,13 +558,7 @@ local function CreateBagFlyout(parent)
 		btn:SetScript("OnReceiveDrag", function()
 			if this and this.bagID and this.bagID ~= 0 and CursorHasItem and CursorHasItem() then
 				local inv = ContainerIDToInventoryID(this.bagID)
-				if EquipCursorItem then
-					EquipCursorItem(inv)
-				elseif PutItemInBag then
-					PutItemInBag(inv)
-				end
-				Guda_BagSlot_Update(this, this.bagID)
-				if BagFrame and BagFrame.Update then BagFrame:Update() end
+				Guda_TryEquipBagOnSlot(this.bagID, inv, this)
 			end
 		end)
 
@@ -2641,17 +2638,31 @@ local function HookBagContainers()
 		local button = getglobal(buttonName)
 
 		if button then
+			local bagID = i
 			local originalOnClick = button:GetScript("OnClick")
 			button:SetScript("OnClick", function()
 				local mouseButton = arg1 or "LeftButton" -- Vanilla uses global arg1
 				if mouseButton == "LeftButton" then
-				-- Open Guda Bag View instead of default bag
-					BagFrame:Toggle()
+					-- If cursor has an item, try bag replacement instead of toggle
+					if CursorHasItem and CursorHasItem() then
+						local invSlot = ContainerIDToInventoryID(bagID)
+						Guda_TryEquipBagOnSlot(bagID, invSlot, nil)
+					else
+						BagFrame:Toggle()
+					end
 				else
 				-- Allow right-click and other buttons to work normally
 					if originalOnClick then
 						originalOnClick()
 					end
+				end
+			end)
+
+			-- Hook OnReceiveDrag for drag-drop bag replacement
+			button:SetScript("OnReceiveDrag", function()
+				if CursorHasItem and CursorHasItem() then
+					local invSlot = ContainerIDToInventoryID(bagID)
+					Guda_TryEquipBagOnSlot(bagID, invSlot, nil)
 				end
 			end)
 		end
@@ -3043,6 +3054,34 @@ function Guda_BagSlot_ApplyBackdrop(button)
 	button:SetBackdropBorderColor(fbBorder[1], fbBorder[2], fbBorder[3], fbBorder[4])
 end
 
+-- Try to equip a bag from cursor onto a bag slot, auto-replacing if occupied
+Guda_TryEquipBagOnSlot = function(bagID, invSlot, button)
+	if not CursorHasItem or not CursorHasItem() then return end
+
+	-- Check if current bag has items
+	local numSlots = GetContainerNumSlots(bagID)
+	local hasItems = false
+	if numSlots and numSlots > 0 then
+		for slot = 1, numSlots do
+			local texture = GetContainerItemInfo(bagID, slot)
+			if texture then hasItems = true; break end
+		end
+	end
+
+	if hasItems and addon.Modules.BagReplacer then
+		addon.Modules.BagReplacer:Execute(bagID, invSlot)
+	else
+		if EquipCursorItem then
+			EquipCursorItem(invSlot)
+		elseif PutItemInBag then
+			PutItemInBag(invSlot)
+		end
+	end
+
+	if button then Guda_BagSlot_Update(button, bagID) end
+	if BagFrame and BagFrame.Update then BagFrame:Update() end
+end
+
 -- OnLoad handler for bag slot buttons
 function Guda_BagSlot_OnLoad(button, bagID)
 -- Hide borders from ItemButtonTemplate
@@ -3094,13 +3133,7 @@ function Guda_BagSlot_OnLoad(button, bagID)
 		button:SetScript("OnReceiveDrag", function()
 			if this and this.bagID and this.bagID ~= 0 and CursorHasItem and CursorHasItem() then
 				local inv = ContainerIDToInventoryID(this.bagID)
-				if EquipCursorItem then
-					EquipCursorItem(inv)
-				elseif PutItemInBag then
-					PutItemInBag(inv)
-				end
-				Guda_BagSlot_Update(this, this.bagID)
-				if BagFrame and BagFrame.Update then BagFrame:Update() end
+				Guda_TryEquipBagOnSlot(this.bagID, inv, this)
 			end
 		end)
 	end
@@ -3227,14 +3260,7 @@ function Guda_BagSlot_OnClick(button, bagID)
 	if which == "LeftButton" then
 		if bagID ~= 0 and CursorHasItem and CursorHasItem() then
 			local invSlot = ContainerIDToInventoryID(bagID)
-			if EquipCursorItem then
-				EquipCursorItem(invSlot)
-			else
-				if PutItemInBag then PutItemInBag(invSlot) end
-			end
-			-- Update visuals after attempted equip
-			Guda_BagSlot_Update(button, bagID)
-			BagFrame:Update()
+			Guda_TryEquipBagOnSlot(bagID, invSlot, button)
 		end
 		return
 	end
