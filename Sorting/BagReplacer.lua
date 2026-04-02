@@ -267,7 +267,8 @@ function BagReplacer:BuildEvacuationPlan(targetBagID)
         moves = moves,
         stashBag = stashBag,
         stashSlot = stashSlot,
-        itemCount = itemCount
+        itemCount = itemCount,
+        targetBagID = targetBagID
     }, nil
 end
 
@@ -293,8 +294,61 @@ end
 --===========================================================================
 -- FinishReplacement: pick up new bag from stash, equip it, handle old bag
 --===========================================================================
-function BagReplacer:FinishReplacement(invSlot, stashBag, stashSlot)
-    addon:DebugSort("[BagReplacer] FinishReplacement: picking up new bag from bag%d/slot%d, equipping to invSlot %d", stashBag, stashSlot, invSlot)
+local function FinalizeReplacement()
+    ClearPendingLocks()
+    waitingForLocks = false
+    onLocksCleared = nil
+    BagReplacer.inProgress = false
+    addon:Print("Bag replaced successfully!")
+
+    -- Invalidate bag scanner cache BEFORE update so it does a full rescan
+    -- (bag slot count changed, incremental update can't handle that)
+    if addon.Modules.BagScanner and addon.Modules.BagScanner.InvalidateCache then
+        addon.Modules.BagScanner:InvalidateCache()
+    end
+    -- Refresh UI
+    if addon.Modules.BagFrame and addon.Modules.BagFrame.Update then
+        addon.Modules.BagFrame:Update()
+    end
+end
+
+-- Wait for BAG_UPDATE on the target bag to confirm the server processed the equip,
+-- then run the completion callback. Safety timeout if event never fires.
+local bagUpdateFrame = CreateFrame("Frame")
+local bagUpdateCallback = nil
+local bagUpdateTarget = nil
+
+bagUpdateFrame:SetScript("OnEvent", function()
+    if bagUpdateCallback and arg1 == bagUpdateTarget then
+        addon:DebugSort("[BagReplacer] BAG_UPDATE received for bag %d", arg1)
+        bagUpdateFrame:UnregisterEvent("BAG_UPDATE")
+        local cb = bagUpdateCallback
+        bagUpdateCallback = nil
+        bagUpdateTarget = nil
+        -- Small delay to let all related events settle
+        Guda_ScheduleTimer(0.15, cb)
+    end
+end)
+
+local function WaitForBagUpdate(targetBagID, callback)
+    bagUpdateCallback = callback
+    bagUpdateTarget = targetBagID
+    bagUpdateFrame:RegisterEvent("BAG_UPDATE")
+    -- Safety timeout
+    Guda_ScheduleTimer(1.5, function()
+        if bagUpdateCallback then
+            addon:DebugSort("[BagReplacer] BAG_UPDATE timeout for bag %d, proceeding", targetBagID)
+            bagUpdateFrame:UnregisterEvent("BAG_UPDATE")
+            local cb = bagUpdateCallback
+            bagUpdateCallback = nil
+            bagUpdateTarget = nil
+            cb()
+        end
+    end)
+end
+
+function BagReplacer:FinishReplacement(invSlot, stashBag, stashSlot, targetBagID)
+    addon:DebugSort("[BagReplacer] FinishReplacement: picking up new bag from bag%d/slot%d, equipping to invSlot %d (bag %d)", stashBag, stashSlot, invSlot, targetBagID)
     -- Verify new bag is still in stash slot
     local stashTexture = GetContainerItemInfo(stashBag, stashSlot)
     if not stashTexture then
@@ -312,8 +366,8 @@ function BagReplacer:FinishReplacement(invSlot, stashBag, stashSlot)
             addon:DebugSort("[BagReplacer] Equipping new bag to invSlot %d", invSlot)
             EquipCursorItem(invSlot)
 
-            -- Wait for equip to process, then try to place old bag
-            Guda_ScheduleTimer(0.3, function()
+            -- Wait for BAG_UPDATE to confirm server processed the bag change
+            WaitForBagUpdate(targetBagID, function()
                 if CursorHasItem and CursorHasItem() then
                     addon:DebugSort("[BagReplacer] Old bag on cursor, finding free slot to place it")
                     -- Old bag is on cursor - try to find a free slot for it
@@ -330,21 +384,7 @@ function BagReplacer:FinishReplacement(invSlot, stashBag, stashSlot)
                     -- If still on cursor, that's fine - user can place manually
                 end
 
-                ClearPendingLocks()
-                waitingForLocks = false
-                onLocksCleared = nil
-                BagReplacer.inProgress = false
-                addon:Print("Bag replaced successfully!")
-
-                -- Invalidate bag scanner cache BEFORE update so it does a full rescan
-                -- (bag slot count changed, incremental update can't handle that)
-                if addon.Modules.BagScanner and addon.Modules.BagScanner.InvalidateCache then
-                    addon.Modules.BagScanner:InvalidateCache()
-                end
-                -- Refresh UI
-                if addon.Modules.BagFrame and addon.Modules.BagFrame.Update then
-                    addon.Modules.BagFrame:Update()
-                end
+                FinalizeReplacement()
             end)
         else
             BagReplacer:Abort("Bag replacement failed: could not pick up new bag.")
@@ -370,7 +410,7 @@ function BagReplacer:ExecuteNextBatch(plan, index, invSlot)
     -- All moves done - finish replacement
     if index > totalMoves then
         addon:DebugSort("[BagReplacer] All %d moves complete, finishing replacement", totalMoves)
-        self:FinishReplacement(invSlot, plan.stashBag, plan.stashSlot)
+        self:FinishReplacement(invSlot, plan.stashBag, plan.stashSlot, plan.targetBagID)
         return
     end
 
