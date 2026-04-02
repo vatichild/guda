@@ -3070,16 +3070,26 @@ Guda_TryEquipBagOnSlot = function(bagID, invSlot, button)
 
 	if hasItems and addon.Modules.BagReplacer then
 		addon.Modules.BagReplacer:Execute(bagID, invSlot)
-	else
-		if EquipCursorItem then
-			EquipCursorItem(invSlot)
-		elseif PutItemInBag then
-			PutItemInBag(invSlot)
-		end
+		return -- BagReplacer handles its own UI updates
+	end
+
+	-- Empty bag or no bag — standard equip, then delayed refresh
+	if EquipCursorItem then
+		EquipCursorItem(invSlot)
+	elseif PutItemInBag then
+		PutItemInBag(invSlot)
 	end
 
 	if button then Guda_BagSlot_Update(button, bagID) end
-	if BagFrame and BagFrame.Update then BagFrame:Update() end
+
+	-- Delay the UI refresh so the server has time to process the bag equip
+	-- (GetContainerNumSlots won't reflect the new bag size immediately)
+	Guda_ScheduleTimer(0.3, function()
+		if addon.Modules.BagScanner and addon.Modules.BagScanner.InvalidateCache then
+			addon.Modules.BagScanner:InvalidateCache()
+		end
+		if BagFrame and BagFrame.Update then BagFrame:Update() end
+	end)
 end
 
 -- OnLoad handler for bag slot buttons
