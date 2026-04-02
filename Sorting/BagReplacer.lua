@@ -61,8 +61,8 @@ replacerFrame:SetScript("OnEvent", function()
     end
 end)
 
-local function WaitForLocksCleared(callback, timeout)
-    local minDelay = 0.5
+local function WaitForLocksCleared(callback, timeout, minDelay)
+    minDelay = minDelay or 0.15
     Guda_ScheduleTimer(minDelay, function()
         if not AnyPendingLocked() then
             ClearPendingLocks()
@@ -71,8 +71,8 @@ local function WaitForLocksCleared(callback, timeout)
         end
         waitingForLocks = true
         onLocksCleared = callback
-        local remaining = (timeout or 2.0) - minDelay
-        if remaining < 0.5 then remaining = 0.5 end
+        local remaining = (timeout or 1.5) - minDelay
+        if remaining < 0.3 then remaining = 0.3 end
         Guda_ScheduleTimer(remaining, function()
             if waitingForLocks then
                 waitingForLocks = false
@@ -84,6 +84,8 @@ local function WaitForLocksCleared(callback, timeout)
         end)
     end)
 end
+
+local BATCH_SIZE = 5 -- moves per batch for evacuation
 
 --===========================================================================
 -- Check if item can go in a specific bag (mirrors SortEngine logic)
@@ -305,13 +307,13 @@ function BagReplacer:FinishReplacement(invSlot, stashBag, stashSlot)
     AddPendingLock(stashBag, stashSlot)
 
     -- Wait briefly for pickup, then equip
-    Guda_ScheduleTimer(0.3, function()
+    Guda_ScheduleTimer(0.15, function()
         if CursorHasItem and CursorHasItem() then
             addon:DebugSort("[BagReplacer] Equipping new bag to invSlot %d", invSlot)
             EquipCursorItem(invSlot)
 
             -- Wait for equip to process, then try to place old bag
-            Guda_ScheduleTimer(0.5, function()
+            Guda_ScheduleTimer(0.3, function()
                 if CursorHasItem and CursorHasItem() then
                     addon:DebugSort("[BagReplacer] Old bag on cursor, finding free slot to place it")
                     -- Old bag is on cursor - try to find a free slot for it
@@ -334,13 +336,14 @@ function BagReplacer:FinishReplacement(invSlot, stashBag, stashSlot)
                 BagReplacer.inProgress = false
                 addon:Print("Bag replaced successfully!")
 
+                -- Invalidate bag scanner cache BEFORE update so it does a full rescan
+                -- (bag slot count changed, incremental update can't handle that)
+                if addon.Modules.BagScanner and addon.Modules.BagScanner.InvalidateCache then
+                    addon.Modules.BagScanner:InvalidateCache()
+                end
                 -- Refresh UI
                 if addon.Modules.BagFrame and addon.Modules.BagFrame.Update then
                     addon.Modules.BagFrame:Update()
-                end
-                -- Invalidate bag scanner cache
-                if addon.Modules.BagScanner and addon.Modules.BagScanner.InvalidateCache then
-                    addon.Modules.BagScanner:InvalidateCache()
                 end
             end)
         else
@@ -350,11 +353,19 @@ function BagReplacer:FinishReplacement(invSlot, stashBag, stashSlot)
 end
 
 --===========================================================================
--- ExecuteNextMove: move one item, wait for lock, recurse
+-- ExecuteNextBatch: move items in batches for speed
 --===========================================================================
-function BagReplacer:ExecuteNextMove(plan, index, invSlot)
+function BagReplacer:ExecuteNextBatch(plan, index, invSlot)
     local moves = plan.moves
     local totalMoves = table.getn(moves)
+
+    -- Skip any already-empty source slots
+    while index <= totalMoves do
+        local sourceTexture = GetContainerItemInfo(moves[index].fromBag, moves[index].fromSlot)
+        if sourceTexture then break end
+        addon:DebugSort("[BagReplacer] Source slot empty, skipping move %d", index)
+        index = index + 1
+    end
 
     -- All moves done - finish replacement
     if index > totalMoves then
@@ -363,43 +374,60 @@ function BagReplacer:ExecuteNextMove(plan, index, invSlot)
         return
     end
 
-    local move = moves[index]
-    addon:DebugSort("[BagReplacer] ExecuteNextMove %d/%d: bag%d/slot%d -> bag%d/slot%d", index, totalMoves, move.fromBag, move.fromSlot, move.toBag, move.toSlot)
-
-    -- Verify source slot still has an item (player may have moved it)
-    local sourceTexture = GetContainerItemInfo(move.fromBag, move.fromSlot)
-    if not sourceTexture then
-        addon:DebugSort("[BagReplacer] Source slot empty, skipping move %d", index)
-        -- Item already gone, skip to next
-        self:ExecuteNextMove(plan, index + 1, invSlot)
-        return
-    end
-
-    -- Check if source is locked
-    local _, _, locked = GetContainerItemInfo(move.fromBag, move.fromSlot)
+    -- Check if first item in batch is locked (wait if so)
+    local firstMove = moves[index]
+    local _, _, locked = GetContainerItemInfo(firstMove.fromBag, firstMove.fromSlot)
     if locked then
-        addon:DebugSort("[BagReplacer] Source slot locked, waiting for unlock")
-        -- Wait for it to unlock, then retry this move
-        AddPendingLock(move.fromBag, move.fromSlot)
+        addon:DebugSort("[BagReplacer] Source bag%d/slot%d locked, waiting", firstMove.fromBag, firstMove.fromSlot)
+        AddPendingLock(firstMove.fromBag, firstMove.fromSlot)
         WaitForLocksCleared(function()
-            BagReplacer:ExecuteNextMove(plan, index, invSlot)
+            BagReplacer:ExecuteNextBatch(plan, index, invSlot)
         end)
         return
     end
 
-    -- Execute the move
-    PickupContainerItem(move.fromBag, move.fromSlot)
-    PickupContainerItem(move.toBag, move.toSlot)
-    ClearCursor()
+    -- Execute a batch of moves
+    local batchEnd = index + BATCH_SIZE - 1
+    if batchEnd > totalMoves then batchEnd = totalMoves end
+    local moved = 0
 
-    -- Track locks
-    AddPendingLock(move.fromBag, move.fromSlot)
-    AddPendingLock(move.toBag, move.toSlot)
+    for i = index, batchEnd do
+        local move = moves[i]
 
-    -- Wait for locks to clear, then next move
-    WaitForLocksCleared(function()
-        BagReplacer:ExecuteNextMove(plan, index + 1, invSlot)
-    end)
+        -- Verify source still has an item
+        local sourceTexture = GetContainerItemInfo(move.fromBag, move.fromSlot)
+        if sourceTexture then
+            local _, _, sLocked = GetContainerItemInfo(move.fromBag, move.fromSlot)
+            if not sLocked then
+                PickupContainerItem(move.fromBag, move.fromSlot)
+                PickupContainerItem(move.toBag, move.toSlot)
+                ClearCursor()
+                AddPendingLock(move.fromBag, move.fromSlot)
+                AddPendingLock(move.toBag, move.toSlot)
+                moved = moved + 1
+                addon:DebugSort("[BagReplacer] Moved %d/%d: bag%d/slot%d -> bag%d/slot%d", i, totalMoves, move.fromBag, move.fromSlot, move.toBag, move.toSlot)
+            else
+                addon:DebugSort("[BagReplacer] Slot %d locked mid-batch, stopping batch", i)
+                batchEnd = i - 1
+                break
+            end
+        else
+            addon:DebugSort("[BagReplacer] Source slot %d empty, skipping", i)
+        end
+    end
+
+    local nextIndex = batchEnd + 1
+    addon:DebugSort("[BagReplacer] Batch done: %d items moved, next index %d/%d", moved, nextIndex, totalMoves)
+
+    if moved > 0 then
+        -- Wait for batch locks to clear, then next batch
+        WaitForLocksCleared(function()
+            BagReplacer:ExecuteNextBatch(plan, nextIndex, invSlot)
+        end)
+    else
+        -- Nothing moved (all empty/locked), try next batch immediately
+        BagReplacer:ExecuteNextBatch(plan, nextIndex, invSlot)
+    end
 end
 
 --===========================================================================
@@ -471,6 +499,6 @@ function BagReplacer:Execute(targetBagID, invSlot)
         end
         addon:DebugSort("[BagReplacer] Stash confirmed, beginning evacuation")
         -- Begin moving items out of target bag
-        BagReplacer:ExecuteNextMove(plan, 1, invSlot)
+        BagReplacer:ExecuteNextBatch(plan, 1, invSlot)
     end)
 end
