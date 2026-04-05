@@ -1487,6 +1487,7 @@ function BankFrame:UpdateMoney()
 
     if moneyFrame then
         MoneyFrame_Update("Guda_BankFrame_MoneyFrame", GetMoney())
+        if FormatMoneyFrameWithCommas then FormatMoneyFrameWithCommas("Guda_BankFrame_MoneyFrame") end
         moneyFrame:Show()
 
         -- Ensure tooltip overlay exists
@@ -1521,10 +1522,10 @@ function Guda_BankFrame_MoneyFrame_OnLoad(self)
         local button = getglobal(fullName)
         if button then
             button:SetScript("OnEnter", function()
-                Guda_BankFrame_MoneyOnEnter(this:GetParent())
+                Guda_MoneyTooltip_Show(this:GetParent())
             end)
             button:SetScript("OnLeave", function()
-                GameTooltip:Hide()
+                Guda_MoneyTooltip_Hide()
             end)
         end
     end
@@ -1532,51 +1533,11 @@ function Guda_BankFrame_MoneyFrame_OnLoad(self)
     -- Also set handlers on parent frame
     self:EnableMouse(true)
     self:SetScript("OnEnter", function()
-        Guda_BankFrame_MoneyOnEnter(this)
+        Guda_MoneyTooltip_Show(this)
     end)
     self:SetScript("OnLeave", function()
-        GameTooltip:Hide()
+        Guda_MoneyTooltip_Hide()
     end)
-end
-
--- Money tooltip handler
-function Guda_BankFrame_MoneyOnEnter(self)
-    if not self then return end
-
-    -- Anchor tooltip to TOPRIGHT
-    GameTooltip:SetOwner(self, "ANCHOR_TOPRIGHT", 0, 0)
-    GameTooltip:ClearLines()
-
-    -- Get all characters and total (realm filtered, all factions)
-    local chars = addon.Modules.DB:GetAllCharacters(false, true)
-    local totalMoney = addon.Modules.DB:GetTotalMoney(false, true)
-
-    -- Header with current realm total - use colored money
-    GameTooltip:AddLine(
-        "Current realm gold: " .. addon.Modules.Utils:FormatMoney(totalMoney, false, true),
-        1, 0.82, 0
-    )
-    GameTooltip:AddLine(" ")
-
-    -- List each character with class-colored names
-    for _, char in ipairs(chars) do
-        local classToken = char.classToken
-        local classColor = classToken and (CUSTOM_CLASS_COLORS or RAID_CLASS_COLORS)[classToken]
-        local colorR, colorG, colorB = 0.7, 0.7, 0.7
-
-        if classColor then
-            colorR, colorG, colorB = classColor.r, classColor.g, classColor.b
-        end
-
-        -- Create colored name
-        local coloredName = addon.Modules.Utils:ColorText(char.name, colorR, colorG, colorB)
-
-        GameTooltip:AddLine(
-            coloredName .. ": " .. addon.Modules.Utils:FormatMoney(char.money or 0, false, true)
-        )
-    end
-
-    GameTooltip:Show()
 end
 
 -- Create transparent overlay for money tooltip

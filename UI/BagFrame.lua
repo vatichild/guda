@@ -1632,6 +1632,7 @@ function BagFrame:UpdateMoney()
 
 	if moneyFrame then
 		MoneyFrame_Update("Guda_BagFrame_MoneyFrame", GetMoney())
+		FormatMoneyFrameWithCommas("Guda_BagFrame_MoneyFrame")
 		moneyFrame:Show()
 
 		-- Ensure tooltip overlay exists
@@ -2104,7 +2105,7 @@ function Guda_BagFrame_MoneyFrame_OnLoad(self)
 				Guda_BagFrame_MoneyOnEnter(this:GetParent())
 			end)
 			button:SetScript("OnLeave", function()
-				GameTooltip:Hide()
+				Guda_MoneyTooltip_Hide()
 			end)
 		end
 	end
@@ -2117,49 +2118,206 @@ function Guda_BagFrame_MoneyFrame_OnLoad(self)
 		Guda_BagFrame_MoneyOnEnter(this)
 	end)
 	self:SetScript("OnLeave", function()
-		GameTooltip:Hide()
+		Guda_MoneyTooltip_Hide()
 	end)
 end
 
--- Money tooltip handler
-function Guda_BagFrame_MoneyOnEnter(self)
-	if not self then return end
+-- Custom money tooltip with coin icons
+local moneyTooltip = nil
+local moneyTooltipRows = {}
 
-	-- Anchor tooltip to TOPRIGHT - aligns tooltip's right edge with money container's right edge
-	GameTooltip:SetOwner(self, "ANCHOR_TOPRIGHT", 0, 0)
-	GameTooltip:ClearLines()
+-- Format number with thousand separators (e.g., 1234567 -> "1,234,567")
+local function FormatWithCommas(n)
+	local s = tostring(n)
+	local len = string.len(s)
+	if len <= 3 then return s end
+	local parts = {}
+	local pos = len
+	while pos > 0 do
+		local start = pos - 2
+		if start < 1 then start = 1 end
+		table.insert(parts, 1, string.sub(s, start, pos))
+		pos = start - 1
+	end
+	return table.concat(parts, ",")
+end
 
-	-- Get all characters and total (realm filtered, all factions)
+-- Apply comma formatting to a MoneyFrame's gold button text (global for BankFrame reuse)
+function FormatMoneyFrameWithCommas(frameName)
+	local goldBtn = getglobal(frameName .. "GoldButtonText")
+	if goldBtn then
+		local text = goldBtn:GetText()
+		if text then
+			local num = tonumber(text)
+			if num and num >= 1000 then
+				goldBtn:SetText(FormatWithCommas(num))
+			end
+		end
+	end
+end
+
+local function DisableMoneyFrameAutoUpdate(frameName)
+	local frame = getglobal(frameName)
+	if frame then
+		frame.moneyType = "STATIC"
+		frame:UnregisterAllEvents()
+		frame:SetScript("OnShow", nil)
+		frame:SetScript("OnEvent", nil)
+	end
+	-- Disable click/hover on denomination buttons
+	local buttons = {"GoldButton", "SilverButton", "CopperButton"}
+	for _, btn in ipairs(buttons) do
+		local b = getglobal(frameName .. btn)
+		if b then
+			b:EnableMouse(false)
+		end
+	end
+end
+
+local function CreateMoneyTooltip()
+	local f = CreateFrame("Frame", "Guda_MoneyTooltip", UIParent)
+	f:SetFrameStrata("TOOLTIP")
+	f:SetBackdrop({
+		bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+		edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+		tile = true, tileSize = 16, edgeSize = 16,
+		insets = { left = 4, right = 4, top = 4, bottom = 4 },
+	})
+	f:SetBackdropColor(0, 0, 0, 0.9)
+	f:SetBackdropBorderColor(0.5, 0.5, 0.5, 0.9)
+	f:EnableMouse(false)
+	f:Hide()
+
+	-- Auto-hide when mouse leaves both anchor and tooltip area
+	local elapsed = 0
+	f:SetScript("OnUpdate", function()
+		elapsed = elapsed + arg1
+		if elapsed < 0.2 then return end
+		elapsed = 0
+		if not this.anchor then this:Hide(); return end
+		if MouseIsOver(this) then return end
+		if MouseIsOver(this.anchor) then return end
+		this.anchor = nil
+		this:Hide()
+	end)
+
+	-- Header label
+	f.header = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	f.header:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -10)
+	f.header:SetText("Current realm gold")
+	f.header:SetTextColor(1, 0.82, 0)
+
+	-- Header money frame (total) — anchored to right edge, same row as header
+	f.totalMoney = CreateFrame("Frame", "Guda_MoneyTooltip_Total", f, "SmallMoneyFrameTemplate")
+	f.totalMoney:SetPoint("TOPRIGHT", f, "TOPRIGHT", -10, -10)
+	DisableMoneyFrameAutoUpdate("Guda_MoneyTooltip_Total")
+
+	return f
+end
+
+local function GetOrCreateMoneyRow(index)
+	if moneyTooltipRows[index] then return moneyTooltipRows[index] end
+	local row = {}
+	local frameName = "Guda_MoneyTooltip_Row" .. index
+	row.label = moneyTooltip:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+	row.money = CreateFrame("Frame", frameName, moneyTooltip, "SmallMoneyFrameTemplate")
+	DisableMoneyFrameAutoUpdate(frameName)
+	moneyTooltipRows[index] = row
+	return row
+end
+
+-- Shared money tooltip handler (used by both BagFrame and BankFrame)
+function Guda_MoneyTooltip_Show(anchor)
+	if not anchor then return end
+
+	if not moneyTooltip then
+		moneyTooltip = CreateMoneyTooltip()
+	end
+
+	-- Hide GameTooltip to avoid overlap
+	GameTooltip:Hide()
+
 	local chars = addon.Modules.DB:GetAllCharacters(false, true)
 	local totalMoney = addon.Modules.DB:GetTotalMoney(false, true)
 
-	-- Header with current realm total - use colored money
-	GameTooltip:AddLine(
-		"Current realm gold: " .. addon.Modules.Utils:FormatMoney(totalMoney, false, true),
-		1, 0.82, 0
-	)
-	GameTooltip:AddLine(" ")
+	-- Update header money
+	MoneyFrame_Update("Guda_MoneyTooltip_Total", totalMoney)
+	FormatMoneyFrameWithCommas("Guda_MoneyTooltip_Total")
 
-	-- List each character with class-colored names
-	for _, char in ipairs(chars) do
-	-- Get class color from WoW's built-in table using English class token
+	-- Layout character rows
+	local rowHeight = 18
+	local padding = 10
+	local yOffset = -10 - 20 - 14  -- top padding + header height + gap before character list
+
+	for i, char in ipairs(chars) do
+		local row = GetOrCreateMoneyRow(i)
+
+		-- Class-colored name
 		local classToken = char.classToken
 		local classColor = classToken and (CUSTOM_CLASS_COLORS or RAID_CLASS_COLORS)[classToken]
-		local colorR, colorG, colorB = 0.7, 0.7, 0.7
+		local r, g, b = 0.7, 0.7, 0.7
+		if classColor then r, g, b = classColor.r, classColor.g, classColor.b end
 
-		if classColor then
-			colorR, colorG, colorB = classColor.r, classColor.g, classColor.b
-		end
+		row.label:SetTextColor(r, g, b)
+		row.label:SetText(char.name)
+		row.label:ClearAllPoints()
+		row.label:SetPoint("TOPLEFT", moneyTooltip, "TOPLEFT", padding, yOffset)
+		row.label:Show()
 
-		-- Create colored name
-		local coloredName = addon.Modules.Utils:ColorText(char.name, colorR, colorG, colorB)
+		local frameName = "Guda_MoneyTooltip_Row" .. i
+		MoneyFrame_Update(frameName, char.money or 0)
+		FormatMoneyFrameWithCommas(frameName)
+		row.money:ClearAllPoints()
+		row.money:SetPoint("TOPRIGHT", moneyTooltip, "TOPRIGHT", -padding, yOffset)
+		row.money:Show()
 
-		GameTooltip:AddLine(
-			coloredName .. ": " .. addon.Modules.Utils:FormatMoney(char.money or 0, false, true)
-		)
+		yOffset = yOffset - rowHeight
 	end
 
-	GameTooltip:Show()
+	-- Hide unused rows
+	for i = table.getn(chars) + 1, table.getn(moneyTooltipRows) do
+		if moneyTooltipRows[i] then
+			moneyTooltipRows[i].label:Hide()
+			moneyTooltipRows[i].money:Hide()
+		end
+	end
+
+	-- Calculate frame size
+	local numRows = table.getn(chars)
+	local totalHeight = 10 + 20 + 14 + (numRows * rowHeight) + padding
+	-- Calculate width: widest name + gap + widest money
+	local maxNameWidth = moneyTooltip.header:GetStringWidth()
+	local maxMoneyWidth = moneyTooltip.totalMoney:GetWidth()
+	for i = 1, numRows do
+		local row = moneyTooltipRows[i]
+		if row and row.label:IsShown() then
+			local nw = row.label:GetStringWidth()
+			if nw > maxNameWidth then maxNameWidth = nw end
+			local mw = row.money:GetWidth()
+			if mw > maxMoneyWidth then maxMoneyWidth = mw end
+		end
+	end
+	local gap = 20
+	moneyTooltip:SetWidth(maxNameWidth + gap + maxMoneyWidth + padding * 2 + 10)
+	moneyTooltip:SetHeight(totalHeight)
+
+	-- Anchor above the money frame
+	moneyTooltip:ClearAllPoints()
+	moneyTooltip:SetPoint("BOTTOMRIGHT", anchor, "TOPRIGHT", 0, 2)
+	moneyTooltip.anchor = anchor
+	moneyTooltip:Show()
+end
+
+function Guda_MoneyTooltip_Hide()
+	if moneyTooltip then
+		moneyTooltip.anchor = nil
+		moneyTooltip:Hide()
+	end
+end
+
+-- Money tooltip handler (BagFrame entry point)
+function Guda_BagFrame_MoneyOnEnter(self)
+	Guda_MoneyTooltip_Show(self)
 end
 
 -- Dropdown management
