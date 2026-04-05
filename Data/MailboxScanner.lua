@@ -151,60 +151,100 @@ function MailboxScanner:SaveToDatabase()
     addon:Debug("Mailbox data saved")
 end
 
+-- Build item data from name/texture/count/quality
+local function BuildSendMailItemData(name, texture, count, quality)
+    local _, link = GetItemInfo(name)
+    local itemData = {
+        name = name,
+        texture = texture or "Interface\\Icons\\INV_Misc_Bag_08",
+        count = count or 1,
+        quality = quality or 0,
+        link = link,
+        itemID = addon.Modules.Utils:ExtractItemID(link),
+    }
+
+    local itemName, retLink, itemQuality, iLevel, itemCategory, itemType, itemStackCount, itemSubType, itemTexture, itemEquipLoc = addon.Modules.Utils:GetItemInfo(name)
+    if itemName then
+        itemData.link = retLink or itemData.link
+        itemData.itemID = addon.Modules.Utils:ExtractItemID(itemData.link) or itemData.itemID
+        itemData.quality = itemQuality or itemData.quality
+        itemData.iLevel = iLevel
+        itemData.type = itemType
+        itemData.class = itemCategory
+        itemData.subclass = itemSubType
+        itemData.equipSlot = itemEquipLoc
+        if itemTexture then itemData.texture = itemTexture end
+    end
+
+    if not itemData.itemID and itemData.link then
+        itemData.itemID = addon.Modules.Utils:ExtractItemID(itemData.link)
+    end
+
+    return itemData
+end
+
 -- Handle outgoing mail
 function MailboxScanner:OnSendMail(recipient, subject, body)
     if not recipient or recipient == "" then return end
-    
-    -- In WoW 1.12.1, SendMail(recipient, subject, body) is the signature.
-    -- To get the attached item, we use GetSendMailItem().
-    -- GetSendMailItem() returns: name, texture, count, quality
-    local name, texture, count, quality = GetSendMailItem()
-    local moneyAmount = GetSendMailMoney()
-    
-    local itemData = nil
-    if name then
-        local _, link = GetItemInfo(name)
-        itemData = {
-            name = name,
-            texture = texture or "Interface\\Icons\\INV_Misc_Bag_08",
-            count = count or 1,
-            quality = quality or 0,
-            link = link,
-            itemID = addon.Modules.Utils:ExtractItemID(link),
-        }
-        
-        -- Try to get more info if it's in cache
-        local itemName, retLink, itemQuality, iLevel, itemCategory, itemType, itemStackCount, itemSubType, itemTexture, itemEquipLoc, itemSellPrice = addon.Modules.Utils:GetItemInfo(name)
-        if itemName then
-            itemData.link = retLink or itemData.link
-            itemData.itemID = addon.Modules.Utils:ExtractItemID(itemData.link) or itemData.itemID
-            itemData.quality = itemQuality or itemData.quality
-            itemData.iLevel = iLevel
-            itemData.type = itemType
-            itemData.class = itemCategory
-            itemData.subclass = itemSubType
-            itemData.equipSlot = itemEquipLoc
-            if itemTexture then itemData.texture = itemTexture end
-        end
 
-        -- Double check itemID
-        if not itemData.itemID and itemData.link then
-            itemData.itemID = addon.Modules.Utils:ExtractItemID(itemData.link)
+    local moneyAmount = GetSendMailMoney()
+    local subjectText = (subject and subject ~= "") and subject or "No Subject"
+    local senderName = UnitName("player")
+    local addedAny = false
+
+    -- Try multi-attachment (TurtleWoW): check if HasSendMailItem exists
+    if HasSendMailItem then
+        for itemIndex = 1, 12 do
+            if not HasSendMailItem(itemIndex) then break end
+            local name, texture, count, quality = GetSendMailItem(itemIndex)
+            if not name then break end
+
+            local mailRow = {
+                sender = senderName,
+                subject = subjectText,
+                money = (itemIndex == 1) and moneyAmount or 0,
+                CODAmount = 0,
+                daysLeft = 30,
+                hasItem = true,
+                item = BuildSendMailItemData(name, texture, count, quality),
+                wasRead = false,
+            }
+            addon.Modules.DB:AddMailToCharacter(recipient, nil, mailRow)
+            addedAny = true
         end
     end
 
-    if itemData or moneyAmount > 0 then
+    -- Fallback: single attachment (vanilla API)
+    if not addedAny then
+        local name, texture, count, quality = GetSendMailItem()
+        if name then
+            local mailRow = {
+                sender = senderName,
+                subject = subjectText,
+                money = moneyAmount,
+                CODAmount = 0,
+                daysLeft = 30,
+                hasItem = true,
+                item = BuildSendMailItemData(name, texture, count, quality),
+                wasRead = false,
+            }
+            addon.Modules.DB:AddMailToCharacter(recipient, nil, mailRow)
+            addedAny = true
+        end
+    end
+
+    -- Money-only mail (no items)
+    if not addedAny and moneyAmount > 0 then
         local mailRow = {
-            sender = UnitName("player"),
-            subject = (subject and subject ~= "") and subject or "No Subject",
+            sender = senderName,
+            subject = subjectText,
             money = moneyAmount,
             CODAmount = 0,
-            daysLeft = 30, -- Outgoing mail typically has 30 days
-            hasItem = itemData ~= nil,
-            item = itemData,
+            daysLeft = 30,
+            hasItem = false,
+            item = nil,
             wasRead = false,
         }
-        
         addon.Modules.DB:AddMailToCharacter(recipient, nil, mailRow)
     end
 end
@@ -270,27 +310,28 @@ function MailboxScanner:Initialize()
         return originalPlaceAuctionBid(type, index, bid)
     end
 
-    -- Hook taking items/money to update database immediately
+    -- Hook taking items/money (original calls only, DB save handled by MAIL_INBOX_UPDATE)
     local originalTakeInboxItem = TakeInboxItem
     TakeInboxItem = function(index, attachmentIndex)
-        local result = originalTakeInboxItem(index, attachmentIndex)
-        MailboxScanner:SaveToDatabase()
-        return result
+        return originalTakeInboxItem(index, attachmentIndex)
     end
 
     local originalTakeInboxMoney = TakeInboxMoney
     TakeInboxMoney = function(index)
-        local result = originalTakeInboxMoney(index)
-        MailboxScanner:SaveToDatabase()
-        return result
+        return originalTakeInboxMoney(index)
     end
 
     local originalAutoLootMailItem = AutoLootMailItem
     AutoLootMailItem = function(index)
-        local result = originalAutoLootMailItem(index)
-        MailboxScanner:SaveToDatabase()
-        return result
+        return originalAutoLootMailItem(index)
     end
+
+    -- Rescan mailbox when server confirms inbox changes
+    addon.Modules.Events:Register("MAIL_INBOX_UPDATE", function()
+        if mailboxOpen then
+            MailboxScanner:SaveToDatabase()
+        end
+    end, "MailboxScanner_InboxUpdate")
 
     -- Mailbox opened
     addon.Modules.Events:OnMailShow(function()

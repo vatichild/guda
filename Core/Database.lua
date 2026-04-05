@@ -287,43 +287,21 @@ function DB:SaveMailbox(mailboxData)
 end
 
 -- Add a single mail entry to a character's mailbox
+-- These are predictions for outgoing mail/AH wins — they get replaced by a
+-- full rescan (SaveMailbox) when the recipient opens their mailbox.
 function DB:AddMailToCharacter(name, realm, mailRow)
 	local fullName = name .. "-" .. (realm or playerRealm)
 	local char = Guda_DB.characters[fullName]
-	
+
 	if char then
 		if not char.mailbox then
 			char.mailbox = {}
 		end
-		
-		-- Check if this exact mail already exists (simplistic check)
-		local exists = false
-		for _, m in ipairs(char.mailbox) do
-			if m.sender == mailRow.sender and m.subject == mailRow.subject and m.money == mailRow.money then
-				if (not m.item and not mailRow.item) or (m.item and mailRow.item and m.item.name == mailRow.item.name and m.item.count == mailRow.item.count) then
-					exists = true
-					-- Update link/itemID if missing in existing but present in new
-					if mailRow.item and m.item then
-						if not m.item.link and mailRow.item.link then
-							m.item.link = mailRow.item.link
-							addon:Debug("Updated link for existing mail item")
-						end
-						if not m.item.itemID and mailRow.item.itemID then
-							m.item.itemID = mailRow.item.itemID
-							addon:Debug("Updated itemID for existing mail item")
-						end
-					end
-					break
-				end
-			end
-		end
-		
-		if not exists then
-			table.insert(char.mailbox, 1, mailRow) -- Add to beginning
-			char.lastUpdate = time()
-			addon:Debug("Added outgoing mail to %s's mailbox", fullName)
-			return true
-		end
+
+		table.insert(char.mailbox, 1, mailRow)
+		char.lastUpdate = time()
+		addon:Debug("Added outgoing mail to %s's mailbox", fullName)
+		return true
 	end
 	return false
 end

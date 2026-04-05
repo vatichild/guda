@@ -60,7 +60,7 @@ local function CountFromSavedMailbox(mailboxData, itemID)
                 count = count + (item.count or 1)
             elseif not slotItemID and item.name then
                 -- Fallback to name matching if link is missing
-                local targetName = GetItemInfo(itemID)
+                local targetName = GetItemInfo("item:" .. itemID .. ":0:0:0")
                 if targetName == item.name then
                     count = count + (item.count or 1)
                 end
