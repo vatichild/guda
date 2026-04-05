@@ -37,6 +37,16 @@
                         </Anchor>
                     </Anchors>
                 </FontString>
+                <FontString name="$parent_Charges" inherits="NumberFontNormal" justifyH="RIGHT" hidden="true">
+                    <Color r="1" g="0.82" b="0"/>
+                    <Anchors>
+                        <Anchor point="BOTTOMRIGHT">
+                            <Offset>
+                                <AbsDimension x="-8" y="20"/>
+                            </Offset>
+                        </Anchor>
+                    </Anchors>
+                </FontString>
                 <Texture name="$parent_Check" file="Interface\Buttons\UI-CheckBox-Check" hidden="true">
                     <Size>
                         <AbsDimension x="24" y="24"/>

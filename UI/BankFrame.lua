@@ -1686,7 +1686,7 @@ function Guda_BankFrame_Sort()
 end
 
 -- Restack and Clean (for category view) - merges stacks and refreshes view
--- Queue-based approach like BagShui
+-- Queue-based approach
 function Guda_BankFrame_MergeStacks()
 	if isReadOnlyMode or currentViewChar then
 		addon:Print("Cannot restack in read-only mode!")

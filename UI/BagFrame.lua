@@ -2451,7 +2451,7 @@ function Guda_BagFrame_Sort()
 end
 
 -- Restack and Clean (for category view) - merges stacks and refreshes view
--- Queue-based approach like BagShui
+-- Queue-based approach
 function Guda_BagFrame_MergeStacks()
 	if currentViewChar then
 		addon:Print("Cannot restack for another character!")

@@ -76,7 +76,7 @@
                     <OnLoad>
                         local icon = getglobal(this:GetName().."_Icon")
                         if icon then
-                            -- BagShui approach: no file extension, WoW finds .blp automatically
+                            -- No file extension, WoW finds .blp automatically
                             icon:SetTexture("Interface\\AddOns\\Guda\\Assets\\Sorting")
                             icon:SetTexCoord(0, 1, 0, 1)
                         end

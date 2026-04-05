@@ -1334,6 +1334,8 @@ local function ResetButtonVisualState(self)
     if self.unusableOverlay then self.unusableOverlay:Hide() end
     HideJunkIcon(self)
     if self.categoryMarkIcon then self.categoryMarkIcon:Hide() end
+    local chargesText = getglobal(self:GetName().."_Charges")
+    if chargesText then chargesText:Hide() end
 
     -- Clear cooldown overlay
     local cd = getglobal(self:GetName().."Cooldown") or self.cooldown
@@ -1634,6 +1636,8 @@ local function ClearItemButton(self, emptySlotBg, countText, bagID)
     end
 
     if countText then countText:Hide() end
+    local chargesText = getglobal(self:GetName().."_Charges")
+    if chargesText then chargesText:Hide() end
 
     ResetSlotBorder(self)
     HideInnerShadow(self.innerShadow)
@@ -1681,6 +1685,7 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
 
     -- Get UI elements
     local countText = getglobal(self:GetName().."Count")
+    local chargesText = getglobal(self:GetName().."_Charges")
     local emptySlotBg = getglobal(self:GetName().."_EmptySlotBg")
     local Utils = addon and addon.Modules and addon.Modules.Utils
 
@@ -1827,6 +1832,23 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
         end
     end
 
+    -- Apply icon font size setting to charges text (positioned above stack count)
+    if chargesText and chargesText.GetFont then
+        local font, _, flags = chargesText:GetFont()
+        local fontSize = 12
+        if Utils and Utils.SafeCall then
+            fontSize = Utils:SafeCall("DB", "GetSetting", "iconFontSize") or fontSize
+        end
+        chargesText:SetFont(font, fontSize, flags)
+        chargesText:SetTextColor(1, 0.82, 0)
+        chargesText:ClearAllPoints()
+        if iconSize < 44 then
+            chargesText:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", -1, 1)
+        else
+            chargesText:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", -3, 3)
+        end
+    end
+
     -- Get live metadata if in live mode (quality, link, lock status)
     local itemQuality, itemLink, isLocked
     if not self.isReadOnly and bagID and slotID and self.hasItem then
@@ -1896,7 +1918,7 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
     if self.hasItem then
         -- Icon already set above based on mode (live vs cached)
 
-        -- Gray out locked items (being traded, mailed, or auctioned) - BagShui style
+        -- Gray out locked items (being traded, mailed, or auctioned)
         -- Don't desaturate items from other characters since they're read-only anyway
         if not self.otherChar and not self.isReadOnly then
             SetItemButtonDesaturated(self, isLocked, 0.5, 0.5, 0.5)
@@ -2059,6 +2081,20 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
                 HideInnerShadow(self.innerShadow)
             end
 		end
+
+        -- Show/hide charges text (e.g. "x5" for Wizard Oil)
+        if chargesText then
+            local charges = nil
+            if itemData and addon.Modules.ItemDetection then
+                charges = addon.Modules.ItemDetection:GetCharges(itemData, bagID, slotID)
+            end
+            if charges and charges > 0 then
+                chargesText:SetText("x" .. charges)
+                chargesText:Show()
+            else
+                chargesText:Hide()
+            end
+        end
 
         -- Handle tracking toggle on click
         -- Note: Tracking toggle is now handled in the main OnClick script above to avoid conflicts
@@ -2369,7 +2405,7 @@ function Guda_ItemButton_OnEnter(self)
 		end
 	end
 
-    -- Handle merchant sell cursor (same approach as BagShui)
+    -- Handle merchant sell cursor
 	if MerchantFrame:IsShown() and not self.isBank and not self.otherChar and self.hasItem then
 		ShowContainerSellCursor(self.bagID, self.slotID)
 	else

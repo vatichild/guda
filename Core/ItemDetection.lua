@@ -12,6 +12,7 @@ addon.Modules.ItemDetection = ItemDetection
 -- Caches tooltip scan results to avoid repeated scans
 --=====================================================
 local detectionCache = {}
+local chargesCache = {}  -- Keyed by "bagID:slotID" (charges vary per-slot, not per-link)
 local cacheHits = 0
 local cacheMisses = 0
 
@@ -19,6 +20,7 @@ local cacheMisses = 0
 -- For simple item moves, use InvalidateItem() or don't invalidate at all
 function ItemDetection:ClearCache()
     detectionCache = {}
+    chargesCache = {}
     cacheHits = 0
     cacheMisses = 0
 end
@@ -447,6 +449,17 @@ local function DetectUnusable(lines)
     return false
 end
 
+-- Detect item charges (e.g. "5 Charges" on Wizard Oil, Mana Oil, etc.)
+local function DetectCharges(lines)
+    for _, line in ipairs(lines) do
+        local _, _, num = string.find(line.leftLower, "^(%d+) charges?$")
+        if num then
+            return tonumber(num)
+        end
+    end
+    return nil
+end
+
 --=====================================================
 -- Public API - Cached Detection
 --=====================================================
@@ -496,6 +509,11 @@ function ItemDetection:GetItemProperties(itemData, bagID, slotID)
     local isQuestUsable = DetectQuestUsable(lines)
     local isJunk = DetectJunk(lines, itemData)
     local isUnusable = DetectUnusable(lines)
+
+    -- Store charges in per-slot cache during property scan (avoids double tooltip scan)
+    if bagID and slotID and tooltipLooksComplete then
+        chargesCache[bagID .. ":" .. slotID] = DetectCharges(lines)
+    end
 
     -- Debug: log junk detection for gray items
     if addon.DEBUG then
@@ -563,6 +581,37 @@ function ItemDetection:IsUnusable(itemData, bagID, slotID)
     return props.isUnusable
 end
 
+function ItemDetection:GetCharges(itemData, bagID, slotID)
+    if not bagID or not slotID then return nil end
+    local slotKey = bagID .. ":" .. slotID
+    -- Use per-slot cache if available
+    if chargesCache[slotKey] ~= nil then
+        return chargesCache[slotKey]
+    end
+    -- Otherwise scan tooltip fresh
+    local itemLink = itemData and itemData.link
+    local lines = ScanTooltipLines(bagID, slotID, itemLink)
+    local charges = DetectCharges(lines)
+    if table.getn(lines) >= 2 then
+        chargesCache[slotKey] = charges
+    end
+    return charges
+end
+
+-- Invalidate charges cache for a specific bag (called on BAG_UPDATE)
+function ItemDetection:InvalidateCharges(bagID)
+    if bagID then
+        local prefix = bagID .. ":"
+        for key in pairs(chargesCache) do
+            if string.find(key, "^" .. prefix) then
+                chargesCache[key] = nil
+            end
+        end
+    else
+        chargesCache = {}
+    end
+end
+
 --=====================================================
 -- Initialization
 --=====================================================
@@ -572,6 +621,11 @@ function ItemDetection:Initialize()
     addon.Modules.Events:Register("PLAYER_ENTERING_WORLD", function()
         self:ClearCache()
     end, "ItemDetection")
+
+    -- Invalidate charges cache on bag updates (charges change per-slot)
+    addon.Modules.Events:Register("BAG_UPDATE", function()
+        self:InvalidateCharges(arg1)
+    end, "ItemDetection_Charges")
 
     addon:Debug("ItemDetection module initialized")
 end
