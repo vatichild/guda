@@ -357,11 +357,15 @@ end
 local function Guda_MailboxCharacterMenu_Initialize()
     local characters = addon.Modules.DB:GetAllCharacters(true, true)
     local info
+    local currentPlayerFullName = addon.Modules.DB:GetPlayerFullName()
 
     for i, char in ipairs(characters) do
+        if addon.Modules.DB:IsGoldBlacklisted(char.fullName) and char.fullName ~= currentPlayerFullName then
+            -- skip blacklisted characters (never hide current player)
+        else
         local charFullName = char.fullName
         local charClassToken = char.classToken
-        
+
         -- Get class color
         local classColor = charClassToken and RAID_CLASS_COLORS[charClassToken]
         local r, g, b = 1, 1, 1
@@ -375,8 +379,9 @@ local function Guda_MailboxCharacterMenu_Initialize()
         info = {}
         info.text = coloredName
         info.func = function() MailboxFrame:ShowCharacter(charFullName) end
-        info.checked = (currentViewChar == char.fullName or (not currentViewChar and char.fullName == addon.Modules.DB:GetPlayerFullName()))
+        info.checked = (currentViewChar == char.fullName or (not currentViewChar and char.fullName == currentPlayerFullName))
         UIDropDownMenu_AddButton(info)
+        end -- else
     end
 end
 

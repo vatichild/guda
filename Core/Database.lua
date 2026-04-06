@@ -26,6 +26,11 @@ function DB:Initialize()
 		}
 	end
 
+	-- Initialize gold blacklist (account-wide)
+	if not Guda_DB.goldBlacklist then
+		Guda_DB.goldBlacklist = {}
+	end
+
 	-- Initialize character DB
 	if not Guda_CharDB then
 		Guda_CharDB = {
@@ -429,6 +434,23 @@ function DB:GetTotalMoney(sameFactionOnly, currentRealmOnly)
 		end
 	end
 	return total
+end
+
+-- Check if a character is excluded from gold/inventory tracking
+function DB:IsGoldBlacklisted(fullName)
+	return Guda_DB.goldBlacklist and Guda_DB.goldBlacklist[fullName]
+end
+
+-- Toggle a character's exclusion from gold/inventory tracking
+function DB:ToggleGoldBlacklist(fullName)
+	if not Guda_DB.goldBlacklist then
+		Guda_DB.goldBlacklist = {}
+	end
+	if Guda_DB.goldBlacklist[fullName] then
+		Guda_DB.goldBlacklist[fullName] = nil
+	else
+		Guda_DB.goldBlacklist[fullName] = true
+	end
 end
 
 -- Get character setting

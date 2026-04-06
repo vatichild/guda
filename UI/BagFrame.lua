@@ -2040,10 +2040,10 @@ function BagFrame:EnsureMoneyTooltipOverlay()
 		local moneyFrame = getglobal("Guda_BagFrame_MoneyFrame")
 		if not moneyFrame then return end
 
-		-- Create transparent overlay frame
+		-- Create transparent overlay frame (high strata to sit above money buttons)
 		overlay = CreateFrame("Frame", overlayName, moneyFrame)
 		overlay:SetAllPoints(moneyFrame)
-		overlay:SetFrameLevel(moneyFrame:GetFrameLevel() + 1)
+		overlay:SetFrameStrata("DIALOG")
 		overlay:EnableMouse(true)
 
 		-- Set tooltip handlers on overlay
@@ -2073,6 +2073,11 @@ function BagFrame:EnsureMoneyTooltipOverlay()
 		end)
 
 		overlay:SetScript("OnMouseUp", function()
+			if arg1 == "RightButton" then
+				Guda_MoneyTooltip_Hide()
+				Guda_ShowGoldTrackingMenu(moneyFrame)
+				return
+			end
 			local bagFrame = getglobal("Guda_BagFrame")
 			local isLocked = addon.Modules.DB and addon.Modules.DB:GetSetting("lockBags")
 
@@ -2212,6 +2217,11 @@ local function CreateMoneyTooltip()
 	f.totalMoney:SetPoint("TOPRIGHT", f, "TOPRIGHT", -10, -10)
 	DisableMoneyFrameAutoUpdate("Guda_MoneyTooltip_Total")
 
+	-- Hint text at bottom
+	f.hint = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+	f.hint:SetText("Right-click to manage characters")
+	f.hint:SetTextColor(0.5, 0.5, 0.5)
+
 	return f
 end
 
@@ -2237,58 +2247,107 @@ function Guda_MoneyTooltip_Show(anchor)
 	-- Hide GameTooltip to avoid overlap
 	GameTooltip:Hide()
 
-	local chars = addon.Modules.DB:GetAllCharacters(false, true)
-	local totalMoney = addon.Modules.DB:GetTotalMoney(false, true)
+	local allChars = addon.Modules.DB:GetAllCharacters(false, false) -- all realms
+	local totalMoney = 0
+
+	-- Group non-blacklisted characters by realm
+	local realms = {}
+	local realmOrder = {}
+	for _, char in ipairs(allChars) do
+		if not addon.Modules.DB:IsGoldBlacklisted(char.fullName) then
+			local realm = char.realm or "Unknown"
+			if not realms[realm] then
+				realms[realm] = { chars = {}, money = 0 }
+				table.insert(realmOrder, realm)
+			end
+			table.insert(realms[realm].chars, char)
+			realms[realm].money = realms[realm].money + (char.money or 0)
+			totalMoney = totalMoney + (char.money or 0)
+		end
+	end
+	table.sort(realmOrder)
 
 	-- Update header money
+	moneyTooltip.header:SetText("Total gold")
 	MoneyFrame_Update("Guda_MoneyTooltip_Total", totalMoney)
 	FormatMoneyFrameWithCommas("Guda_MoneyTooltip_Total")
 
-	-- Layout character rows
+	-- Layout rows: realm headers + character rows
 	local rowHeight = 18
 	local padding = 10
-	local yOffset = -10 - 20 - 14  -- top padding + header height + gap before character list
+	local yOffset = -10 - 20 - 14  -- top padding + header height + gap
+	local rowIndex = 0
 
-	for i, char in ipairs(chars) do
-		local row = GetOrCreateMoneyRow(i)
+	for _, realm in ipairs(realmOrder) do
+		local realmData = realms[realm]
 
-		-- Class-colored name
-		local classToken = char.classToken
-		local classColor = classToken and (CUSTOM_CLASS_COLORS or RAID_CLASS_COLORS)[classToken]
-		local r, g, b = 0.7, 0.7, 0.7
-		if classColor then r, g, b = classColor.r, classColor.g, classColor.b end
-
-		row.label:SetTextColor(r, g, b)
-		row.label:SetText(char.name)
+		-- Realm header row
+		rowIndex = rowIndex + 1
+		local row = GetOrCreateMoneyRow(rowIndex)
+		row.label:SetTextColor(1, 0.82, 0) -- gold color for realm header
+		row.label:SetText(realm)
 		row.label:ClearAllPoints()
 		row.label:SetPoint("TOPLEFT", moneyTooltip, "TOPLEFT", padding, yOffset)
 		row.label:Show()
 
-		local frameName = "Guda_MoneyTooltip_Row" .. i
-		MoneyFrame_Update(frameName, char.money or 0)
+		local frameName = "Guda_MoneyTooltip_Row" .. rowIndex
+		MoneyFrame_Update(frameName, realmData.money)
 		FormatMoneyFrameWithCommas(frameName)
 		row.money:ClearAllPoints()
 		row.money:SetPoint("TOPRIGHT", moneyTooltip, "TOPRIGHT", -padding, yOffset)
 		row.money:Show()
 
 		yOffset = yOffset - rowHeight
+
+		-- Character rows (indented)
+		for _, char in ipairs(realmData.chars) do
+			rowIndex = rowIndex + 1
+			row = GetOrCreateMoneyRow(rowIndex)
+
+			local classToken = char.classToken
+			local classColor = classToken and (CUSTOM_CLASS_COLORS or RAID_CLASS_COLORS)[classToken]
+			local r, g, b = 0.7, 0.7, 0.7
+			if classColor then r, g, b = classColor.r, classColor.g, classColor.b end
+
+			row.label:SetTextColor(r, g, b)
+			row.label:SetText("  " .. char.name)
+			row.label:ClearAllPoints()
+			row.label:SetPoint("TOPLEFT", moneyTooltip, "TOPLEFT", padding, yOffset)
+			row.label:Show()
+
+			frameName = "Guda_MoneyTooltip_Row" .. rowIndex
+			MoneyFrame_Update(frameName, char.money or 0)
+			FormatMoneyFrameWithCommas(frameName)
+			row.money:ClearAllPoints()
+			row.money:SetPoint("TOPRIGHT", moneyTooltip, "TOPRIGHT", -padding, yOffset)
+			row.money:Show()
+
+			yOffset = yOffset - rowHeight
+		end
 	end
 
 	-- Hide unused rows
-	for i = table.getn(chars) + 1, table.getn(moneyTooltipRows) do
+	for i = rowIndex + 1, table.getn(moneyTooltipRows) do
 		if moneyTooltipRows[i] then
 			moneyTooltipRows[i].label:Hide()
 			moneyTooltipRows[i].money:Hide()
 		end
 	end
 
+	-- Position hint
+	local hintHeight = 14
+	local hintGap = 6
+	moneyTooltip.hint:ClearAllPoints()
+	moneyTooltip.hint:SetPoint("TOPLEFT", moneyTooltip, "TOPLEFT", padding, yOffset - hintGap)
+	moneyTooltip.hint:Show()
+
 	-- Calculate frame size
-	local numRows = table.getn(chars)
-	local totalHeight = 10 + 20 + 14 + (numRows * rowHeight) + padding
-	-- Calculate width: widest name + gap + widest money
+	local totalHeight = 10 + 20 + 14 + (rowIndex * rowHeight) + hintGap + hintHeight + padding
 	local maxNameWidth = moneyTooltip.header:GetStringWidth()
+	local hintWidth = moneyTooltip.hint:GetStringWidth()
+	if hintWidth > maxNameWidth then maxNameWidth = hintWidth end
 	local maxMoneyWidth = moneyTooltip.totalMoney:GetWidth()
-	for i = 1, numRows do
+	for i = 1, rowIndex do
 		local row = moneyTooltipRows[i]
 		if row and row.label:IsShown() then
 			local nw = row.label:GetStringWidth()
@@ -2315,6 +2374,72 @@ function Guda_MoneyTooltip_Hide()
 	end
 end
 
+-- Gold tracking dropdown menu (grouped by realm)
+local function Guda_GoldTrackingMenu_Initialize()
+	local characters = addon.Modules.DB:GetAllCharacters(false, false) -- all realms
+
+	-- Group characters by realm
+	local realms = {}
+	local realmOrder = {}
+	for _, char in ipairs(characters) do
+		local realm = char.realm or "Unknown"
+		if not realms[realm] then
+			realms[realm] = {}
+			table.insert(realmOrder, realm)
+		end
+		table.insert(realms[realm], char)
+	end
+
+	-- Sort realm names
+	table.sort(realmOrder)
+
+	local level = UIDROPDOWNMENU_MENU_LEVEL or 1
+
+	if level == 1 then
+		for _, realm in ipairs(realmOrder) do
+			local info = {}
+			info.text = realm
+			info.notCheckable = 1
+			info.hasArrow = 1
+			info.value = realm
+			UIDropDownMenu_AddButton(info, 1)
+		end
+	elseif level == 2 then
+		local realm = UIDROPDOWNMENU_MENU_VALUE
+		local chars = realms[realm]
+		if chars then
+			for _, char in ipairs(chars) do
+				local charFullName = char.fullName
+				local classColor = char.classToken and RAID_CLASS_COLORS[char.classToken]
+				local r, g, b = 1, 1, 1
+				if classColor then r, g, b = classColor.r, classColor.g, classColor.b end
+
+				local info = {}
+				info.text = addon.Modules.Utils:ColorText(char.name, r, g, b)
+				info.checked = not addon.Modules.DB:IsGoldBlacklisted(charFullName)
+				info.keepShownOnClick = 1
+				info.func = function()
+					addon.Modules.DB:ToggleGoldBlacklist(charFullName)
+					if moneyTooltip and moneyTooltip:IsShown() and moneyTooltip.anchor then
+						Guda_MoneyTooltip_Show(moneyTooltip.anchor)
+					end
+				end
+				UIDropDownMenu_AddButton(info, 2)
+			end
+		end
+	end
+end
+
+function Guda_ShowGoldTrackingMenu(anchor)
+	local menuFrame = getglobal("Guda_GoldTrackingMenu")
+	if not menuFrame then
+		menuFrame = CreateFrame("Frame", "Guda_GoldTrackingMenu", UIParent, "UIDropDownMenuTemplate")
+	end
+	UIDropDownMenu_Initialize(menuFrame, Guda_GoldTrackingMenu_Initialize, "MENU")
+	ToggleDropDownMenu(1, nil, menuFrame, "cursor", 0, 0)
+	Guda_ScaleDropdownFonts(14)
+end
+
 -- Money tooltip handler (BagFrame entry point)
 function Guda_BagFrame_MoneyOnEnter(self)
 	Guda_MoneyTooltip_Show(self)
@@ -2328,6 +2453,9 @@ local function Guda_BagCharacterMenu_Initialize()
 	local currentViewChar = addon.Modules.BagFrame:GetCurrentViewChar()
 
 	for i, char in ipairs(characters) do
+		if addon.Modules.DB:IsGoldBlacklisted(char.fullName) and char.fullName ~= currentPlayerFullName then
+			-- skip blacklisted characters (never hide current player)
+		else
 		local charFullName = char.fullName
 		local charClassToken = char.classToken
 
@@ -2352,6 +2480,7 @@ local function Guda_BagCharacterMenu_Initialize()
 		end
 		info.checked = (currentViewChar == charFullName or (not currentViewChar and charFullName == currentPlayerFullName))
 		UIDropDownMenu_AddButton(info)
+		end -- else
 	end
 end
 
@@ -2370,8 +2499,12 @@ end
 local function Guda_BagMailboxMenu_Initialize()
 	local characters = addon.Modules.DB:GetAllCharacters(false, true)
 	local info
+	local currentPlayerFullName = addon.Modules.DB:GetPlayerFullName()
 
 	for i, char in ipairs(characters) do
+		if addon.Modules.DB:IsGoldBlacklisted(char.fullName) and char.fullName ~= currentPlayerFullName then
+			-- skip blacklisted characters (never hide current player)
+		else
 		local charFullName = char.fullName
 		local charClassToken = char.classToken
 
@@ -2394,8 +2527,9 @@ local function Guda_BagMailboxMenu_Initialize()
 			end
 		end
 		local mailboxViewChar = addon.Modules.MailboxFrame:GetCurrentViewChar()
-		info.checked = (mailboxViewChar == charFullName or (not mailboxViewChar and charFullName == addon.Modules.DB:GetPlayerFullName()))
+		info.checked = (mailboxViewChar == charFullName or (not mailboxViewChar and charFullName == currentPlayerFullName))
 		UIDropDownMenu_AddButton(info)
+		end -- else
 	end
 end
 
@@ -2414,8 +2548,12 @@ end
 local function Guda_BagBankMenu_Initialize()
 	local characters = addon.Modules.DB:GetAllCharacters(false, true)
 	local info
+	local currentPlayerFullName = addon.Modules.DB:GetPlayerFullName()
 
 	for i, char in ipairs(characters) do
+		if addon.Modules.DB:IsGoldBlacklisted(char.fullName) and char.fullName ~= currentPlayerFullName then
+			-- skip blacklisted characters (never hide current player)
+		else
 		local charFullName = char.fullName
 		local charClassToken = char.classToken
 
@@ -2436,8 +2574,9 @@ local function Guda_BagBankMenu_Initialize()
 			Guda_BagFrame_ShowCharacterBank(charFullName, charName)
 		end
 		local bankViewChar = addon.Modules.BankFrame:GetCurrentViewChar()
-		info.checked = (bankViewChar == charFullName or (not bankViewChar and charFullName == addon.Modules.DB:GetPlayerFullName()))
+		info.checked = (bankViewChar == charFullName or (not bankViewChar and charFullName == currentPlayerFullName))
 		UIDropDownMenu_AddButton(info)
+		end -- else
 	end
 end
 

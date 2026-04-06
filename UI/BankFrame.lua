@@ -1549,10 +1549,10 @@ function BankFrame:EnsureMoneyTooltipOverlay()
         local moneyFrame = getglobal("Guda_BankFrame_MoneyFrame")
         if not moneyFrame then return end
 
-        -- Create transparent overlay frame
+        -- Create transparent overlay frame (high strata to sit above money buttons)
         overlay = CreateFrame("Frame", overlayName, moneyFrame)
         overlay:SetAllPoints(moneyFrame)
-        overlay:SetFrameLevel(moneyFrame:GetFrameLevel() + 1)
+        overlay:SetFrameStrata("DIALOG")
         overlay:EnableMouse(true)
 
         -- Set tooltip handlers on overlay
@@ -1562,6 +1562,13 @@ function BankFrame:EnsureMoneyTooltipOverlay()
 
         overlay:SetScript("OnLeave", function()
             GameTooltip:Hide()
+        end)
+
+        overlay:SetScript("OnMouseUp", function()
+            if arg1 == "RightButton" then
+                Guda_MoneyTooltip_Hide()
+                Guda_ShowGoldTrackingMenu(moneyFrame)
+            end
         end)
 
         addon:Debug("Bank money tooltip overlay created")
@@ -2793,9 +2800,12 @@ local function Guda_BankCharacterMenu_Initialize()
     local currentViewChar = addon.Modules.BankFrame:GetCurrentViewChar()
 
     for i, char in ipairs(characters) do
+        if addon.Modules.DB:IsGoldBlacklisted(char.fullName) and char.fullName ~= currentPlayerFullName then
+            -- skip blacklisted characters (never hide current player)
+        else
         local charFullName = char.fullName
         local charClassToken = char.classToken
-        
+
         -- Get class color
         local classColor = charClassToken and RAID_CLASS_COLORS[charClassToken]
         local r, g, b = 1, 1, 1
@@ -2817,6 +2827,7 @@ local function Guda_BankCharacterMenu_Initialize()
         end
         info.checked = (currentViewChar == charFullName or (not currentViewChar and charFullName == currentPlayerFullName))
         UIDropDownMenu_AddButton(info)
+        end -- else
     end
 end
 

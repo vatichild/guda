@@ -279,8 +279,8 @@ function Tooltip:AddInventoryInfo(tooltip, link)
 
 	-- Count items across characters on current realm only
 	for charName, charData in pairs(Guda_DB.characters) do
-	-- Ensure charData is actually a table and on current realm
-		if type(charData) == "table" and charData.realm == currentRealm then
+	-- Ensure charData is actually a table, on current realm, and not blacklisted
+		if type(charData) == "table" and charData.realm == currentRealm and not addon.Modules.DB:IsGoldBlacklisted(charName) then
 			local isCurrentChar = (charName == currentPlayerName)
 			local bagCount, bankCount, equippedCount, mailCount = CountItemsForCharacter(itemID, charData, isCurrentChar)
 
