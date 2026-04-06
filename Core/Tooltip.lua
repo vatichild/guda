@@ -277,36 +277,39 @@ function Tooltip:AddInventoryInfo(tooltip, link)
 	local currentPlayerName = addon.Modules.DB:GetPlayerFullName()
 	local currentRealm = GetRealmName()
 
-	-- Count items across characters on current realm only
-	for charName, charData in pairs(Guda_DB.characters) do
-	-- Ensure charData is actually a table, on current realm, and not blacklisted
-		if type(charData) == "table" and charData.realm == currentRealm and not addon.Modules.DB:IsGoldBlacklisted(charName) then
-			local isCurrentChar = (charName == currentPlayerName)
-			local bagCount, bankCount, equippedCount, mailCount = CountItemsForCharacter(itemID, charData, isCurrentChar)
+	-- Count items across characters on current realm only (own + shared)
+	local function countFromSource(source, isSharedSource)
+		for charName, charData in pairs(source) do
+			if type(charData) == "table" and charData.realm == currentRealm and not addon.Modules.DB:IsGoldBlacklisted(charName) then
+				local isCurrentChar = (charName == currentPlayerName)
+				local bagCount, bankCount, equippedCount, mailCount = CountItemsForCharacter(itemID, charData, isCurrentChar)
 
-			if bagCount > 0 or bankCount > 0 or equippedCount > 0 or mailCount > 0 then
-				hasAnyItems = true
-				totalBags = totalBags + bagCount
-				totalBank = totalBank + bankCount
-				totalMail = totalMail + mailCount
-				totalEquipped = totalEquipped + equippedCount
-				ccIndex = ccIndex + 1
-				-- Reuse existing sub-table or create one that persists
-				if not characterCounts[ccIndex] then
-					characterCounts[ccIndex] = {}
+				if bagCount > 0 or bankCount > 0 or equippedCount > 0 or mailCount > 0 then
+					hasAnyItems = true
+					totalBags = totalBags + bagCount
+					totalBank = totalBank + bankCount
+					totalMail = totalMail + mailCount
+					totalEquipped = totalEquipped + equippedCount
+					ccIndex = ccIndex + 1
+					if not characterCounts[ccIndex] then
+						characterCounts[ccIndex] = {}
+					end
+					local entry = characterCounts[ccIndex]
+					entry.name = charData.name or charName
+					entry.classToken = charData.classToken
+					entry.bagCount = bagCount
+					entry.bankCount = bankCount
+					entry.mailCount = mailCount
+					entry.equippedCount = equippedCount
+					entry.isCurrent = isCurrentChar
+					entry.isShared = isSharedSource
 				end
-				local entry = characterCounts[ccIndex]
-				entry.name = charData.name or charName
-				entry.classToken = charData.classToken
-				entry.bagCount = bagCount
-				entry.bankCount = bankCount
-				entry.mailCount = mailCount
-				entry.equippedCount = equippedCount
-				entry.isCurrent = isCurrentChar
-				entry.isShared = charData.isShared
 			end
 		end
-	-- If charData is not a table (string, number, etc.), just skip it
+	end
+	countFromSource(Guda_DB.characters, false)
+	if addon.sharedCharacters then
+		countFromSource(addon.sharedCharacters, true)
 	end
 	-- Clean up any stale entries beyond current count
 	for i = ccIndex + 1, table.getn(characterCounts) do

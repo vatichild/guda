@@ -20,6 +20,9 @@ function Main:Initialize()
             addon.Modules.SharedData:Initialize()
         end
 
+        -- Clean up blacklist for deleted characters (after shared import)
+        addon.Modules.DB:CleanupBlacklist()
+
         -- Initialize item detection (before scanners, as they may use it)
         if addon.Modules.ItemDetection then
             addon.Modules.ItemDetection:Initialize()

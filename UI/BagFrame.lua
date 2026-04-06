@@ -2419,6 +2419,67 @@ function Guda_MoneyTooltip_Hide()
 	end
 end
 
+-- Confirmation dialog for character removal
+StaticPopupDialogs["GUDA_REMOVE_CHARACTER"] = {
+	text = "Remove %s from Guda tracking?\n\nThis will delete all saved data for this character.",
+	button1 = "Remove",
+	button2 = "Cancel",
+	OnAccept = function()
+		local fullName = Guda._pendingRemoveChar
+		if fullName then
+			addon.Modules.DB:RemoveCharacter(fullName)
+			Guda._pendingRemoveChar = nil
+			if moneyTooltip and moneyTooltip:IsShown() and moneyTooltip.anchor then
+				Guda_MoneyTooltip_Show(moneyTooltip.anchor)
+			end
+		end
+	end,
+	OnCancel = function()
+		Guda._pendingRemoveChar = nil
+	end,
+	timeout = 0,
+	whileDead = 1,
+	hideOnEscape = 1,
+}
+
+-- Helper: add character entries to gold tracking dropdown at given level
+local function AddGoldTrackingCharEntries(chars, level)
+	local currentPlayerFullName = addon.Modules.DB:GetPlayerFullName()
+	for _, char in ipairs(chars) do
+		local charFullName = char.fullName
+		local charName = char.name
+		local classColor = char.classToken and RAID_CLASS_COLORS[char.classToken]
+		local r, g, b = 1, 1, 1
+		if classColor then r, g, b = classColor.r, classColor.g, classColor.b end
+
+		-- Row 1: checkbox with character name
+		local info = {}
+		info.text = addon.Modules.Utils:ColorText(charName, r, g, b)
+		info.checked = not addon.Modules.DB:IsGoldBlacklisted(charFullName)
+		info.keepShownOnClick = 1
+		info.func = function()
+			addon.Modules.DB:ToggleGoldBlacklist(charFullName)
+			if moneyTooltip and moneyTooltip:IsShown() and moneyTooltip.anchor then
+				Guda_MoneyTooltip_Show(moneyTooltip.anchor)
+			end
+		end
+		UIDropDownMenu_AddButton(info, level)
+
+		-- Row 2: [X] Remove (indented, smaller feel, skip for current character)
+		if charFullName ~= currentPlayerFullName then
+			local del = {}
+			del.text = "     |cFF888888[|r|cFFFF4444X|r|cFF888888]|r |cFF666666Remove|r"
+			del.notCheckable = 1
+			del.func = function()
+				Guda._pendingRemoveChar = charFullName
+				CloseDropDownMenus()
+				StaticPopup_Show("GUDA_REMOVE_CHARACTER", charName)
+			end
+			UIDropDownMenu_AddButton(del, level)
+		end
+	end
+end
+
 -- Gold tracking dropdown menu (grouped by account > realm > characters)
 local function Guda_GoldTrackingMenu_Initialize()
 	local characters = addon.Modules.DB:GetAllCharacters(false, false) -- all realms
@@ -2454,91 +2515,30 @@ local function Guda_GoldTrackingMenu_Initialize()
 	local level = UIDROPDOWNMENU_MENU_LEVEL or 1
 
 	if level == 1 then
-		-- Level 1: account names (or realm names if single account)
-		if table.getn(accountOrder) == 1 then
-			local acct = accounts[accountOrder[1]]
+		-- Level 1: "Account - Realm" combined entries (max 2 levels deep)
+		for _, acctKey in ipairs(accountOrder) do
+			local acct = accounts[acctKey]
 			for _, realm in ipairs(acct.realmOrder) do
 				local info = {}
-				info.text = realm
+				if table.getn(accountOrder) > 1 then
+					info.text = acctKey .. " - " .. realm
+				else
+					info.text = realm
+				end
 				info.notCheckable = 1
 				info.hasArrow = 1
-				info.value = accountOrder[1] .. "|" .. realm
-				UIDropDownMenu_AddButton(info, 1)
-			end
-		else
-			for _, acctKey in ipairs(accountOrder) do
-				local info = {}
-				info.text = acctKey
-				info.notCheckable = 1
-				info.hasArrow = 1
-				info.value = acctKey
+				info.value = acctKey .. "|" .. realm
 				UIDropDownMenu_AddButton(info, 1)
 			end
 		end
 	elseif level == 2 then
-		local parentValue = UIDROPDOWNMENU_MENU_VALUE
-		if table.getn(accountOrder) == 1 then
-			local _, _, acctKey, realm = string.find(parentValue, "^(.+)|(.+)$")
-			local acct = accounts[acctKey]
-			local chars = acct and acct.realms[realm]
-			if chars then
-				for _, char in ipairs(chars) do
-					local charFullName = char.fullName
-					local classColor = char.classToken and RAID_CLASS_COLORS[char.classToken]
-					local r, g, b = 1, 1, 1
-					if classColor then r, g, b = classColor.r, classColor.g, classColor.b end
-
-					local info = {}
-					info.text = addon.Modules.Utils:ColorText(char.name, r, g, b)
-					info.checked = not addon.Modules.DB:IsGoldBlacklisted(charFullName)
-					info.keepShownOnClick = 1
-					info.func = function()
-						addon.Modules.DB:ToggleGoldBlacklist(charFullName)
-						if moneyTooltip and moneyTooltip:IsShown() and moneyTooltip.anchor then
-							Guda_MoneyTooltip_Show(moneyTooltip.anchor)
-						end
-					end
-					UIDropDownMenu_AddButton(info, 2)
-				end
-			end
-		else
-			local acct = accounts[parentValue]
-			if acct then
-				for _, realm in ipairs(acct.realmOrder) do
-					local info = {}
-					info.text = realm
-					info.notCheckable = 1
-					info.hasArrow = 1
-					info.value = parentValue .. "|" .. realm
-					UIDropDownMenu_AddButton(info, 2)
-				end
-			end
-		end
-		Guda_ScaleDropdownFonts(12)
-	elseif level == 3 then
+		-- Level 2: characters
 		local parentValue = UIDROPDOWNMENU_MENU_VALUE
 		local _, _, acctKey, realm = string.find(parentValue, "^(.+)|(.+)$")
 		local acct = accounts[acctKey]
 		local chars = acct and acct.realms[realm]
 		if chars then
-			for _, char in ipairs(chars) do
-				local charFullName = char.fullName
-				local classColor = char.classToken and RAID_CLASS_COLORS[char.classToken]
-				local r, g, b = 1, 1, 1
-				if classColor then r, g, b = classColor.r, classColor.g, classColor.b end
-
-				local info = {}
-				info.text = addon.Modules.Utils:ColorText(char.name, r, g, b)
-				info.checked = not addon.Modules.DB:IsGoldBlacklisted(charFullName)
-				info.keepShownOnClick = 1
-				info.func = function()
-					addon.Modules.DB:ToggleGoldBlacklist(charFullName)
-					if moneyTooltip and moneyTooltip:IsShown() and moneyTooltip.anchor then
-						Guda_MoneyTooltip_Show(moneyTooltip.anchor)
-					end
-				end
-				UIDropDownMenu_AddButton(info, 3)
-			end
+			AddGoldTrackingCharEntries(chars, 2)
 		end
 		Guda_ScaleDropdownFonts(12)
 	end

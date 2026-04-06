@@ -2,33 +2,47 @@
 -- Cross-account character data sharing via GudaIO DLL (optional)
 -- The DLL merges all accounts' SavedVariables at startup into GudaShared.lua
 -- which is loaded via .toc and sets Guda_SharedCharacters global.
--- No Lua hooking needed - pure file I/O at DLL load time.
+--
+-- IMPORTANT: Shared characters are stored in addon.sharedCharacters (in-memory only),
+-- NOT in Guda_DB.characters, to prevent them from leaking into SavedVariables.
 
 local addon = Guda
 
 local SharedData = {}
 addon.Modules.SharedData = SharedData
 
--- Import shared characters from other accounts
 function SharedData:Initialize()
+    -- Clean up any leaked shared characters from the old approach
+    if Guda_DB and Guda_DB.characters then
+        for fullName, data in pairs(Guda_DB.characters) do
+            if data.isShared then
+                Guda_DB.characters[fullName] = nil
+            else
+                -- Strip leaked fields from own characters
+                data.isShared = nil
+                data.account = nil
+            end
+        end
+    end
+
+    -- Initialize in-memory shared characters table
+    addon.sharedCharacters = {}
+
     if not Guda_SharedCharacters or type(Guda_SharedCharacters) ~= "table" then
         return
     end
 
-    -- Determine current account by checking which characters are ours
-    -- (characters in Guda_DB.characters that don't have isShared flag)
+    -- Determine which characters belong to the current account
     local myChars = {}
     if Guda_DB and Guda_DB.characters then
-        for fullName, data in pairs(Guda_DB.characters) do
-            if not data.isShared then
-                myChars[fullName] = true
-            end
+        for fullName in pairs(Guda_DB.characters) do
+            myChars[fullName] = true
         end
     end
 
     -- Find which account name belongs to us by checking overlap
     local myAccount = nil
-    local accountChars = {} -- account -> { fullName -> true }
+    local accountChars = {}
     for fullName, charData in pairs(Guda_SharedCharacters) do
         local acct = charData.account
         if acct then
@@ -47,13 +61,12 @@ function SharedData:Initialize()
         if myAccount then break end
     end
 
-    -- Import characters from other accounts
+    -- Import characters from other accounts into in-memory table
     local importCount = 0
     for fullName, charData in pairs(Guda_SharedCharacters) do
         if charData.account and charData.account ~= myAccount then
-            -- Don't overwrite our own characters
             if not myChars[fullName] then
-                Guda_DB.characters[fullName] = {
+                addon.sharedCharacters[fullName] = {
                     name = charData.name,
                     realm = charData.realm,
                     faction = charData.faction,

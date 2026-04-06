@@ -314,6 +314,8 @@ end
 -- Get all characters (optionally filter by faction and/or realm)
 function DB:GetAllCharacters(sameFactionOnly, currentRealmOnly)
 	local chars = {}
+
+	-- Own characters from SavedVariables
 	for fullName, data in pairs(Guda_DB.characters) do
 		local factionMatch = not sameFactionOnly or data.faction == playerFaction
 		local realmMatch = not currentRealmOnly or data.realm == playerRealm
@@ -323,14 +325,35 @@ function DB:GetAllCharacters(sameFactionOnly, currentRealmOnly)
 				name = data.name,
 				realm = data.realm,
 				class = data.class,
-				classToken = data.classToken, -- English uppercase token for colors
+				classToken = data.classToken,
 				level = data.level,
 				faction = data.faction,
 				money = data.money,
 				lastUpdate = data.lastUpdate,
-				account = data.account,
-				isShared = data.isShared,
 			})
+		end
+	end
+
+	-- Shared characters from other accounts (in-memory only)
+	if addon.sharedCharacters then
+		for fullName, data in pairs(addon.sharedCharacters) do
+			local factionMatch = not sameFactionOnly or data.faction == playerFaction
+			local realmMatch = not currentRealmOnly or data.realm == playerRealm
+			if factionMatch and realmMatch then
+				table.insert(chars, {
+					fullName = fullName,
+					name = data.name,
+					realm = data.realm,
+					class = data.class,
+					classToken = data.classToken,
+					level = data.level,
+					faction = data.faction,
+					money = data.money,
+					lastUpdate = data.lastUpdate,
+					account = data.account,
+					isShared = true,
+				})
+			end
 		end
 	end
 
@@ -342,21 +365,30 @@ function DB:GetAllCharacters(sameFactionOnly, currentRealmOnly)
 	return chars
 end
 
+-- Look up a character in own DB or shared characters
+function DB:GetCharacterData(fullName)
+	local char = Guda_DB.characters[fullName]
+	if not char and addon.sharedCharacters then
+		char = addon.sharedCharacters[fullName]
+	end
+	return char
+end
+
 -- Get character's bags
 function DB:GetCharacterBags(fullName)
-	local char = Guda_DB.characters[fullName]
+	local char = self:GetCharacterData(fullName)
 	return char and char.bags or {}
 end
 
 -- Get character's bank
 function DB:GetCharacterBank(fullName)
-	local char = Guda_DB.characters[fullName]
+	local char = self:GetCharacterData(fullName)
 	return char and char.bank or {}
 end
 
 -- Get character's mailbox
 function DB:GetCharacterMailbox(fullName)
-	local char = Guda_DB.characters[fullName]
+	local char = self:GetCharacterData(fullName)
 	return char and char.mailbox or {}
 end
 
@@ -415,13 +447,13 @@ end
 
 -- Get character's equipped items
 function DB:GetCharacterEquipped(fullName)
-	local char = Guda_DB.characters[fullName]
+	local char = self:GetCharacterData(fullName)
 	return char and char.equipped or {}
 end
 
 -- Get character info
 function DB:GetCharacterInfo(fullName)
-	local char = Guda_DB.characters[fullName]
+	local char = self:GetCharacterData(fullName)
 	return char and char.character or {}
 end
 
@@ -433,6 +465,16 @@ function DB:GetTotalMoney(sameFactionOnly, currentRealmOnly)
 		local realmMatch = not currentRealmOnly or data.realm == playerRealm
 		if factionMatch and realmMatch then
 			total = total + (data.money or 0)
+		end
+	end
+	-- Include shared characters
+	if addon.sharedCharacters then
+		for fullName, data in pairs(addon.sharedCharacters) do
+			local factionMatch = not sameFactionOnly or data.faction == playerFaction
+			local realmMatch = not currentRealmOnly or data.realm == playerRealm
+			if factionMatch and realmMatch then
+				total = total + (data.money or 0)
+			end
 		end
 	end
 	return total
@@ -453,6 +495,37 @@ function DB:ToggleGoldBlacklist(fullName)
 	else
 		Guda_DB.goldBlacklist[fullName] = true
 	end
+end
+
+-- Clean up blacklist entries for characters that no longer exist
+-- Call after SharedData import so shared characters are present
+function DB:CleanupBlacklist()
+	if not Guda_DB.goldBlacklist then return end
+	for fullName in pairs(Guda_DB.goldBlacklist) do
+		local exists = Guda_DB.characters[fullName] or (addon.sharedCharacters and addon.sharedCharacters[fullName])
+		if not exists then
+			Guda_DB.goldBlacklist[fullName] = nil
+		end
+	end
+end
+
+-- Remove a character from the database entirely
+function DB:RemoveCharacter(fullName)
+	if not fullName then return end
+	-- Don't allow removing the current character
+	local currentFullName = playerName and playerRealm and (playerName .. "-" .. playerRealm)
+	if fullName == currentFullName then return false end
+
+	if Guda_DB.characters[fullName] then
+		Guda_DB.characters[fullName] = nil
+	end
+	if addon.sharedCharacters and addon.sharedCharacters[fullName] then
+		addon.sharedCharacters[fullName] = nil
+	end
+	if Guda_DB.goldBlacklist and Guda_DB.goldBlacklist[fullName] then
+		Guda_DB.goldBlacklist[fullName] = nil
+	end
+	return true
 end
 
 -- Get character setting
