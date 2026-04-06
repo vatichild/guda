@@ -42,7 +42,7 @@ Guda provides a modern, unified bag/bank experience with multi-character support
 ### 👥 Multi-Character Support
 
 - **Cross-Character Viewing** – View bags & banks of any character
-- **Money Tracking** – See total gold across all characters
+- **Money Tracking** – See total gold across all characters, grouped by account and realm
 - **Character Selector** – Switch characters quickly
 - **Faction Filtering** – Shows only characters from the same faction
 - **Global Item Counting** – Item totals across all characters, including:
@@ -50,12 +50,33 @@ Guda provides a modern, unified bag/bank experience with multi-character support
     - Banks
     - Equipped items
     - Tooltip breakdown per character
+- **Character Management** – Right-click the money frame to show/hide characters or remove deleted ones
 
 ### 💰 Money Display
 
 - **Current Character Money**
 - **Total Money Across All Characters**
 - **Per-Character Overview** in the selector
+
+### 🔗 Cross-Account Sharing (Optional)
+
+Share character data (gold, bags, bank, mail, equipped items) between different WoW accounts on the same PC. Requires the companion [GudaIO](https://github.com/vatichild/GudaIO) DLL.
+
+**How it works:**
+- GudaIO runs once when the game starts, before the login screen appears
+- It reads each account's saved character data from `WTF/Account/*/SavedVariables/Guda.lua`
+- It merges them into a single file (`GudaShared.lua`) that the addon loads automatically
+- Characters from other accounts appear in the gold tooltip, inventory counts, and character dropdowns, separated by account
+- The DLL does nothing after startup — no hooks, no background threads, no memory patches
+
+**Setup:**
+1. Download `GudaIO.dll` from [GudaIO releases](https://github.com/vatichild/GudaIO/releases)
+2. Place it in your TurtleWoW folder (next to `WoW.exe`)
+3. Add `GudaIO.dll` on a new line in `dlls.txt`
+4. Log into each account at least once and log out properly
+5. Restart the game — all accounts will see each other's characters
+
+Without the DLL, the addon works normally with single-account data only. No errors or crashes.
 
 ---
 
