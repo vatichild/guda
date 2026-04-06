@@ -2653,8 +2653,10 @@ local function Guda_BagMailboxMenu_Initialize()
 		local info = {}
 		info.text = addon.Modules.Utils:ColorText(char.name, r, g, b)
 		info.func = function()
-			addon.Modules.MailboxFrame:ShowCharacter(charFullName)
-			if not Guda_MailboxFrame:IsShown() then
+			if addon.Modules.MailboxFrame and addon.Modules.MailboxFrame.ShowCharacter then
+				addon.Modules.MailboxFrame:ShowCharacter(charFullName)
+			end
+			if Guda_MailboxFrame and not Guda_MailboxFrame:IsShown() then
 				Guda_MailboxFrame:Show()
 			end
 		end
@@ -2673,8 +2675,10 @@ local function Guda_BagMailboxMenu_Initialize()
 			local info = {}
 			info.text = addon.Modules.Utils:ColorText(char.name, r, g, b)
 			info.func = function()
-				addon.Modules.MailboxFrame:ShowCharacter(charFullName)
-				if not Guda_MailboxFrame:IsShown() then
+				if addon.Modules.MailboxFrame and addon.Modules.MailboxFrame.ShowCharacter then
+					addon.Modules.MailboxFrame:ShowCharacter(charFullName)
+				end
+				if Guda_MailboxFrame and not Guda_MailboxFrame:IsShown() then
 					Guda_MailboxFrame:Show()
 				end
 			end

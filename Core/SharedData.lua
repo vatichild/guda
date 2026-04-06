@@ -14,14 +14,19 @@ addon.Modules.SharedData = SharedData
 function SharedData:Initialize()
     -- Clean up any leaked shared characters from the old approach
     if Guda_DB and Guda_DB.characters then
+        -- Collect keys to remove first (can't modify table during pairs iteration)
+        local toRemove = {}
         for fullName, data in pairs(Guda_DB.characters) do
             if data.isShared then
-                Guda_DB.characters[fullName] = nil
+                table.insert(toRemove, fullName)
             else
                 -- Strip leaked fields from own characters
                 data.isShared = nil
                 data.account = nil
             end
+        end
+        for _, fullName in ipairs(toRemove) do
+            Guda_DB.characters[fullName] = nil
         end
     end
 

@@ -379,7 +379,7 @@ local function Guda_MailboxCharacterMenu_Initialize()
         local info = {}
         info.text = addon.Modules.Utils:ColorText(char.name, r, g, b)
         info.func = function() MailboxFrame:ShowCharacter(charFullName) end
-        local currentViewChar = MailboxFrame:GetCurrentViewChar and MailboxFrame:GetCurrentViewChar()
+        local currentViewChar = MailboxFrame.GetCurrentViewChar and MailboxFrame:GetCurrentViewChar()
         info.checked = (currentViewChar == charFullName or (not currentViewChar and charFullName == currentPlayerFullName))
         UIDropDownMenu_AddButton(info)
     end
@@ -400,7 +400,7 @@ local function Guda_MailboxCharacterMenu_Initialize()
             local info = {}
             info.text = addon.Modules.Utils:ColorText(char.name, r, g, b)
             info.func = function() MailboxFrame:ShowCharacter(charFullName) end
-            local currentViewChar = MailboxFrame:GetCurrentViewChar and MailboxFrame:GetCurrentViewChar()
+            local currentViewChar = MailboxFrame.GetCurrentViewChar and MailboxFrame:GetCurrentViewChar()
             info.checked = (currentViewChar == charFullName)
             UIDropDownMenu_AddButton(info)
         end

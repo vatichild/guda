@@ -277,9 +277,14 @@ function Tooltip:AddInventoryInfo(tooltip, link)
 	local currentPlayerName = addon.Modules.DB:GetPlayerFullName()
 	local currentRealm = GetRealmName()
 
-	-- Count items across characters on current realm only (own + shared)
-	local function countFromSource(source, isSharedSource)
-		for charName, charData in pairs(source) do
+	-- Count items across characters on current realm only
+	local sources = { { data = Guda_DB.characters, shared = false } }
+	if addon.sharedCharacters then
+		table.insert(sources, { data = addon.sharedCharacters, shared = true })
+	end
+
+	for _, source in ipairs(sources) do
+		for charName, charData in pairs(source.data) do
 			if type(charData) == "table" and charData.realm == currentRealm and not addon.Modules.DB:IsGoldBlacklisted(charName) then
 				local isCurrentChar = (charName == currentPlayerName)
 				local bagCount, bankCount, equippedCount, mailCount = CountItemsForCharacter(itemID, charData, isCurrentChar)
@@ -302,14 +307,10 @@ function Tooltip:AddInventoryInfo(tooltip, link)
 					entry.mailCount = mailCount
 					entry.equippedCount = equippedCount
 					entry.isCurrent = isCurrentChar
-					entry.isShared = isSharedSource
+					entry.isShared = source.shared
 				end
 			end
 		end
-	end
-	countFromSource(Guda_DB.characters, false)
-	if addon.sharedCharacters then
-		countFromSource(addon.sharedCharacters, true)
 	end
 	-- Clean up any stale entries beyond current count
 	for i = ccIndex + 1, table.getn(characterCounts) do

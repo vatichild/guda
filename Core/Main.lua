@@ -16,12 +16,9 @@ function Main:Initialize()
         addon.Modules.DB:Initialize()
 
         -- Initialize cross-account sharing (optional, requires GudaIO DLL)
-        if addon.Modules.SharedData then
+        if addon.Modules.SharedData and addon.Modules.SharedData.Initialize then
             addon.Modules.SharedData:Initialize()
         end
-
-        -- Clean up blacklist for deleted characters (after shared import)
-        addon.Modules.DB:CleanupBlacklist()
 
         -- Initialize item detection (before scanners, as they may use it)
         if addon.Modules.ItemDetection then
