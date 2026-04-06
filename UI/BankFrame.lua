@@ -2794,30 +2794,31 @@ end
 
 -- Bank character dropdown (similar to BagFrame's bank dropdown)
 local function Guda_BankCharacterMenu_Initialize()
-    local characters = addon.Modules.DB:GetAllCharacters(false, true)
-    local info
-    local currentPlayerFullName = addon.Modules.DB:GetPlayerFullName()
+    local DB = addon.Modules.DB
+    local currentPlayerFullName = DB:GetPlayerFullName()
     local currentViewChar = addon.Modules.BankFrame:GetCurrentViewChar()
+    local characters = DB:GetAllCharacters(false, true)
 
-    for i, char in ipairs(characters) do
-        if addon.Modules.DB:IsGoldBlacklisted(char.fullName) and char.fullName ~= currentPlayerFullName then
-            -- skip blacklisted characters (never hide current player)
-        else
-        local charFullName = char.fullName
-        local charClassToken = char.classToken
-
-        -- Get class color
-        local classColor = charClassToken and RAID_CLASS_COLORS[charClassToken]
-        local r, g, b = 1, 1, 1
-        if classColor then
-            r, g, b = classColor.r, classColor.g, classColor.b
+    -- Split into own and shared
+    local own, shared = {}, {}
+    for _, char in ipairs(characters) do
+        if not DB:IsGoldBlacklisted(char.fullName) or char.fullName == currentPlayerFullName then
+            if char.isShared then
+                table.insert(shared, char)
+            else
+                table.insert(own, char)
+            end
         end
+    end
 
-        -- Create colored name
-        local coloredName = addon.Modules.Utils:ColorText(char.name, r, g, b)
+    for _, char in ipairs(own) do
+        local charFullName = char.fullName
+        local classColor = char.classToken and RAID_CLASS_COLORS[char.classToken]
+        local r, g, b = 1, 1, 1
+        if classColor then r, g, b = classColor.r, classColor.g, classColor.b end
 
-        info = {}
-        info.text = coloredName
+        local info = {}
+        info.text = addon.Modules.Utils:ColorText(char.name, r, g, b)
         info.func = function()
             if charFullName == currentPlayerFullName then
                 addon.Modules.BankFrame:ShowCurrentCharacter()
@@ -2827,7 +2828,29 @@ local function Guda_BankCharacterMenu_Initialize()
         end
         info.checked = (currentViewChar == charFullName or (not currentViewChar and charFullName == currentPlayerFullName))
         UIDropDownMenu_AddButton(info)
-        end -- else
+    end
+
+    if table.getn(shared) > 0 then
+        local sep = {}
+        sep.text = "Other Accounts"
+        sep.isTitle = 1
+        sep.notCheckable = 1
+        UIDropDownMenu_AddButton(sep)
+
+        for _, char in ipairs(shared) do
+            local charFullName = char.fullName
+            local classColor = char.classToken and RAID_CLASS_COLORS[char.classToken]
+            local r, g, b = 1, 1, 1
+            if classColor then r, g, b = classColor.r, classColor.g, classColor.b end
+
+            local info = {}
+            info.text = addon.Modules.Utils:ColorText(char.name, r, g, b)
+            info.func = function()
+                addon.Modules.BankFrame:ShowCharacter(charFullName)
+            end
+            info.checked = (currentViewChar == charFullName)
+            UIDropDownMenu_AddButton(info)
+        end
     end
 end
 

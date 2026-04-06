@@ -2321,7 +2321,11 @@ function Guda_ItemButton_OnEnter(self)
 	elseif self.otherChar or self.isReadOnly then
 		GameTooltip.GudaViewedCharacter = self.otherChar
 		if self.itemData and self.itemData.link then
-			GameTooltip:SetHyperlink(self.itemData.link)
+			local ok = pcall(GameTooltip.SetHyperlink, GameTooltip, self.itemData.link)
+			if not ok then
+				GameTooltip:Hide()
+				return
+			end
 		else
 			GameTooltip:Hide()
 			return

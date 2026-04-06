@@ -15,6 +15,11 @@ function Main:Initialize()
         -- Initialize database
         addon.Modules.DB:Initialize()
 
+        -- Initialize cross-account sharing (optional, requires GudaIO DLL)
+        if addon.Modules.SharedData then
+            addon.Modules.SharedData:Initialize()
+        end
+
         -- Initialize item detection (before scanners, as they may use it)
         if addon.Modules.ItemDetection then
             addon.Modules.ItemDetection:Initialize()

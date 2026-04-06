@@ -260,12 +260,12 @@ end
 
 -- Increase font size on Blizzard UIDropDownMenu buttons after ToggleDropDownMenu
 function Guda_ScaleDropdownFonts(size)
-    local list = getglobal("DropDownList1")
-    if not list then return end
-    for i = 1, 20 do
-        local btn = getglobal("DropDownList1Button" .. i)
-        if btn then
-            local ntxt = getglobal("DropDownList1Button" .. i .. "NormalText")
+    for level = 1, 3 do
+        local listName = "DropDownList" .. level
+        local list = getglobal(listName)
+        if not list then break end
+        for i = 1, 20 do
+            local ntxt = getglobal(listName .. "Button" .. i .. "NormalText")
             if ntxt then
                 local f, _, fl = ntxt:GetFont()
                 if f then ntxt:SetFont(f, size, fl) end

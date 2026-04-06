@@ -328,6 +328,8 @@ function DB:GetAllCharacters(sameFactionOnly, currentRealmOnly)
 				faction = data.faction,
 				money = data.money,
 				lastUpdate = data.lastUpdate,
+				account = data.account,
+				isShared = data.isShared,
 			})
 		end
 	end

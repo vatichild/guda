@@ -303,6 +303,7 @@ function Tooltip:AddInventoryInfo(tooltip, link)
 				entry.mailCount = mailCount
 				entry.equippedCount = equippedCount
 				entry.isCurrent = isCurrentChar
+				entry.isShared = charData.isShared
 			end
 		end
 	-- If charData is not a table (string, number, etc.), just skip it
@@ -338,8 +339,9 @@ function Tooltip:AddInventoryInfo(tooltip, link)
 		end
 		tooltip:AddDoubleLine(totalText, breakdownText, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0)
 
-		-- Sort with current character first
+		-- Sort: own chars first (current char at top), then shared
 		table.sort(characterCounts, function(a, b)
+			if a.isShared ~= b.isShared then return not a.isShared end
 			if a.isCurrent and not b.isCurrent then return true end
 			if not a.isCurrent and b.isCurrent then return false end
 			return a.name < b.name
@@ -347,7 +349,12 @@ function Tooltip:AddInventoryInfo(tooltip, link)
 
 		-- Reuse module-level parts table for per-character breakdown
 		local parts = _charParts
+		local sharedSeparatorShown = false
 		for _, charInfo in ipairs(characterCounts) do
+			if charInfo.isShared and not sharedSeparatorShown then
+				tooltip:AddLine("|cFF80C0FFOther Accounts|r")
+				sharedSeparatorShown = true
+			end
 			local r, g, b = GetClassColor(charInfo.classToken)
 			local pIndex = 0
 

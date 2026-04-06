@@ -8,11 +8,13 @@
 ## OptionalDeps: pfUI
 
 Localization.lua
+GudaShared.lua
 
 Core\Init.lua
 Core\Theme.lua
 Core\Constants.lua
 Core\Database.lua
+Core\SharedData.lua
 DB\QuestItems.lua
 Core\Events.lua
 Core\Utils.lua

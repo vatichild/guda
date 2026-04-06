@@ -2250,79 +2250,124 @@ function Guda_MoneyTooltip_Show(anchor)
 	local allChars = addon.Modules.DB:GetAllCharacters(false, false) -- all realms
 	local totalMoney = 0
 
-	-- Group non-blacklisted characters by realm
-	local realms = {}
-	local realmOrder = {}
+	-- Group non-blacklisted characters by account, then by realm
+	local accounts = {} -- account -> { realms = { realm -> { chars, money } }, money, order }
+	local accountOrder = {}
+	local myAccountLabel = "Current Account"
+
 	for _, char in ipairs(allChars) do
 		if not addon.Modules.DB:IsGoldBlacklisted(char.fullName) then
-			local realm = char.realm or "Unknown"
-			if not realms[realm] then
-				realms[realm] = { chars = {}, money = 0 }
-				table.insert(realmOrder, realm)
+			local acctKey = char.isShared and (char.account or "Other") or myAccountLabel
+			if not accounts[acctKey] then
+				accounts[acctKey] = { realms = {}, realmOrder = {}, money = 0 }
+				table.insert(accountOrder, acctKey)
 			end
-			table.insert(realms[realm].chars, char)
-			realms[realm].money = realms[realm].money + (char.money or 0)
+			local acct = accounts[acctKey]
+			local realm = char.realm or "Unknown"
+			if not acct.realms[realm] then
+				acct.realms[realm] = { chars = {}, money = 0 }
+				table.insert(acct.realmOrder, realm)
+			end
+			table.insert(acct.realms[realm].chars, char)
+			acct.realms[realm].money = acct.realms[realm].money + (char.money or 0)
+			acct.money = acct.money + (char.money or 0)
 			totalMoney = totalMoney + (char.money or 0)
 		end
 	end
-	table.sort(realmOrder)
+
+	-- Sort: own account first, then others alphabetically
+	table.sort(accountOrder, function(a, b)
+		if a == myAccountLabel then return true end
+		if b == myAccountLabel then return false end
+		return a < b
+	end)
+	for _, acct in pairs(accounts) do
+		table.sort(acct.realmOrder)
+	end
 
 	-- Update header money
 	moneyTooltip.header:SetText("Total gold")
 	MoneyFrame_Update("Guda_MoneyTooltip_Total", totalMoney)
 	FormatMoneyFrameWithCommas("Guda_MoneyTooltip_Total")
 
-	-- Layout rows: realm headers + character rows
+	-- Layout rows
 	local rowHeight = 18
 	local padding = 10
 	local yOffset = -10 - 20 - 14  -- top padding + header height + gap
 	local rowIndex = 0
+	local hasMultipleAccounts = table.getn(accountOrder) > 1
 
-	for _, realm in ipairs(realmOrder) do
-		local realmData = realms[realm]
+	for _, acctKey in ipairs(accountOrder) do
+		local acctData = accounts[acctKey]
 
-		-- Realm header row
-		rowIndex = rowIndex + 1
-		local row = GetOrCreateMoneyRow(rowIndex)
-		row.label:SetTextColor(1, 0.82, 0) -- gold color for realm header
-		row.label:SetText(realm)
-		row.label:ClearAllPoints()
-		row.label:SetPoint("TOPLEFT", moneyTooltip, "TOPLEFT", padding, yOffset)
-		row.label:Show()
-
-		local frameName = "Guda_MoneyTooltip_Row" .. rowIndex
-		MoneyFrame_Update(frameName, realmData.money)
-		FormatMoneyFrameWithCommas(frameName)
-		row.money:ClearAllPoints()
-		row.money:SetPoint("TOPRIGHT", moneyTooltip, "TOPRIGHT", -padding, yOffset)
-		row.money:Show()
-
-		yOffset = yOffset - rowHeight
-
-		-- Character rows (indented)
-		for _, char in ipairs(realmData.chars) do
+		-- Account header (only show if multiple accounts exist)
+		if hasMultipleAccounts then
 			rowIndex = rowIndex + 1
-			row = GetOrCreateMoneyRow(rowIndex)
-
-			local classToken = char.classToken
-			local classColor = classToken and (CUSTOM_CLASS_COLORS or RAID_CLASS_COLORS)[classToken]
-			local r, g, b = 0.7, 0.7, 0.7
-			if classColor then r, g, b = classColor.r, classColor.g, classColor.b end
-
-			row.label:SetTextColor(r, g, b)
-			row.label:SetText("  " .. char.name)
+			local row = GetOrCreateMoneyRow(rowIndex)
+			row.label:SetTextColor(0.5, 0.8, 1) -- light blue for account header
+			row.label:SetText(acctKey)
 			row.label:ClearAllPoints()
 			row.label:SetPoint("TOPLEFT", moneyTooltip, "TOPLEFT", padding, yOffset)
 			row.label:Show()
 
-			frameName = "Guda_MoneyTooltip_Row" .. rowIndex
-			MoneyFrame_Update(frameName, char.money or 0)
+			local frameName = "Guda_MoneyTooltip_Row" .. rowIndex
+			MoneyFrame_Update(frameName, acctData.money)
 			FormatMoneyFrameWithCommas(frameName)
 			row.money:ClearAllPoints()
 			row.money:SetPoint("TOPRIGHT", moneyTooltip, "TOPRIGHT", -padding, yOffset)
 			row.money:Show()
 
 			yOffset = yOffset - rowHeight
+		end
+
+		local indent = hasMultipleAccounts and "  " or ""
+
+		for _, realm in ipairs(acctData.realmOrder) do
+			local realmData = acctData.realms[realm]
+
+			-- Realm header row
+			rowIndex = rowIndex + 1
+			local row = GetOrCreateMoneyRow(rowIndex)
+			row.label:SetTextColor(1, 0.82, 0) -- gold color for realm header
+			row.label:SetText(indent .. realm)
+			row.label:ClearAllPoints()
+			row.label:SetPoint("TOPLEFT", moneyTooltip, "TOPLEFT", padding, yOffset)
+			row.label:Show()
+
+			local frameName = "Guda_MoneyTooltip_Row" .. rowIndex
+			MoneyFrame_Update(frameName, realmData.money)
+			FormatMoneyFrameWithCommas(frameName)
+			row.money:ClearAllPoints()
+			row.money:SetPoint("TOPRIGHT", moneyTooltip, "TOPRIGHT", -padding, yOffset)
+			row.money:Show()
+
+			yOffset = yOffset - rowHeight
+
+			-- Character rows
+			for _, char in ipairs(realmData.chars) do
+				rowIndex = rowIndex + 1
+				row = GetOrCreateMoneyRow(rowIndex)
+
+				local classToken = char.classToken
+				local classColor = classToken and (CUSTOM_CLASS_COLORS or RAID_CLASS_COLORS)[classToken]
+				local r, g, b = 0.7, 0.7, 0.7
+				if classColor then r, g, b = classColor.r, classColor.g, classColor.b end
+
+				row.label:SetTextColor(r, g, b)
+				row.label:SetText(indent .. "  " .. char.name)
+				row.label:ClearAllPoints()
+				row.label:SetPoint("TOPLEFT", moneyTooltip, "TOPLEFT", padding, yOffset)
+				row.label:Show()
+
+				frameName = "Guda_MoneyTooltip_Row" .. rowIndex
+				MoneyFrame_Update(frameName, char.money or 0)
+				FormatMoneyFrameWithCommas(frameName)
+				row.money:ClearAllPoints()
+				row.money:SetPoint("TOPRIGHT", moneyTooltip, "TOPRIGHT", -padding, yOffset)
+				row.money:Show()
+
+				yOffset = yOffset - rowHeight
+			end
 		end
 	end
 
@@ -2374,39 +2419,107 @@ function Guda_MoneyTooltip_Hide()
 	end
 end
 
--- Gold tracking dropdown menu (grouped by realm)
+-- Gold tracking dropdown menu (grouped by account > realm > characters)
 local function Guda_GoldTrackingMenu_Initialize()
 	local characters = addon.Modules.DB:GetAllCharacters(false, false) -- all realms
+	local myAccountLabel = "Current Account"
 
-	-- Group characters by realm
-	local realms = {}
-	local realmOrder = {}
+	-- Group by account, then realm
+	local accounts = {}
+	local accountOrder = {}
 	for _, char in ipairs(characters) do
-		local realm = char.realm or "Unknown"
-		if not realms[realm] then
-			realms[realm] = {}
-			table.insert(realmOrder, realm)
+		local acctKey = char.isShared and (char.account or "Other") or myAccountLabel
+		if not accounts[acctKey] then
+			accounts[acctKey] = { realms = {}, realmOrder = {} }
+			table.insert(accountOrder, acctKey)
 		end
-		table.insert(realms[realm], char)
+		local acct = accounts[acctKey]
+		local realm = char.realm or "Unknown"
+		if not acct.realms[realm] then
+			acct.realms[realm] = {}
+			table.insert(acct.realmOrder, realm)
+		end
+		table.insert(acct.realms[realm], char)
 	end
 
-	-- Sort realm names
-	table.sort(realmOrder)
+	table.sort(accountOrder, function(a, b)
+		if a == myAccountLabel then return true end
+		if b == myAccountLabel then return false end
+		return a < b
+	end)
+	for _, acct in pairs(accounts) do
+		table.sort(acct.realmOrder)
+	end
 
 	local level = UIDROPDOWNMENU_MENU_LEVEL or 1
 
 	if level == 1 then
-		for _, realm in ipairs(realmOrder) do
-			local info = {}
-			info.text = realm
-			info.notCheckable = 1
-			info.hasArrow = 1
-			info.value = realm
-			UIDropDownMenu_AddButton(info, 1)
+		-- Level 1: account names (or realm names if single account)
+		if table.getn(accountOrder) == 1 then
+			local acct = accounts[accountOrder[1]]
+			for _, realm in ipairs(acct.realmOrder) do
+				local info = {}
+				info.text = realm
+				info.notCheckable = 1
+				info.hasArrow = 1
+				info.value = accountOrder[1] .. "|" .. realm
+				UIDropDownMenu_AddButton(info, 1)
+			end
+		else
+			for _, acctKey in ipairs(accountOrder) do
+				local info = {}
+				info.text = acctKey
+				info.notCheckable = 1
+				info.hasArrow = 1
+				info.value = acctKey
+				UIDropDownMenu_AddButton(info, 1)
+			end
 		end
 	elseif level == 2 then
-		local realm = UIDROPDOWNMENU_MENU_VALUE
-		local chars = realms[realm]
+		local parentValue = UIDROPDOWNMENU_MENU_VALUE
+		if table.getn(accountOrder) == 1 then
+			local _, _, acctKey, realm = string.find(parentValue, "^(.+)|(.+)$")
+			local acct = accounts[acctKey]
+			local chars = acct and acct.realms[realm]
+			if chars then
+				for _, char in ipairs(chars) do
+					local charFullName = char.fullName
+					local classColor = char.classToken and RAID_CLASS_COLORS[char.classToken]
+					local r, g, b = 1, 1, 1
+					if classColor then r, g, b = classColor.r, classColor.g, classColor.b end
+
+					local info = {}
+					info.text = addon.Modules.Utils:ColorText(char.name, r, g, b)
+					info.checked = not addon.Modules.DB:IsGoldBlacklisted(charFullName)
+					info.keepShownOnClick = 1
+					info.func = function()
+						addon.Modules.DB:ToggleGoldBlacklist(charFullName)
+						if moneyTooltip and moneyTooltip:IsShown() and moneyTooltip.anchor then
+							Guda_MoneyTooltip_Show(moneyTooltip.anchor)
+						end
+					end
+					UIDropDownMenu_AddButton(info, 2)
+				end
+			end
+		else
+			local acct = accounts[parentValue]
+			if acct then
+				for _, realm in ipairs(acct.realmOrder) do
+					local info = {}
+					info.text = realm
+					info.notCheckable = 1
+					info.hasArrow = 1
+					info.value = parentValue .. "|" .. realm
+					UIDropDownMenu_AddButton(info, 2)
+				end
+			end
+		end
+		Guda_ScaleDropdownFonts(12)
+	elseif level == 3 then
+		local parentValue = UIDROPDOWNMENU_MENU_VALUE
+		local _, _, acctKey, realm = string.find(parentValue, "^(.+)|(.+)$")
+		local acct = accounts[acctKey]
+		local chars = acct and acct.realms[realm]
 		if chars then
 			for _, char in ipairs(chars) do
 				local charFullName = char.fullName
@@ -2424,9 +2537,10 @@ local function Guda_GoldTrackingMenu_Initialize()
 						Guda_MoneyTooltip_Show(moneyTooltip.anchor)
 					end
 				end
-				UIDropDownMenu_AddButton(info, 2)
+				UIDropDownMenu_AddButton(info, 3)
 			end
 		end
+		Guda_ScaleDropdownFonts(12)
 	end
 end
 
@@ -2437,7 +2551,7 @@ function Guda_ShowGoldTrackingMenu(anchor)
 	end
 	UIDropDownMenu_Initialize(menuFrame, Guda_GoldTrackingMenu_Initialize, "MENU")
 	ToggleDropDownMenu(1, nil, menuFrame, "cursor", 0, 0)
-	Guda_ScaleDropdownFonts(14)
+	Guda_ScaleDropdownFonts(12)
 end
 
 -- Money tooltip handler (BagFrame entry point)
@@ -2445,32 +2559,45 @@ function Guda_BagFrame_MoneyOnEnter(self)
 	Guda_MoneyTooltip_Show(self)
 end
 
+-- Helper: split characters into own and shared, filtered by blacklist
+local function GetSplitCharacters(currentRealmOnly)
+	local characters = addon.Modules.DB:GetAllCharacters(false, currentRealmOnly)
+	local currentPlayerFullName = addon.Modules.DB:GetPlayerFullName()
+	local own, shared = {}, {}
+	for _, char in ipairs(characters) do
+		if not addon.Modules.DB:IsGoldBlacklisted(char.fullName) or char.fullName == currentPlayerFullName then
+			if char.isShared then
+				table.insert(shared, char)
+			else
+				table.insert(own, char)
+			end
+		end
+	end
+	return own, shared, currentPlayerFullName
+end
+
+-- Helper: add account separator header to dropdown
+local function AddAccountSeparator(label)
+	local info = {}
+	info.text = label
+	info.isTitle = 1
+	info.notCheckable = 1
+	UIDropDownMenu_AddButton(info)
+end
+
 -- Dropdown management
 local function Guda_BagCharacterMenu_Initialize()
-	local characters = addon.Modules.DB:GetAllCharacters(false, true)
-	local info
-	local currentPlayerFullName = addon.Modules.DB:GetPlayerFullName()
+	local own, shared, currentPlayerFullName = GetSplitCharacters(true)
 	local currentViewChar = addon.Modules.BagFrame:GetCurrentViewChar()
 
-	for i, char in ipairs(characters) do
-		if addon.Modules.DB:IsGoldBlacklisted(char.fullName) and char.fullName ~= currentPlayerFullName then
-			-- skip blacklisted characters (never hide current player)
-		else
+	for _, char in ipairs(own) do
 		local charFullName = char.fullName
-		local charClassToken = char.classToken
-
-		-- Get class color
-		local classColor = charClassToken and RAID_CLASS_COLORS[charClassToken]
+		local classColor = char.classToken and RAID_CLASS_COLORS[char.classToken]
 		local r, g, b = 1, 1, 1
-		if classColor then
-			r, g, b = classColor.r, classColor.g, classColor.b
-		end
+		if classColor then r, g, b = classColor.r, classColor.g, classColor.b end
 
-		-- Create colored name
-		local coloredName = addon.Modules.Utils:ColorText(char.name, r, g, b)
-
-		info = {}
-		info.text = coloredName
+		local info = {}
+		info.text = addon.Modules.Utils:ColorText(char.name, r, g, b)
 		info.func = function()
 			if charFullName == currentPlayerFullName then
 				addon.Modules.BagFrame:ShowCurrentCharacter()
@@ -2480,7 +2607,24 @@ local function Guda_BagCharacterMenu_Initialize()
 		end
 		info.checked = (currentViewChar == charFullName or (not currentViewChar and charFullName == currentPlayerFullName))
 		UIDropDownMenu_AddButton(info)
-		end -- else
+	end
+
+	if table.getn(shared) > 0 then
+		AddAccountSeparator("Other Accounts")
+		for _, char in ipairs(shared) do
+			local charFullName = char.fullName
+			local classColor = char.classToken and RAID_CLASS_COLORS[char.classToken]
+			local r, g, b = 1, 1, 1
+			if classColor then r, g, b = classColor.r, classColor.g, classColor.b end
+
+			local info = {}
+			info.text = addon.Modules.Utils:ColorText(char.name, r, g, b)
+			info.func = function()
+				addon.Modules.BagFrame:ShowCharacter(charFullName)
+			end
+			info.checked = (currentViewChar == charFullName)
+			UIDropDownMenu_AddButton(info)
+		end
 	end
 end
 
@@ -2492,44 +2636,51 @@ function Guda_BagFrame_ToggleCharacterDropdown(button)
 	end
 	UIDropDownMenu_Initialize(menuFrame, Guda_BagCharacterMenu_Initialize, "MENU")
 	ToggleDropDownMenu(1, nil, menuFrame, "cursor", 0, 0)
-	Guda_ScaleDropdownFonts(14)
+	Guda_ScaleDropdownFonts(12)
 end
 
 -- Mailbox character dropdown
 local function Guda_BagMailboxMenu_Initialize()
-	local characters = addon.Modules.DB:GetAllCharacters(false, true)
-	local info
-	local currentPlayerFullName = addon.Modules.DB:GetPlayerFullName()
+	local own, shared, currentPlayerFullName = GetSplitCharacters(true)
+	local mailboxViewChar = addon.Modules.MailboxFrame and addon.Modules.MailboxFrame.GetCurrentViewChar and addon.Modules.MailboxFrame:GetCurrentViewChar()
 
-	for i, char in ipairs(characters) do
-		if addon.Modules.DB:IsGoldBlacklisted(char.fullName) and char.fullName ~= currentPlayerFullName then
-			-- skip blacklisted characters (never hide current player)
-		else
+	for _, char in ipairs(own) do
 		local charFullName = char.fullName
-		local charClassToken = char.classToken
-
-		-- Get class color
-		local classColor = charClassToken and RAID_CLASS_COLORS[charClassToken]
+		local classColor = char.classToken and RAID_CLASS_COLORS[char.classToken]
 		local r, g, b = 1, 1, 1
-		if classColor then
-			r, g, b = classColor.r, classColor.g, classColor.b
-		end
+		if classColor then r, g, b = classColor.r, classColor.g, classColor.b end
 
-		-- Create colored name
-		local coloredName = addon.Modules.Utils:ColorText(char.name, r, g, b)
-
-		info = {}
-		info.text = coloredName
+		local info = {}
+		info.text = addon.Modules.Utils:ColorText(char.name, r, g, b)
 		info.func = function()
 			addon.Modules.MailboxFrame:ShowCharacter(charFullName)
 			if not Guda_MailboxFrame:IsShown() then
 				Guda_MailboxFrame:Show()
 			end
 		end
-		local mailboxViewChar = addon.Modules.MailboxFrame:GetCurrentViewChar()
 		info.checked = (mailboxViewChar == charFullName or (not mailboxViewChar and charFullName == currentPlayerFullName))
 		UIDropDownMenu_AddButton(info)
-		end -- else
+	end
+
+	if table.getn(shared) > 0 then
+		AddAccountSeparator("Other Accounts")
+		for _, char in ipairs(shared) do
+			local charFullName = char.fullName
+			local classColor = char.classToken and RAID_CLASS_COLORS[char.classToken]
+			local r, g, b = 1, 1, 1
+			if classColor then r, g, b = classColor.r, classColor.g, classColor.b end
+
+			local info = {}
+			info.text = addon.Modules.Utils:ColorText(char.name, r, g, b)
+			info.func = function()
+				addon.Modules.MailboxFrame:ShowCharacter(charFullName)
+				if not Guda_MailboxFrame:IsShown() then
+					Guda_MailboxFrame:Show()
+				end
+			end
+			info.checked = (mailboxViewChar == charFullName)
+			UIDropDownMenu_AddButton(info)
+		end
 	end
 end
 
@@ -2541,42 +2692,47 @@ function Guda_BagFrame_ToggleMailDropdown(button)
 	end
 	UIDropDownMenu_Initialize(menuFrame, Guda_BagMailboxMenu_Initialize, "MENU")
 	ToggleDropDownMenu(1, nil, menuFrame, "cursor", 0, 0)
-	Guda_ScaleDropdownFonts(14)
+	Guda_ScaleDropdownFonts(12)
 end
 
 -- Bank character dropdown
 local function Guda_BagBankMenu_Initialize()
-	local characters = addon.Modules.DB:GetAllCharacters(false, true)
-	local info
-	local currentPlayerFullName = addon.Modules.DB:GetPlayerFullName()
+	local own, shared, currentPlayerFullName = GetSplitCharacters(true)
+	local bankViewChar = addon.Modules.BankFrame:GetCurrentViewChar()
 
-	for i, char in ipairs(characters) do
-		if addon.Modules.DB:IsGoldBlacklisted(char.fullName) and char.fullName ~= currentPlayerFullName then
-			-- skip blacklisted characters (never hide current player)
-		else
+	for _, char in ipairs(own) do
 		local charFullName = char.fullName
-		local charClassToken = char.classToken
-
-		-- Get class color
-		local classColor = charClassToken and RAID_CLASS_COLORS[charClassToken]
-		local r, g, b = 1, 1, 1
-		if classColor then
-			r, g, b = classColor.r, classColor.g, classColor.b
-		end
-
-		-- Create colored name
 		local charName = char.name
-		local coloredName = addon.Modules.Utils:ColorText(charName, r, g, b)
+		local classColor = char.classToken and RAID_CLASS_COLORS[char.classToken]
+		local r, g, b = 1, 1, 1
+		if classColor then r, g, b = classColor.r, classColor.g, classColor.b end
 
-		info = {}
-		info.text = coloredName
+		local info = {}
+		info.text = addon.Modules.Utils:ColorText(charName, r, g, b)
 		info.func = function()
 			Guda_BagFrame_ShowCharacterBank(charFullName, charName)
 		end
-		local bankViewChar = addon.Modules.BankFrame:GetCurrentViewChar()
 		info.checked = (bankViewChar == charFullName or (not bankViewChar and charFullName == currentPlayerFullName))
 		UIDropDownMenu_AddButton(info)
-		end -- else
+	end
+
+	if table.getn(shared) > 0 then
+		AddAccountSeparator("Other Accounts")
+		for _, char in ipairs(shared) do
+			local charFullName = char.fullName
+			local charName = char.name
+			local classColor = char.classToken and RAID_CLASS_COLORS[char.classToken]
+			local r, g, b = 1, 1, 1
+			if classColor then r, g, b = classColor.r, classColor.g, classColor.b end
+
+			local info = {}
+			info.text = addon.Modules.Utils:ColorText(charName, r, g, b)
+			info.func = function()
+				Guda_BagFrame_ShowCharacterBank(charFullName, charName)
+			end
+			info.checked = (bankViewChar == charFullName)
+			UIDropDownMenu_AddButton(info)
+		end
 	end
 end
 
@@ -2588,7 +2744,7 @@ function Guda_BagFrame_ToggleBankDropdown(button)
 	end
 	UIDropDownMenu_Initialize(menuFrame, Guda_BagBankMenu_Initialize, "MENU")
 	ToggleDropDownMenu(1, nil, menuFrame, "cursor", 0, 0)
-	Guda_ScaleDropdownFonts(14)
+	Guda_ScaleDropdownFonts(12)
 end
 
 -- Show character's bank

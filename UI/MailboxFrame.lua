@@ -355,33 +355,55 @@ end
 
 -- Show character selection menu
 local function Guda_MailboxCharacterMenu_Initialize()
-    local characters = addon.Modules.DB:GetAllCharacters(true, true)
-    local info
-    local currentPlayerFullName = addon.Modules.DB:GetPlayerFullName()
+    local DB = addon.Modules.DB
+    local currentPlayerFullName = DB:GetPlayerFullName()
+    local characters = DB:GetAllCharacters(true, true)
 
-    for i, char in ipairs(characters) do
-        if addon.Modules.DB:IsGoldBlacklisted(char.fullName) and char.fullName ~= currentPlayerFullName then
-            -- skip blacklisted characters (never hide current player)
-        else
-        local charFullName = char.fullName
-        local charClassToken = char.classToken
-
-        -- Get class color
-        local classColor = charClassToken and RAID_CLASS_COLORS[charClassToken]
-        local r, g, b = 1, 1, 1
-        if classColor then
-            r, g, b = classColor.r, classColor.g, classColor.b
+    local own, shared = {}, {}
+    for _, char in ipairs(characters) do
+        if not DB:IsGoldBlacklisted(char.fullName) or char.fullName == currentPlayerFullName then
+            if char.isShared then
+                table.insert(shared, char)
+            else
+                table.insert(own, char)
+            end
         end
+    end
 
-        -- Create colored name
-        local coloredName = addon.Modules.Utils:ColorText(char.name, r, g, b)
+    for _, char in ipairs(own) do
+        local charFullName = char.fullName
+        local classColor = char.classToken and RAID_CLASS_COLORS[char.classToken]
+        local r, g, b = 1, 1, 1
+        if classColor then r, g, b = classColor.r, classColor.g, classColor.b end
 
-        info = {}
-        info.text = coloredName
+        local info = {}
+        info.text = addon.Modules.Utils:ColorText(char.name, r, g, b)
         info.func = function() MailboxFrame:ShowCharacter(charFullName) end
-        info.checked = (currentViewChar == char.fullName or (not currentViewChar and char.fullName == currentPlayerFullName))
+        local currentViewChar = MailboxFrame:GetCurrentViewChar and MailboxFrame:GetCurrentViewChar()
+        info.checked = (currentViewChar == charFullName or (not currentViewChar and charFullName == currentPlayerFullName))
         UIDropDownMenu_AddButton(info)
-        end -- else
+    end
+
+    if table.getn(shared) > 0 then
+        local sep = {}
+        sep.text = "Other Accounts"
+        sep.isTitle = 1
+        sep.notCheckable = 1
+        UIDropDownMenu_AddButton(sep)
+
+        for _, char in ipairs(shared) do
+            local charFullName = char.fullName
+            local classColor = char.classToken and RAID_CLASS_COLORS[char.classToken]
+            local r, g, b = 1, 1, 1
+            if classColor then r, g, b = classColor.r, classColor.g, classColor.b end
+
+            local info = {}
+            info.text = addon.Modules.Utils:ColorText(char.name, r, g, b)
+            info.func = function() MailboxFrame:ShowCharacter(charFullName) end
+            local currentViewChar = MailboxFrame:GetCurrentViewChar and MailboxFrame:GetCurrentViewChar()
+            info.checked = (currentViewChar == charFullName)
+            UIDropDownMenu_AddButton(info)
+        end
     end
 end
 
