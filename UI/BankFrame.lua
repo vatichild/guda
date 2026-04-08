@@ -135,7 +135,7 @@ function Guda_BankFrame_OnLoad(self)
     -- Set up search box placeholder
     local searchBox = getglobal(self:GetName().."_SearchBar_SearchBox")
     if searchBox then
-        searchBox:SetText("Search bank...")
+        searchBox:SetText(Guda_L["Search bank..."])
         searchBox:SetTextColor(0.5, 0.5, 0.5, 1)
     end
 
@@ -641,7 +641,7 @@ function BankFrame:Update()
         bankData = addon.Modules.DB:GetCharacterBank(currentViewChar)
         isOtherChar = true
         charName = currentViewChar
-        getglobal("Guda_BankFrame_Title"):SetText(currentViewChar .. "'s Bank")
+        getglobal("Guda_BankFrame_Title"):SetText(format(Guda_L["%s's Bank"], currentViewChar))
     else
         -- Viewing current character's bank
         -- Use live data if bank is officially open OR if we can access bank data
@@ -660,11 +660,11 @@ function BankFrame:Update()
         if useLiveData then
             -- Bank is accessible - use live data
             bankData = addon.Modules.BankScanner:GetBankData()
-            getglobal("Guda_BankFrame_Title"):SetText(playerName .. "'s Bank")
+            getglobal("Guda_BankFrame_Title"):SetText(format(Guda_L["%s's Bank"], playerName))
         else
             -- Bank is truly closed - use saved data (read-only mode)
             bankData = addon.Modules.DB:GetCharacterBank(playerName)
-            getglobal("Guda_BankFrame_Title"):SetText(playerName .. "'s Bank")
+            getglobal("Guda_BankFrame_Title"):SetText(format(Guda_L["%s's Bank"], playerName))
         end
     end
 
@@ -1579,7 +1579,7 @@ end
 
 -- Check if search is currently active
 function BankFrame:IsSearchActive()
-    return searchText and searchText ~= "" and searchText ~= "Search bank..."
+    return searchText and searchText ~= "" and searchText ~= Guda_L["Search bank..."]
 end
 
 -- Check if item passes search filter (pfUI style)
@@ -1592,7 +1592,7 @@ end
 function Guda_BankFrame_OnSearchChanged(self)
     local text = self:GetText()
     -- Ignore placeholder text
-    if text == "Search bank..." then
+    if text == Guda_L["Search bank..."] then
         text = ""
     end
     if text ~= searchText then
@@ -1605,7 +1605,7 @@ end
 function Guda_BankFrame_ClearSearch()
     local searchBox = getglobal("Guda_BankFrame_SearchBar_SearchBox")
     if searchBox then
-        searchBox:SetText("Search bank...")
+        searchBox:SetText(Guda_L["Search bank..."])
         searchBox:SetTextColor(0.5, 0.5, 0.5, 1)
         if searchBox.ClearFocus then searchBox:ClearFocus() end
     end
@@ -1625,12 +1625,12 @@ end
 -- Bank button handler
 function Guda_BankFrame_Sort()
 	if isReadOnlyMode or currentViewChar then
-		addon:Print("Cannot sort in read-only mode!")
+		addon:Print(Guda_L["Cannot sort in read-only mode!"])
 		return
 	end
 
 	if not addon.Modules.BankScanner:IsBankOpen() then
-		addon:Print("Bank must be open to sort!")
+		addon:Print(Guda_L["Bank must be open to sort!"])
 		return
 	end
 
@@ -1649,7 +1649,7 @@ function Guda_BankFrame_Sort()
     )
 
 	if not success and message == "already sorted" then
-		addon:Print("Bank is already sorted!")
+		addon:Print(Guda_L["Bank is already sorted!"])
 	end
 end
 
@@ -1668,7 +1668,7 @@ function Guda_BankFrame_MergeStacks()
 
 	-- Check if sorting is already in progress
 	if addon.Modules.SortEngine.sortingInProgress then
-		addon:Print("Sorting already in progress, please wait...")
+		addon:Print(Guda_L["Sorting already in progress, please wait..."])
 		return
 	end
 
@@ -1795,7 +1795,7 @@ function Guda_BankFrame_MergeStacks()
 				addon.Modules.ItemDetection:ClearCache()
 			end
 			BankFrame:Update()
-			addon:Print("Restacked " .. totalMoves .. " stack(s)")
+			addon:Print(format(Guda_L["Restacked %d stack(s)"], totalMoves))
 			return
 		end
 		
@@ -1884,7 +1884,7 @@ function Guda_BankFrame_SwitchToGudaUI()
     -- Update the custom bank frame in interactive mode
     BankFrame:ShowCurrentCharacter()
     
-    addon:Print("Switched to Guda bank UI")
+    addon:Print(Guda_L["Switched to Guda bank UI"])
 end
 
 -- Create button on Blizzard BankFrame to switch to Guda UI
@@ -1927,7 +1927,7 @@ function BankFrame:CreateGudaButtonOnBlizzardUI()
 
     gudaButton:SetScript("OnEnter", function()
         GameTooltip:SetOwner(this, "ANCHOR_LEFT")
-        GameTooltip:SetText("Use Guda Bank UI")
+        GameTooltip:SetText(Guda_L["Use Guda Bank UI"])
         GameTooltip:Show()
     end)
 
@@ -2658,7 +2658,7 @@ function Guda_BankBagSlot_OnEnter(button, bagID)
 
     if bagID == -1 then
         -- Main bank bag tooltip
-        GameTooltip:SetText("Bank", 1.0, 1.0, 1.0)
+        GameTooltip:SetText(Guda_L["Bank"], 1.0, 1.0, 1.0)
         local numSlots = 24
         GameTooltip:AddLine(string.format("%d Slots", numSlots), 0.8, 0.8, 0.8)
         if hiddenBankBags[bagID] then
@@ -2684,13 +2684,13 @@ function Guda_BankBagSlot_OnEnter(button, bagID)
             ResetCursor()
         elseif isPurchased then
             -- Empty purchased slot (no hide/show text, no purchase cursor)
-            GameTooltip:SetText(string.format("Bank Bag Slot %d", bankButtonID or -1), 1.0, 1.0, 1.0)
+            GameTooltip:SetText(string.format(Guda_L["Bank Bag Slot %d"], bankButtonID or -1), 1.0, 1.0, 1.0)
             GameTooltip:AddLine("Empty", 0.8, 0.8, 0.8)
             -- Reset cursor for empty purchased slots
             ResetCursor()
         else
             -- Unpurchased slot (no hide/show text, show purchase cursor)
-            GameTooltip:SetText(string.format("Bank Bag Slot %d", bankButtonID or -1), 1.0, 1.0, 1.0)
+            GameTooltip:SetText(string.format(Guda_L["Bank Bag Slot %d"], bankButtonID or -1), 1.0, 1.0, 1.0)
             local cost = GetBankSlotCost(numSlots)
             GameTooltip:AddLine(addon.Modules.Utils:FormatMoney(cost, false, true), 1, 1, 1)
             -- Show purchase cursor (coin icon)

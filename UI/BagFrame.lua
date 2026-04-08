@@ -156,7 +156,7 @@ function Guda_BagFrame_OnLoad(self)
 -- Set up search box placeholder
 	local searchBox = getglobal(self:GetName().."_SearchBar_SearchBox")
 	if searchBox then
-		searchBox:SetText("Search, try ~equipment")
+		searchBox:SetText(Guda_L["Search, try ~equipment"])
 		searchBox:SetTextColor(0.5, 0.5, 0.5, 1)
 	end
 
@@ -859,7 +859,7 @@ function BagFrame:Update()
 	end
 
 	if titleFont and displayName then
-		titleFont:SetText(string.format("%s's Bags", displayName))
+		titleFont:SetText(string.format(Guda_L["%s's Bags"], displayName))
 	end
 
 	-- Display items
@@ -1604,7 +1604,7 @@ end
 
 -- Check if search is currently active
 function BagFrame:IsSearchActive()
-	return searchText and searchText ~= "" and searchText ~= "Search, try ~equipment"
+	return searchText and searchText ~= "" and searchText ~= Guda_L["Search, try ~equipment"]
 end
 
 -- Check if item passes search filter (pfUI style)
@@ -1729,7 +1729,7 @@ function BagFrame:UpdateBagSlotsInfo(bagData, isOtherChar)
 			infoFrame:EnableMouse(true)
 			infoFrame:SetScript("OnEnter", function()
 				GameTooltip:SetOwner(this, "ANCHOR_TOP")
-				GameTooltip:AddLine("Bag Slots", 1, 1, 1)
+				GameTooltip:AddLine(Guda_L["Bag Slots"], 1, 1, 1)
 				GameTooltip:AddLine(" ")
 				-- Regular bags
 				if this.regularTotal then
@@ -2209,7 +2209,7 @@ local function CreateMoneyTooltip()
 	-- Header label
 	f.header = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	f.header:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -10)
-	f.header:SetText("Current realm gold")
+	f.header:SetText(Guda_L["Current realm gold"])
 	f.header:SetTextColor(1, 0.82, 0)
 
 	-- Header money frame (total) — anchored to right edge, same row as header
@@ -2778,7 +2778,7 @@ end
 function Guda_BagFrame_ClearSearch()
 	local searchBox = getglobal("Guda_BagFrame_SearchBar_SearchBox")
 	if searchBox then
-		searchBox:SetText("Search, try ~equipment")
+		searchBox:SetText(Guda_L["Search, try ~equipment"])
 		searchBox:SetTextColor(0.5, 0.5, 0.5, 1)
 		searchBox:ClearFocus()
 	end
@@ -2797,7 +2797,7 @@ end
 function Guda_BagFrame_OnSearchChanged(self)
 	local text = self:GetText()
 	-- Ignore placeholder text
-	if text == "Search, try ~equipment" then
+	if text == Guda_L["Search, try ~equipment"] then
 		text = ""
 	end
 	if text ~= searchText then
@@ -2884,7 +2884,7 @@ end
 
 function Guda_BagFrame_Sort()
 	if currentViewChar then
-		addon:Print("Cannot sort another character's bags!")
+		addon:Print(Guda_L["Cannot sort another character's bags!"])
 		return
 	end
 
@@ -2903,7 +2903,7 @@ function Guda_BagFrame_Sort()
     )
 
 	if not success and message == "already sorted" then
-		addon:Print("Bags are already sorted!")
+		addon:Print(Guda_L["Bags are already sorted!"])
 	end
 end
 
@@ -2917,7 +2917,7 @@ function Guda_BagFrame_MergeStacks()
 
 	-- Check if sorting is already in progress
 	if addon.Modules.SortEngine.sortingInProgress then
-		addon:Print("Sorting already in progress, please wait...")
+		addon:Print(Guda_L["Sorting already in progress, please wait..."])
 		return
 	end
 
@@ -3042,7 +3042,7 @@ function Guda_BagFrame_MergeStacks()
 			end
 			-- Refresh the view
 			BagFrame:Update()
-			addon:Print("Restacked " .. totalMoves .. " stack(s)")
+			addon:Print(format(Guda_L["Restacked %d stack(s)"], totalMoves))
 			return
 		end
 		
@@ -3739,7 +3739,7 @@ function Guda_BagSlot_OnEnter(button, bagID)
 
 	if bagID == 0 then
 	-- Backpack tooltip
-		GameTooltip:SetText("Backpack", 1.0, 1.0, 1.0)
+		GameTooltip:SetText(Guda_L["Backpack"], 1.0, 1.0, 1.0)
 		local numSlots = GetContainerNumSlots(0)
 		GameTooltip:AddLine(string.format("%d Slots", numSlots), 0.8, 0.8, 0.8)
 		if hiddenBags[bagID] then
@@ -3750,7 +3750,7 @@ function Guda_BagSlot_OnEnter(button, bagID)
 		Guda_BagFrame_HighlightBagSlots(0)
 	elseif bagID == -2 then
 		-- Keyring tooltip
-		GameTooltip:SetText("Keyring", 1.0, 1.0, 1.0)
+		GameTooltip:SetText(Guda_L["Keyring"], 1.0, 1.0, 1.0)
 		local numSlots = GetContainerNumSlots(-2) or 0
 		GameTooltip:AddLine(string.format("%d Slots", numSlots), 0.8, 0.8, 0.8)
 		if hiddenBags[bagID] then
@@ -3775,7 +3775,7 @@ function Guda_BagSlot_OnEnter(button, bagID)
 			Guda_BagFrame_HighlightBagSlots(bagID)
 		else
 		-- Empty slot
-			GameTooltip:SetText(string.format("Bag %d", bagID), 1.0, 1.0, 1.0)
+			GameTooltip:SetText(string.format(Guda_L["Bag %d"], bagID), 1.0, 1.0, 1.0)
 			GameTooltip:AddLine("Empty", 0.5, 0.5, 0.5)
 			if hiddenBags[bagID] then
 				GameTooltip:AddLine("(Hidden - Right-Click to show)", 0.8, 0.5, 0.5)
@@ -4134,7 +4134,7 @@ function BagFrame:Initialize()
 					if not isMerchantOpen then
 						this:SetScript("OnUpdate", nil)
 						if soldCount > 0 then
-							addon:Print("Sold " .. soldCount .. " junk item(s).")
+							addon:Print(format(Guda_L["Sold %d junk item(s)"], soldCount))
 						end
 						return
 					end
@@ -4149,7 +4149,7 @@ function BagFrame:Initialize()
 					else
 						this:SetScript("OnUpdate", nil)
 						if soldCount > 0 then
-							addon:Print("Sold " .. soldCount .. " junk item(s).")
+							addon:Print(format(Guda_L["Sold %d junk item(s)"], soldCount))
 						end
 					end
 				end)

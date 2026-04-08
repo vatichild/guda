@@ -89,12 +89,12 @@ function EquipmentScanner:Initialize()
 	-- Player logged in - save equipment data
 	addon.Modules.Events:OnPlayerLogin(function()
 		playerLoggedIn = true
-		addon:Print("Scanning equipped items...")
+		addon:Print(Guda_L["Scanning equipped items..."])
 
 		-- Delay scan to ensure character is fully loaded (uses pooled timer)
 		Guda_ScheduleTimer(2.0, function()
 			EquipmentScanner:SaveToDatabase()
-			addon:Print("Equipped items scanned and saved!")
+			addon:Print(Guda_L["Equipped items scanned and saved!"])
 		end)
 	end, "EquipmentScanner")
 

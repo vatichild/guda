@@ -30,7 +30,7 @@ function Guda_MailboxFrame_OnLoad(self)
     -- Set up search box placeholder
     local searchBox = getglobal(self:GetName().."_SearchBar_SearchBox")
     if searchBox then
-        searchBox:SetText("Search mailbox...")
+        searchBox:SetText(Guda_L["Search mailbox..."])
         searchBox:SetTextColor(0.5, 0.5, 0.5, 1)
     end
 
@@ -148,7 +148,7 @@ function MailboxFrame:Update()
         charName = string.sub(charFullName, 1, dashPos - 1)
     end
 
-    getglobal("Guda_MailboxFrame_Title"):SetText(charName .. "'s Mailbox")
+    getglobal("Guda_MailboxFrame_Title"):SetText(format(Guda_L["%s's Mailbox"], charName))
 
     -- Filter items based on search text
     local filteredItems = {}
@@ -175,7 +175,7 @@ function MailboxFrame:Update()
     local emptyMessage = getglobal("Guda_MailboxFrame_EmptyMessage")
     if emptyMessage then
         if totalItems == 0 then
-            emptyMessage:SetText("No mailbox data found for this character.\n\nVisit a mailbox in-game to save your mail data.")
+            emptyMessage:SetText(Guda_L["No mailbox data found for this character.\n\nVisit a mailbox in-game to save your mail data."])
             emptyMessage:Show()
         else
             emptyMessage:Hide()
@@ -333,7 +333,7 @@ function MailboxFrame:DisplayItems(items, charFullName, totalMails)
     local paginationText = getglobal("Guda_MailboxFrame_Pagination_Text")
     if paginationText then
         if totalMails == 0 then
-            paginationText:SetText("No Mail")
+            paginationText:SetText(Guda_L["No Mail"])
         else
             paginationText:SetText(string.format("%d/%d (items: %d)", currentPage, totalPages, totalMails or 0))
         end
@@ -344,7 +344,7 @@ end
 function Guda_MailboxFrame_OnSearchTextChanged()
     local searchBox = getglobal("Guda_MailboxFrame_SearchBar_SearchBox")
     local text = searchBox:GetText()
-    if text == "Search mailbox..." then
+    if text == Guda_L["Search mailbox..."] then
         searchText = ""
     else
         searchText = string.lower(text)

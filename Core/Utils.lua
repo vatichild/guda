@@ -291,12 +291,12 @@ end
 -- Print current performance statistics (for debugging)
 function Utils:PrintPerformanceStats()
     local stats = self:GetPerformanceStats()
-    addon:Print("=== Guda Performance Stats ===")
-    addon:Print("Frame Budget: %.0fms", stats.frameBudget * 1000)
-    addon:Print("Last Update: %.1fms", stats.lastUpdateDuration * 1000)
+    addon:Print(Guda_L["=== Guda Performance Stats ==="])
+    addon:Print(Guda_L["Frame Budget: %.0fms"], stats.frameBudget * 1000)
+    addon:Print(Guda_L["Last Update: %.1fms"], stats.lastUpdateDuration * 1000)
     addon:Print("Avg Update: %.1fms", stats.averageUpdateDuration * 1000)
-    addon:Print("Total Updates: %d", stats.totalUpdates)
-    addon:Print("Budget Exceeded: %d times", stats.budgetExceededCount)
+    addon:Print(Guda_L["Total Updates: %d"], stats.totalUpdates)
+    addon:Print(Guda_L["Budget Exceeded: %d times"], stats.budgetExceededCount)
     addon:Print("Work Queue: %d items", stats.workQueueSize)
 end
 
@@ -987,6 +987,55 @@ end
 
 -- Returns: "soul", "herb", "enchant", "quiver", "ammo", or nil
 -- This is the consolidated bag type detection function with tooltip fallback
+-- =============================================================================
+-- Locale-independent type resolution
+-- =============================================================================
+-- WoW's GetItemInfo returns LOCALIZED type/subtype strings ("Quiver" on enUS,
+-- "箭袋" on zhCN, etc.). We resolve the local-client strings at runtime by
+-- querying a few reference itemIDs that exist in every WoW 1.12 client, so
+-- the rest of the code can match against the local language without hardcoding.
+local localizedBagTypes = {}     -- lowercased localized subType -> "quiver"/"ammo"/...
+local localizedProjectiles = {}  -- localized subType (any case) -> "arrow"/"bullet"
+local localizedTypesResolved = false
+
+-- Reference itemIDs guaranteed to exist in every WoW 1.12 client.
+-- Soul/herb/enchant bag IDs are intentionally omitted because they vary per
+-- server (TurtleWoW custom items, etc.) — those still use the English fallback.
+local BAG_REFERENCE_ITEMS = {
+    [2101] = "quiver",  -- Light Quiver
+    [2102] = "ammo",    -- Small Ammo Pouch
+}
+local PROJECTILE_REFERENCE_ITEMS = {
+    [2512] = "arrow",   -- Rough Arrow
+    [2516] = "bullet",  -- Light Shot
+}
+
+local function ResolveLocalizedTypes()
+    if localizedTypesResolved then return end
+    local allResolved = true
+
+    for itemID, key in pairs(BAG_REFERENCE_ITEMS) do
+        -- Position 6 in TurtleWoW GetItemInfo signature is itemType (subType)
+        local _, _, _, _, _, itemType = GetItemInfo(itemID)
+        if itemType then
+            localizedBagTypes[string.lower(itemType)] = key
+        else
+            allResolved = false
+        end
+    end
+
+    for itemID, key in pairs(PROJECTILE_REFERENCE_ITEMS) do
+        local _, _, _, _, _, itemType = GetItemInfo(itemID)
+        if itemType then
+            localizedProjectiles[itemType] = key
+        else
+            allResolved = false
+        end
+    end
+
+    if allResolved then localizedTypesResolved = true end
+end
+
 function Utils:GetSpecializedBagType(bagID)
     -- Skip backpack, bank, and keyring
     if bagID == 0 or bagID == -1 or bagID == -2 then
@@ -1011,6 +1060,12 @@ function Utils:GetSpecializedBagType(bagID)
         local _, _, _, _, _, itemType = self:GetItemInfoSafe(itemID)
         if itemType then
             local typeLower = string.lower(itemType)
+
+            -- Locale-independent: match against resolved local-client strings
+            ResolveLocalizedTypes()
+            if localizedBagTypes[typeLower] then
+                return localizedBagTypes[typeLower]
+            end
 
             if string.find(typeLower, "soul bag") or string.find(typeLower, "soul pouch") then
                 return "soul"
@@ -1176,17 +1231,28 @@ function Utils:GetConsumableRestoreTag(bagID, slotID, itemLink)
     return tag
 end
 
--- Check if item is Arrow or Bullet (for Quiver routing)
+-- Check if item is Arrow or Bullet (for Quiver routing).
+-- Locale-independent: also matches against the local client's translated
+-- subtype strings, resolved from reference vanilla items at runtime.
 function Utils:IsArrowOrBullet(itemType)
 	if not itemType then return false end
-	-- Exact matching only
-	return itemType == "Arrow" or itemType == "Bullet"
+	if itemType == "Arrow" or itemType == "Bullet" then return true end
+	ResolveLocalizedTypes()
+	return localizedProjectiles[itemType] ~= nil
 end
 
 -- Check if item is Ammo (any type - for Ammo Pouch)
 function Utils:IsAmmo(itemType)
-	if not itemType then return false end
-	return itemType == "Arrow" or itemType == "Bullet"
+	return self:IsArrowOrBullet(itemType)
+end
+
+-- Returns "arrow", "bullet", or nil for the given item subtype string.
+function Utils:GetProjectileKind(itemType)
+	if not itemType then return nil end
+	if itemType == "Arrow" then return "arrow" end
+	if itemType == "Bullet" then return "bullet" end
+	ResolveLocalizedTypes()
+	return localizedProjectiles[itemType]
 end
 
 -- Get preferred container type for an item
@@ -1206,13 +1272,14 @@ function Utils:GetItemPreferredContainer(itemLink)
     local itemName, _, itemRarity, itemLevel, itemCategory, itemType, itemStackCount, itemSubType, itemTexture = self:GetItemInfoSafe(itemID)
     if not itemType then return nil end
 
-    -- Only route PROJECTILE category items that are specifically arrows or bullets
-    if itemCategory == "Projectile" then
-        if itemType == "Arrow" then
-            return "quiver"
-        elseif itemType == "Bullet" then
-            return "ammo"
-        end
+    -- Locale-independent projectile routing. Don't gate on itemCategory string
+    -- (it's localized); the projectile kind lookup already covers both English
+    -- and the local client's strings via runtime-resolved reference items.
+    local projectileKind = self:GetProjectileKind(itemType)
+    if projectileKind == "arrow" then
+        return "quiver"
+    elseif projectileKind == "bullet" then
+        return "ammo"
     end
 
     -- Route herbs to herb bags (robust: category/subtype OR texture pattern fallback)
@@ -1387,15 +1454,12 @@ function Utils:IsHerbItem(itemLink)
 
     local name, _, quality, iLevel, itemCategory, itemType, itemStackCount, itemSubType, itemTexture = self:GetItemInfoSafe(itemID)
 
-    if itemCategory ~= "Trade Goods" then
-        return false
-    end
-
     if not itemTexture then
         return false
     end
 
-    -- Normalize and check texture name
+    -- Texture path is locale-independent (English in every WoW client),
+    -- so we don't need to gate on the localized "Trade Goods" category.
     local tex = string.lower(itemTexture)
     tex = string.gsub(tex, "^interface\\\\icons\\\\", "")
 
@@ -1418,14 +1482,7 @@ function Utils:IsEnchantingItem(itemLink)
 
     local name, _, quality, iLevel, itemCategory, itemType, itemStackCount, itemSubType, itemTexture = self:GetItemInfoSafe(itemID)
 
-    if itemCategory ~= "Trade Goods" then
-        -- Some private servers may report Enchanting directly as type
-        if itemType ~= "Enchanting" and itemSubType ~= "Enchanting" then
-            return false
-        end
-    end
-
-    -- If explicit Enchanting subtype/type, accept immediately
+    -- Explicit English subtype (rare but possible on some servers)
     if itemType == "Enchanting" or itemSubType == "Enchanting" then
         return true
     end
@@ -1434,7 +1491,7 @@ function Utils:IsEnchantingItem(itemLink)
         return false
     end
 
-    -- Normalize and check texture name
+    -- Texture path is locale-independent — primary signal for non-English clients.
     local tex = string.lower(itemTexture)
     tex = string.gsub(tex, "^interface\\\\icons\\\\", "")
 

@@ -2,6 +2,7 @@
 -- Sets up all modules and auto-save system
 
 local addon = Guda
+local L = Guda_L
 
 local Main = {}
 addon.Modules.Main = Main
@@ -10,7 +11,7 @@ addon.Modules.Main = Main
 function Main:Initialize()
     -- Wait for PLAYER_LOGIN to ensure saved variables are loaded
     addon.Modules.Events:OnPlayerLogin(function()
-        addon:Print("Initializing...")
+        addon:Print(L["Initializing..."])
 
         -- Initialize database
         addon.Modules.DB:Initialize()
@@ -38,7 +39,7 @@ function Main:Initialize()
         end
 
         -- Initialize UI
-        addon:Print("Initializing UI...")
+        addon:Print(L["Initializing UI..."])
         addon.Modules.BagFrame:Initialize()
         addon.Modules.BankFrame:Initialize()
         addon.Modules.MailboxFrame:Initialize()
@@ -100,7 +101,7 @@ function Main:Initialize()
         end
 
         addon:Debug("Initialization complete")
-        addon:Print("Ready! Type /guda to open bags")
+        addon:Print(L["Ready! Type /guda to open bags"])
     end, "Main")
 end
 
@@ -135,24 +136,24 @@ function Main:SetupSlashCommands()
         elseif msg == "debug" then
             -- Toggle debug
             addon.DEBUG = not addon.DEBUG
-            addon:Print("Debug mode: %s", addon.DEBUG and "ON" or "OFF")
+            addon:Print(L["Debug mode: %s"], addon.DEBUG and L["ON"] or L["OFF"])
 
         elseif msg == "debugsort" then
             -- Toggle debug sort (verbose sorting output)
             addon.DEBUG_SORT = not addon.DEBUG_SORT
-            addon:Print("Debug sort mode: %s", addon.DEBUG_SORT and "ON" or "OFF")
+            addon:Print(L["Debug sort mode: %s"], addon.DEBUG_SORT and L["ON"] or L["OFF"])
 
         elseif msg == "debugcat" then
             -- Toggle debug category view (for troubleshooting layout issues)
             addon.DEBUG_CATEGORY = not addon.DEBUG_CATEGORY
-            addon:Print("Debug category mode: %s", addon.DEBUG_CATEGORY and "ON" or "OFF")
+            addon:Print(L["Debug category mode: %s"], addon.DEBUG_CATEGORY and L["ON"] or L["OFF"])
 
         elseif msg == "quest" then
             -- Toggle quest bar
             local show = not addon.Modules.DB:GetSetting("showQuestBar")
             addon.Modules.DB:SetSetting("showQuestBar", show)
             addon.Modules.QuestItemBar:Update()
-            addon:Print("Quest bar: %s", show and "ON" or "OFF")
+            addon:Print(L["Quest bar: %s"], show and L["ON"] or L["OFF"])
 
         elseif msg == "track" then
             -- Toggle tracked items bar visibility
@@ -172,7 +173,7 @@ function Main:SetupSlashCommands()
             elseif addon.Modules.SettingsPopup and addon.Modules.SettingsPopup.Toggle then
                 addon.Modules.SettingsPopup:Toggle()
             else
-                addon:Print("Settings window not available")
+                addon:Print(L["Settings window not available"])
             end
 
         elseif msg == "cleanup" then
@@ -184,7 +185,7 @@ function Main:SetupSlashCommands()
             if addon.Modules.Utils and addon.Modules.Utils.PrintPerformanceStats then
                 addon.Modules.Utils:PrintPerformanceStats()
             else
-                addon:Print("Performance stats not available")
+                addon:Print(L["Performance stats not available"])
             end
             -- Also show category cache stats
             if addon.Modules.CategoryManager and addon.Modules.CategoryManager.GetCacheStats then
@@ -215,7 +216,7 @@ function Main:SetupSlashCommands()
             -- Reset performance statistics
             if addon.Modules.Utils and addon.Modules.Utils.ResetPerformanceStats then
                 addon.Modules.Utils:ResetPerformanceStats()
-                addon:Print("Performance stats reset")
+                addon:Print(L["Performance stats reset"])
             end
             -- Also clear category cache
             if addon.Modules.CategoryManager and addon.Modules.CategoryManager.ClearCache then
@@ -235,35 +236,35 @@ function Main:SetupSlashCommands()
             local bagFrame = getglobal("Guda_BagFrame")
             local bankFrame = getglobal("Guda_BankFrame")
             if (bagFrame and bagFrame:IsShown()) or (bankFrame and bankFrame:IsShown()) then
-                addon:Print("Cannot reset pool while bag/bank frames are open. Close them first.")
+                addon:Print(L["Cannot reset pool while bag/bank frames are open. Close them first."])
             else
                 if Guda_ResetButtonPool then
                     Guda_ResetButtonPool()
-                    addon:Print("Button pool reset. Pool is now empty.")
+                    addon:Print(L["Button pool reset. Pool is now empty."])
                 else
-                    addon:Print("Button pool reset function not available.")
+                    addon:Print(L["Button pool reset function not available."])
                 end
             end
 
         elseif msg == "help" then
             -- Show help
-            addon:Print("Commands:")
-            addon:Print("/guda - Toggle bags")
-            addon:Print("/guda bank - Toggle bank")
-            addon:Print("/guda mail - Toggle mailbox")
-            addon:Print("/guda settings - Open settings")
-            addon:Print("/guda sort - Sort bags")
-            addon:Print("/guda sortbank - Sort bank")
-            addon:Print("/guda track - Toggle item tracking")
-            addon:Print("/guda debug - Toggle debug mode")
-            addon:Print("/guda debugsort - Toggle sort debug output")
-            addon:Print("/guda cleanup - Remove old characters")
-            addon:Print("/guda perf - Show performance stats")
-            addon:Print("/guda perfreset - Reset performance stats")
-            addon:Print("/guda poolreset - Reset button pool (debug)")
+            addon:Print(L["Commands:"])
+            addon:Print(L["/guda - Toggle bags"])
+            addon:Print(L["/guda bank - Toggle bank"])
+            addon:Print(L["/guda mail - Toggle mailbox"])
+            addon:Print(L["/guda settings - Open settings"])
+            addon:Print(L["/guda sort - Sort bags"])
+            addon:Print(L["/guda sortbank - Sort bank"])
+            addon:Print(L["/guda track - Toggle item tracking"])
+            addon:Print(L["/guda debug - Toggle debug mode"])
+            addon:Print(L["/guda debugsort - Toggle sort debug output"])
+            addon:Print(L["/guda cleanup - Remove old characters"])
+            addon:Print(L["/guda perf - Show performance stats"])
+            addon:Print(L["/guda perfreset - Reset performance stats"])
+            addon:Print(L["/guda poolreset - Reset button pool (debug)"])
 
         else
-            addon:Print("Unknown command. Type /guda help for commands")
+            addon:Print(L["Unknown command. Type /guda help for commands"])
         end
     end
 
