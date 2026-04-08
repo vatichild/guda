@@ -394,9 +394,10 @@ end
 
 -- Find an item ID and link by name in any character's data
 function DB:FindItemByName(name)
-	if not name or name == "" or not Guda_DB or not Guda_DB.characters then return nil, nil end
-	
-	for fullName, char in pairs(Guda_DB.characters) do
+	if not name or name == "" then return nil, nil end
+
+	local function searchChar(char)
+		if type(char) ~= "table" then return nil, nil end
 		-- Check bags
 		if char.bags then
 			for bagID, bagData in pairs(char.bags) do
@@ -440,6 +441,20 @@ function DB:FindItemByName(name)
 					if itemID then return itemID, mail.item.link end
 				end
 			end
+		end
+		return nil, nil
+	end
+
+	if Guda_DB and Guda_DB.characters then
+		for fullName, char in pairs(Guda_DB.characters) do
+			local id, link = searchChar(char)
+			if id then return id, link end
+		end
+	end
+	if addon.sharedCharacters then
+		for fullName, char in pairs(addon.sharedCharacters) do
+			local id, link = searchChar(char)
+			if id then return id, link end
 		end
 	end
 	return nil, nil

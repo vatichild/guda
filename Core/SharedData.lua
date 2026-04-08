@@ -66,6 +66,13 @@ function SharedData:Initialize()
         if myAccount then break end
     end
 
+    -- If we couldn't identify our own account (e.g. first login on this character,
+    -- before Guda_DB.characters has an entry for us), bail out rather than import
+    -- every character as "shared". The next login will detect correctly.
+    if myAccount == nil then
+        return
+    end
+
     -- Import characters from other accounts into in-memory table
     local importCount = 0
     for fullName, charData in pairs(Guda_SharedCharacters) do

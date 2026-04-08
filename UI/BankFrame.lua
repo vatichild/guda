@@ -1557,7 +1557,7 @@ function BankFrame:EnsureMoneyTooltipOverlay()
 
         -- Set tooltip handlers on overlay
         overlay:SetScript("OnEnter", function()
-            Guda_BankFrame_MoneyOnEnter(moneyFrame)
+            Guda_MoneyTooltip_Show(moneyFrame)
         end)
 
         overlay:SetScript("OnLeave", function()
