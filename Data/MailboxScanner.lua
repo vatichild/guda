@@ -7,6 +7,22 @@ local MailboxScanner = {}
 addon.Modules.MailboxScanner = MailboxScanner
 
 local mailboxOpen = false
+local savePending = false
+local SAVE_DEBOUNCE = 0.5
+
+-- Debounced save: coalesces bursts of MAIL_INBOX_UPDATE into a single rescan.
+-- Scanning 100+ mails on every event was causing client crashes.
+local function ScheduleSave()
+    if savePending then return end
+    if not mailboxOpen then return end
+    savePending = true
+    Guda_ScheduleTimer(SAVE_DEBOUNCE, function()
+        savePending = false
+        if mailboxOpen then
+            MailboxScanner:SaveToDatabase()
+        end
+    end)
+end
 
 -- Scan all mailbox items and return data
 function MailboxScanner:ScanMailbox()
@@ -67,14 +83,12 @@ function MailboxScanner:ScanMailItemRows(index)
                 end
             end
 
-            -- Fallback 2: If still missing, try to recover from existing database (any character)
-            if not itemID or not itemLink then
-                itemID, itemLink = addon.Modules.DB:FindItemByName(name)
-                if itemID then
-                    addon:Debug("Recovered link from DB for %s", name)
-                end
-            end
-            
+            -- (Removed) FindItemByName cross-character fallback: with cross-account
+            -- data this scales as mails * attachments * characters * slots and could
+            -- crash the client on large mailboxes. GetItemInfo above handles the
+            -- common case; missing links resolve on the next rescan once cached.
+
+
             local itemData = {
                 link = itemLink,
                 texture = texture or "Interface\\Icons\\INV_Misc_Bag_08",
@@ -326,25 +340,26 @@ function MailboxScanner:Initialize()
         return originalAutoLootMailItem(index)
     end
 
-    -- Rescan mailbox when server confirms inbox changes
+    -- Rescan mailbox when server confirms inbox changes (debounced)
     addon.Modules.Events:Register("MAIL_INBOX_UPDATE", function()
-        if mailboxOpen then
-            MailboxScanner:SaveToDatabase()
-        end
+        ScheduleSave()
     end, "MailboxScanner_InboxUpdate")
 
     -- Mailbox opened
     addon.Modules.Events:OnMailShow(function()
         mailboxOpen = true
         addon:Debug("Mailbox opened")
-        MailboxScanner:SaveToDatabase()
+        ScheduleSave()
     end, "MailboxScanner")
 
     -- Mailbox closed
     addon.Modules.Events:OnMailClosed(function()
-        -- Final save on close
-        MailboxScanner:SaveToDatabase()
+        -- Final save on close (synchronous so it can't race with mailboxOpen=false)
+        if mailboxOpen then
+            MailboxScanner:SaveToDatabase()
+        end
         mailboxOpen = false
+        savePending = false
         addon:Debug("Mailbox closed")
     end, "MailboxScanner")
 end
