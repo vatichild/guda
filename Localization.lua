@@ -58,6 +58,17 @@ L["/guda mail - Toggle mailbox"] = "/guda mail - Toggle mailbox"
 L["/guda settings - Open settings"] = "/guda settings - Open settings"
 L["/guda sort - Sort bags"] = "/guda sort - Sort bags"
 L["/guda sortbank - Sort bank"] = "/guda sortbank - Sort bank"
+L["/guda openclams - Open all clams in bags"] = "/guda openclams - Open all clams in bags"
+L["Auto Loot"] = "Auto Loot"
+L["Automatically loot all items when looting a corpse or container."] = "Automatically loot all items when looting a corpse or container."
+L["Auto Loot requires the SuperWoW client mod. Install SuperWoW to enable this option."] = "Auto Loot requires the SuperWoW client mod. Install SuperWoW to enable this option, or apply the launcher's 'Always auto-loot' tweak (which makes the client autoloot independently of this addon)."
+L["Auto Open Clams"] = "Auto Open Clams"
+L["Automatically open clams in your bags when you loot one."] = "Automatically open clams in your bags when you loot one."
+L["Opening clams..."] = "Opening clams..."
+L["No clams found in your bags."] = "No clams found in your bags."
+L["No more clams to open."] = "No more clams to open."
+L["Clam opener is already running."] = "Clam opener is already running."
+L["Clam opener stopped: %s"] = "Clam opener stopped: %s"
 L["/guda track - Toggle item tracking"] = "/guda track - Toggle item tracking"
 L["/guda debug - Toggle debug mode"] = "/guda debug - Toggle debug mode"
 L["/guda debugsort - Toggle sort debug output"] = "/guda debugsort - Toggle sort debug output"
@@ -343,6 +354,18 @@ local locale = GetLocale and GetLocale() or "enUS"
 if locale == "zhCN" then
     -- Chinese (Simplified)
 
+    L["Auto Loot"] = "自动拾取"
+    L["Automatically loot all items when looting a corpse or container."] = "拾取尸体或容器时自动拾取所有物品。"
+    L["Auto Loot requires the SuperWoW client mod. Install SuperWoW to enable this option."] = "自动拾取需要 SuperWoW 客户端模组。安装 SuperWoW 以启用此选项,或应用启动器的 'Always auto-loot' 调整(客户端将独立于此插件自动拾取)。"
+    L["Auto Open Clams"] = "自动打开蚌壳"
+    L["Automatically open clams in your bags when you loot one."] = "拾取蚌壳后自动打开背包中的蚌壳。"
+    L["/guda openclams - Open all clams in bags"] = "/guda openclams - 打开背包中所有蚌壳"
+    L["Opening clams..."] = "正在打开蚌壳..."
+    L["No clams found in your bags."] = "背包中没有找到蚌壳。"
+    L["No more clams to open."] = "没有更多蚌壳可打开。"
+    L["Clam opener is already running."] = "蚌壳打开器已在运行。"
+    L["Clam opener stopped: %s"] = "蚌壳打开器已停止:%s"
+
     -- Init / lifecycle
     L["Initializing..."] = "正在初始化..."
     L["Initializing UI..."] = "正在初始化界面..."
@@ -595,6 +618,18 @@ if locale == "zhCN" then
 elseif locale == "esES" then
     -- Spanish
 
+    L["Auto Loot"] = "Saqueo automático"
+    L["Automatically loot all items when looting a corpse or container."] = "Saquea automáticamente todos los objetos al saquear un cadáver o contenedor."
+    L["Auto Loot requires the SuperWoW client mod. Install SuperWoW to enable this option."] = "El saqueo automático requiere la modificación de cliente SuperWoW. Instala SuperWoW para habilitar esta opción, o aplica el ajuste 'Always auto-loot' del lanzador (el cliente saqueará automáticamente, independientemente de este addon)."
+    L["Auto Open Clams"] = "Abrir almejas automáticamente"
+    L["Automatically open clams in your bags when you loot one."] = "Abre automáticamente las almejas de tus bolsas cuando saqueas una."
+    L["/guda openclams - Open all clams in bags"] = "/guda openclams - Abrir todas las almejas de las bolsas"
+    L["Opening clams..."] = "Abriendo almejas..."
+    L["No clams found in your bags."] = "No se encontraron almejas en tus bolsas."
+    L["No more clams to open."] = "No hay más almejas para abrir."
+    L["Clam opener is already running."] = "El abridor de almejas ya está en ejecución."
+    L["Clam opener stopped: %s"] = "Abridor de almejas detenido: %s"
+
     L["Initializing..."] = "Inicializando..."
     L["Initializing UI..."] = "Inicializando interfaz..."
     L["Ready! Type /guda to open bags"] = "¡Listo! Escribe /guda para abrir las bolsas"
@@ -831,6 +866,18 @@ elseif locale == "esES" then
 
 elseif locale == "ptBR" then
     -- Portuguese (Brazilian)
+
+    L["Auto Loot"] = "Saque automático"
+    L["Automatically loot all items when looting a corpse or container."] = "Saqueia automaticamente todos os itens ao saquear um cadáver ou recipiente."
+    L["Auto Loot requires the SuperWoW client mod. Install SuperWoW to enable this option."] = "O saque automático requer a modificação de cliente SuperWoW. Instale o SuperWoW para habilitar esta opção, ou aplique o ajuste 'Always auto-loot' do lançador (o cliente saqueará automaticamente, independentemente deste addon)."
+    L["Auto Open Clams"] = "Abrir mariscos automaticamente"
+    L["Automatically open clams in your bags when you loot one."] = "Abre automaticamente os mariscos nas suas bolsas quando você saqueia um."
+    L["/guda openclams - Open all clams in bags"] = "/guda openclams - Abrir todos os mariscos nas bolsas"
+    L["Opening clams..."] = "Abrindo mariscos..."
+    L["No clams found in your bags."] = "Nenhum marisco encontrado nas suas bolsas."
+    L["No more clams to open."] = "Não há mais mariscos para abrir."
+    L["Clam opener is already running."] = "O abridor de mariscos já está em execução."
+    L["Clam opener stopped: %s"] = "Abridor de mariscos parado: %s"
 
     L["Initializing..."] = "Inicializando..."
     L["Initializing UI..."] = "Inicializando interface..."
@@ -1069,6 +1116,18 @@ elseif locale == "ptBR" then
 elseif locale == "deDE" then
     -- German
 
+    L["Auto Loot"] = "Automatisches Plündern"
+    L["Automatically loot all items when looting a corpse or container."] = "Plündere automatisch alle Gegenstände von Leichen und Behältern."
+    L["Auto Loot requires the SuperWoW client mod. Install SuperWoW to enable this option."] = "Automatisches Plündern erfordert die SuperWoW-Clienterweiterung. Installiere SuperWoW, um diese Option zu aktivieren, oder wende den Launcher-Tweak 'Always auto-loot' an (dann plündert der Client unabhängig von diesem Addon automatisch)."
+    L["Auto Open Clams"] = "Muscheln automatisch öffnen"
+    L["Automatically open clams in your bags when you loot one."] = "Öffnet automatisch Muscheln in deinen Taschen, wenn du eine erbeutest."
+    L["/guda openclams - Open all clams in bags"] = "/guda openclams - Alle Muscheln in den Taschen öffnen"
+    L["Opening clams..."] = "Öffne Muscheln..."
+    L["No clams found in your bags."] = "Keine Muscheln in deinen Taschen gefunden."
+    L["No more clams to open."] = "Keine weiteren Muscheln zu öffnen."
+    L["Clam opener is already running."] = "Der Muschelöffner läuft bereits."
+    L["Clam opener stopped: %s"] = "Muschelöffner gestoppt: %s"
+
     L["Initializing..."] = "Initialisiere..."
     L["Initializing UI..."] = "Initialisiere Oberfläche..."
     L["Ready! Type /guda to open bags"] = "Bereit! Tippe /guda um die Taschen zu öffnen"
@@ -1305,6 +1364,18 @@ elseif locale == "deDE" then
 
 elseif locale == "ruRU" then
     -- Russian
+
+    L["Auto Loot"] = "Автосбор"
+    L["Automatically loot all items when looting a corpse or container."] = "Автоматически собирать все предметы при обыске трупов и контейнеров."
+    L["Auto Loot requires the SuperWoW client mod. Install SuperWoW to enable this option."] = "Автосбор требует клиентскую модификацию SuperWoW. Установите SuperWoW, чтобы включить эту опцию, или примените твик лаунчера 'Always auto-loot' (тогда клиент будет автоматически собирать добычу независимо от этого аддона)."
+    L["Auto Open Clams"] = "Автооткрытие моллюсков"
+    L["Automatically open clams in your bags when you loot one."] = "Автоматически открывать моллюсков в сумках, как только один из них получен."
+    L["/guda openclams - Open all clams in bags"] = "/guda openclams - Открыть всех моллюсков в сумках"
+    L["Opening clams..."] = "Открытие моллюсков..."
+    L["No clams found in your bags."] = "В ваших сумках нет моллюсков."
+    L["No more clams to open."] = "Больше моллюсков для открытия нет."
+    L["Clam opener is already running."] = "Открывалка моллюсков уже работает."
+    L["Clam opener stopped: %s"] = "Открывалка моллюсков остановлена: %s"
 
     L["Initializing..."] = "Инициализация..."
     L["Initializing UI..."] = "Инициализация интерфейса..."

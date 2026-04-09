@@ -82,6 +82,16 @@ function Main:Initialize()
             addon:Error("Tooltip module not loaded!")
         end
 
+        -- Initialize auto-loot handler (LOOT_OPENED listener)
+        if addon.Modules.AutoLoot and addon.Modules.AutoLoot.Initialize then
+            addon.Modules.AutoLoot:Initialize()
+        end
+
+        -- Initialize clam opener (registers BAG_UPDATE for auto-open)
+        if addon.Modules.ClamOpener and addon.Modules.ClamOpener.Initialize then
+            addon.Modules.ClamOpener:Initialize()
+        end
+
         -- Setup slash commands
         Main:SetupSlashCommands()
 
@@ -132,6 +142,10 @@ function Main:SetupSlashCommands()
         elseif msg == "sortbank" then
             -- Sort bank
             addon.Modules.SortEngine:SortBank()
+
+        elseif msg == "openclams" or msg == "clams" then
+            -- Open all clams in bags
+            addon.Modules.ClamOpener:Open()
 
         elseif msg == "debug" then
             -- Toggle debug
@@ -255,6 +269,7 @@ function Main:SetupSlashCommands()
             addon:Print(L["/guda settings - Open settings"])
             addon:Print(L["/guda sort - Sort bags"])
             addon:Print(L["/guda sortbank - Sort bank"])
+            addon:Print(L["/guda openclams - Open all clams in bags"])
             addon:Print(L["/guda track - Toggle item tracking"])
             addon:Print(L["/guda debug - Toggle debug mode"])
             addon:Print(L["/guda debugsort - Toggle sort debug output"])

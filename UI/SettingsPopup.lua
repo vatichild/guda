@@ -341,6 +341,20 @@ function Guda_SettingsPopup_OnShow(self)
         whiteItemsJunkCheckbox:SetChecked(whiteItemsJunk and 1 or 0)
     end
 
+    -- Auto Loot checkbox
+    local autoLootCheckbox = getglobal("Guda_SettingsPopup_AutoLootCheckbox")
+    if autoLootCheckbox then
+        local autoLoot = Guda.Modules.DB:GetSetting("autoLoot") and true or false
+        autoLootCheckbox:SetChecked(autoLoot and 1 or 0)
+    end
+
+    -- Auto Open Clams checkbox
+    local autoOpenClamsCheckbox = getglobal("Guda_SettingsPopup_AutoOpenClamsCheckbox")
+    if autoOpenClamsCheckbox then
+        local autoOpenClams = Guda.Modules.DB:GetSetting("autoOpenClams") and true or false
+        autoOpenClamsCheckbox:SetChecked(autoOpenClams and 1 or 0)
+    end
+
     if bagViewDropdown then
         UIDropDownMenu_SetSelectedValue(bagViewDropdown, bagViewType)
         UIDropDownMenu_SetText(bagViewType == "single" and "Single" or "Category", bagViewDropdown)
@@ -1422,6 +1436,79 @@ function Guda_SettingsPopup_ShowCategoryCountCheckbox_OnClick(self)
     local bankFrame = getglobal("Guda_BankFrame")
     if bankFrame and bankFrame:IsShown() then
         Guda.Modules.BankFrame:Update()
+    end
+end
+
+-- Auto Loot Checkbox OnLoad
+function Guda_SettingsPopup_AutoLootCheckbox_OnLoad(self)
+    local text = getglobal(self:GetName().."Text")
+    if text then
+        text:SetText(Guda_L["Auto Loot"])
+        local font, _, flags = text:GetFont()
+        if font then text:SetFont(font, 13, flags) end
+    end
+
+    -- TurtleWoW requires SuperWoW for any addon-driven autoloot to work
+    -- (both SetAutoloot and LootSlot are gated). If it's not present, disable
+    -- the checkbox and explain why in the tooltip.
+    local hasSuperWoW = SetAutoloot ~= nil
+    if hasSuperWoW then
+        self.tooltipText = Guda_L["Automatically loot all items when looting a corpse or container."]
+        self:Enable()
+        if text then text:SetTextColor(1, 1, 1) end
+    else
+        self.tooltipText = Guda_L["Auto Loot requires the SuperWoW client mod. Install SuperWoW to enable this option."]
+        self:Disable()
+        if text then text:SetTextColor(0.5, 0.5, 0.5) end
+    end
+
+    local enabled = false
+    if Guda and Guda.Modules and Guda.Modules.DB then
+        enabled = Guda.Modules.DB:GetSetting("autoLoot") and true or false
+    end
+    self:SetChecked(enabled and 1 or 0)
+end
+
+-- Auto Loot Checkbox OnClick
+function Guda_SettingsPopup_AutoLootCheckbox_OnClick(self)
+    local isChecked = self:GetChecked() == 1
+    if Guda and Guda.Modules and Guda.Modules.DB then
+        Guda.Modules.DB:SetSetting("autoLoot", isChecked)
+    end
+    -- Apply immediately to the client (SuperWoW's SetAutoloot or vanilla
+    -- SetAutoLootDefault) so the toggle takes effect on the next loot.
+    if Guda.Modules.AutoLoot and Guda.Modules.AutoLoot.Apply then
+        Guda.Modules.AutoLoot:Apply()
+    end
+end
+
+-- Auto Open Clams Checkbox OnLoad
+function Guda_SettingsPopup_AutoOpenClamsCheckbox_OnLoad(self)
+    local text = getglobal(self:GetName().."Text")
+    if text then
+        text:SetText(Guda_L["Auto Open Clams"])
+        local font, _, flags = text:GetFont()
+        if font then text:SetFont(font, 13, flags) end
+    end
+
+    self.tooltipText = Guda_L["Automatically open clams in your bags when you loot one."]
+
+    local enabled = false
+    if Guda and Guda.Modules and Guda.Modules.DB then
+        enabled = Guda.Modules.DB:GetSetting("autoOpenClams") and true or false
+    end
+    self:SetChecked(enabled and 1 or 0)
+end
+
+-- Auto Open Clams Checkbox OnClick
+function Guda_SettingsPopup_AutoOpenClamsCheckbox_OnClick(self)
+    local isChecked = self:GetChecked() == 1
+    if Guda and Guda.Modules and Guda.Modules.DB then
+        Guda.Modules.DB:SetSetting("autoOpenClams", isChecked)
+    end
+    -- If enabling, kick off an immediate run for any clams already in bags.
+    if isChecked and Guda.Modules.ClamOpener then
+        Guda.Modules.ClamOpener:Open(true)
     end
 end
 
