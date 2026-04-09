@@ -293,6 +293,47 @@ L["Match Mode:"] = "Match Mode:"
 L["Rules:"] = "Rules:"
 
 -- ============================================================================
+-- Item subType strings (locale-specific) used by Sorting/SortEngine and
+-- Core/Utils.lua to identify specialized bags and projectiles WITHOUT relying
+-- on GetItemInfo cache cold-start. These are the raw strings WoW returns from
+-- GetItemInfo position 6 (subType) for each bag/projectile family. All bags
+-- in one family share the same subType string, so one entry per family is
+-- enough. Unknown locales fall back to enUS.
+-- ============================================================================
+Guda_LSubtypes = {
+    enUS = {
+        quiver  = "Quiver",        ammo    = "Ammo Pouch",
+        soul    = "Soul Bag",      herb    = "Herb Bag",      enchant = "Enchanting Bag",
+        arrow   = "Arrow",         bullet  = "Bullet",
+    },
+    deDE = {
+        quiver  = "Köcher",        ammo    = "Munitionsbeutel",
+        soul    = "Seelentasche",  herb    = "Kräutertasche", enchant = "Verzauberertasche",
+        arrow   = "Pfeil",         bullet  = "Kugel",
+    },
+    frFR = {
+        quiver  = "Carquois",      ammo    = "Giberne",
+        soul    = "Sac d'âmes",    herb    = "Sacoche d'herboriste", enchant = "Sac d'enchanteur",
+        arrow   = "Flèche",        bullet  = "Balle",
+    },
+    esES = {
+        quiver  = "Carcaj",        ammo    = "Bolsa de munición",
+        soul    = "Bolsa de almas",herb    = "Bolsa de hierbas",     enchant = "Bolsa de encantamiento",
+        arrow   = "Flecha",        bullet  = "Bala",
+    },
+    zhCN = {
+        quiver  = "箭袋",          ammo    = "弹药袋",
+        soul    = "灵魂袋",        herb    = "草药袋",        enchant = "附魔袋",
+        arrow   = "箭",            bullet  = "子弹",
+    },
+    ruRU = {
+        quiver  = "Колчан",        ammo    = "Подсумок",
+        soul    = "Сумка для душ", herb    = "Сумка травника",enchant = "Сумка зачарователя",
+        arrow   = "Стрела",        bullet  = "Пуля",
+    },
+}
+
+-- ============================================================================
 -- Locale overrides
 -- Translators: copy any L["..."] = "..." line above into the matching block
 -- below and replace the right-hand value with the translation.

@@ -998,42 +998,31 @@ local localizedBagTypes = {}     -- lowercased localized subType -> "quiver"/"am
 local localizedProjectiles = {}  -- localized subType (any case) -> "arrow"/"bullet"
 local localizedTypesResolved = false
 
--- Reference itemIDs guaranteed to exist in every WoW 1.12 client.
--- Soul/herb/enchant bag IDs are intentionally omitted because they vary per
--- server (TurtleWoW custom items, etc.) — those still use the English fallback.
-local BAG_REFERENCE_ITEMS = {
-    [2101] = "quiver",  -- Light Quiver
-    [2102] = "ammo",    -- Small Ammo Pouch
-}
-local PROJECTILE_REFERENCE_ITEMS = {
-    [2512] = "arrow",   -- Rough Arrow
-    [2516] = "bullet",  -- Light Shot
-}
-
+-- Locale-specific subType strings live in Localization.lua (Guda_LSubtypes).
+-- Avoids GetItemInfo cache cold-start: lookups are pure table reads, populated
+-- once on first use from the current client locale (with enUS as a fallback).
 local function ResolveLocalizedTypes()
     if localizedTypesResolved then return end
-    local allResolved = true
-
-    for itemID, key in pairs(BAG_REFERENCE_ITEMS) do
-        -- Position 6 in TurtleWoW GetItemInfo signature is itemType (subType)
-        local _, _, _, _, _, itemType = GetItemInfo(itemID)
-        if itemType then
-            localizedBagTypes[string.lower(itemType)] = key
-        else
-            allResolved = false
+    if not Guda_LSubtypes then return end
+    local clientLocale = (GetLocale and GetLocale()) or "enUS"
+    local map = Guda_LSubtypes[clientLocale] or Guda_LSubtypes.enUS
+    local en  = Guda_LSubtypes.enUS or {}
+    -- Merge enUS first (so English clients on a partial locale still work),
+    -- then the active locale on top.
+    local sources = { en, map }
+    for i = 1, 2 do
+        local src = sources[i]
+        if src then
+            if src.quiver  then localizedBagTypes[string.lower(src.quiver)]  = "quiver"  end
+            if src.ammo    then localizedBagTypes[string.lower(src.ammo)]    = "ammo"    end
+            if src.soul    then localizedBagTypes[string.lower(src.soul)]    = "soul"    end
+            if src.herb    then localizedBagTypes[string.lower(src.herb)]    = "herb"    end
+            if src.enchant then localizedBagTypes[string.lower(src.enchant)] = "enchant" end
+            if src.arrow   then localizedProjectiles[src.arrow]  = "arrow"  end
+            if src.bullet  then localizedProjectiles[src.bullet] = "bullet" end
         end
     end
-
-    for itemID, key in pairs(PROJECTILE_REFERENCE_ITEMS) do
-        local _, _, _, _, _, itemType = GetItemInfo(itemID)
-        if itemType then
-            localizedProjectiles[itemType] = key
-        else
-            allResolved = false
-        end
-    end
-
-    if allResolved then localizedTypesResolved = true end
+    localizedTypesResolved = true
 end
 
 function Utils:GetSpecializedBagType(bagID)
