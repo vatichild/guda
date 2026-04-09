@@ -85,7 +85,7 @@
                     </OnClick>
                     <OnEnter>
                         GameTooltip:SetOwner(this, "ANCHOR_TOP")
-                        GameTooltip:SetText("Settings")
+                        GameTooltip:SetText(Guda_L["Settings"])
                         GameTooltip:Show()
                     </OnEnter>
                     <OnLeave>
@@ -137,7 +137,7 @@
                             GameTooltip:SetText("Restack and Clean")
                             GameTooltip:AddLine("Merges split stacks and refreshes the view", 0.7, 0.7, 0.7)
                         else
-                            GameTooltip:SetText("Sort Bags")
+                            GameTooltip:SetText(Guda_L["Sort Bags"])
                         end
                         GameTooltip:Show()
                     </OnEnter>
@@ -185,7 +185,7 @@
                     </OnClick>
                     <OnEnter>
                         GameTooltip:SetOwner(this, "ANCHOR_TOP")
-                        GameTooltip:SetText("My Characters")
+                        GameTooltip:SetText(Guda_L["My Characters"])
                         GameTooltip:Show()
                     </OnEnter>
                     <OnLeave>
@@ -232,7 +232,7 @@
                     </OnClick>
                     <OnEnter>
                         GameTooltip:SetOwner(this, "ANCHOR_TOP")
-                        GameTooltip:SetText("View Bank")
+                        GameTooltip:SetText(Guda_L["View Bank"])
                         GameTooltip:Show()
                     </OnEnter>
                     <OnLeave>
@@ -278,7 +278,7 @@
                     </OnClick>
                     <OnEnter>
                         GameTooltip:SetOwner(this, "ANCHOR_TOP")
-                        GameTooltip:SetText("View Mailbox")
+                        GameTooltip:SetText(Guda_L["View Mailbox"])
                         GameTooltip:Show()
                     </OnEnter>
                     <OnLeave>

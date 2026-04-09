@@ -90,7 +90,7 @@
                             GameTooltip:SetText("Restack and Clean")
                             GameTooltip:AddLine("Merges split stacks and refreshes the view", 0.7, 0.7, 0.7)
                         else
-                            GameTooltip:SetText("Sort Bank")
+                            GameTooltip:SetText(Guda_L["Sort Bank"])
                         end
                         GameTooltip:Show()
                     </OnEnter>
@@ -138,7 +138,7 @@
                     </OnClick>
                     <OnEnter>
                         GameTooltip:SetOwner(this, "ANCHOR_TOP")
-                        GameTooltip:SetText("Settings")
+                        GameTooltip:SetText(Guda_L["Settings"])
                         GameTooltip:Show()
                     </OnEnter>
                     <OnLeave>
@@ -185,7 +185,7 @@
                     </OnClick>
                     <OnEnter>
                         GameTooltip:SetOwner(this, "ANCHOR_TOP")
-                        GameTooltip:SetText("Use Blizzard Bank UI")
+                        GameTooltip:SetText(Guda_L["Use Blizzard Bank UI"])
                         GameTooltip:Show()
                     </OnEnter>
                     <OnLeave>
@@ -232,7 +232,7 @@
                     </OnClick>
                     <OnEnter>
                         GameTooltip:SetOwner(this, "ANCHOR_TOP")
-                        GameTooltip:SetText("View Bank")
+                        GameTooltip:SetText(Guda_L["View Bank"])
                         GameTooltip:Show()
                     </OnEnter>
                     <OnLeave>

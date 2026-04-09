@@ -1733,7 +1733,7 @@ function BagFrame:UpdateBagSlotsInfo(bagData, isOtherChar)
 				GameTooltip:AddLine(" ")
 				-- Regular bags
 				if this.regularTotal then
-					GameTooltip:AddDoubleLine("Regular Bags:", string.format("%d / %d", this.regularUsed, this.regularTotal), 1, 1, 1, 0.8, 0.8, 0.8)
+					GameTooltip:AddDoubleLine(Guda_L["Regular Bags:"], string.format("%d / %d", this.regularUsed, this.regularTotal), 1, 1, 1, 0.8, 0.8, 0.8)
 				end
 				-- Special bags
 				if this.specialBags then
@@ -2219,7 +2219,7 @@ local function CreateMoneyTooltip()
 
 	-- Hint text at bottom
 	f.hint = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-	f.hint:SetText("Right-click to manage characters")
+	f.hint:SetText(Guda_L["Right-click to manage characters"])
 	f.hint:SetTextColor(0.5, 0.5, 0.5)
 
 	return f
@@ -2286,7 +2286,7 @@ function Guda_MoneyTooltip_Show(anchor)
 	end
 
 	-- Update header money
-	moneyTooltip.header:SetText("Total gold")
+	moneyTooltip.header:SetText(Guda_L["Total gold"])
 	MoneyFrame_Update("Guda_MoneyTooltip_Total", totalMoney)
 	FormatMoneyFrameWithCommas("Guda_MoneyTooltip_Total")
 
@@ -3741,22 +3741,22 @@ function Guda_BagSlot_OnEnter(button, bagID)
 	-- Backpack tooltip
 		GameTooltip:SetText(Guda_L["Backpack"], 1.0, 1.0, 1.0)
 		local numSlots = GetContainerNumSlots(0)
-		GameTooltip:AddLine(string.format("%d Slots", numSlots), 0.8, 0.8, 0.8)
+		GameTooltip:AddLine(string.format(Guda_L["%d Slots"], numSlots), 0.8, 0.8, 0.8)
 		if hiddenBags[bagID] then
 			GameTooltip:AddLine("(Hidden - Right-Click to show)", 0.8, 0.5, 0.5)
 		else
-			GameTooltip:AddLine("(Right-Click to hide)", 0.5, 0.8, 0.5)
+			GameTooltip:AddLine(Guda_L["(Right-Click to hide)"], 0.5, 0.8, 0.5)
 		end
 		Guda_BagFrame_HighlightBagSlots(0)
 	elseif bagID == -2 then
 		-- Keyring tooltip
 		GameTooltip:SetText(Guda_L["Keyring"], 1.0, 1.0, 1.0)
 		local numSlots = GetContainerNumSlots(-2) or 0
-		GameTooltip:AddLine(string.format("%d Slots", numSlots), 0.8, 0.8, 0.8)
+		GameTooltip:AddLine(string.format(Guda_L["%d Slots"], numSlots), 0.8, 0.8, 0.8)
 		if hiddenBags[bagID] then
 			GameTooltip:AddLine("(Hidden - Right-Click to show)", 0.8, 0.5, 0.5)
 		else
-			GameTooltip:AddLine("(Right-Click to hide)", 0.5, 0.8, 0.5)
+			GameTooltip:AddLine(Guda_L["(Right-Click to hide)"], 0.5, 0.8, 0.5)
 		end
 		Guda_BagFrame_HighlightBagSlots(-2)
 	else
@@ -3770,7 +3770,7 @@ function Guda_BagSlot_OnEnter(button, bagID)
 			if hiddenBags[bagID] then
 				GameTooltip:AddLine("(Hidden - Right-Click to show)", 0.8, 0.5, 0.5)
 			else
-				GameTooltip:AddLine("(Right-Click to hide)", 0.5, 0.8, 0.5)
+				GameTooltip:AddLine(Guda_L["(Right-Click to hide)"], 0.5, 0.8, 0.5)
 			end
 			Guda_BagFrame_HighlightBagSlots(bagID)
 		else
@@ -3780,7 +3780,7 @@ function Guda_BagSlot_OnEnter(button, bagID)
 			if hiddenBags[bagID] then
 				GameTooltip:AddLine("(Hidden - Right-Click to show)", 0.8, 0.5, 0.5)
 			else
-				GameTooltip:AddLine("(Right-Click to hide)", 0.5, 0.8, 0.5)
+				GameTooltip:AddLine(Guda_L["(Right-Click to hide)"], 0.5, 0.8, 0.5)
 			end
 			Guda_BagFrame_HighlightBagSlots(bagID)
 		end

@@ -2660,11 +2660,11 @@ function Guda_BankBagSlot_OnEnter(button, bagID)
         -- Main bank bag tooltip
         GameTooltip:SetText(Guda_L["Bank"], 1.0, 1.0, 1.0)
         local numSlots = 24
-        GameTooltip:AddLine(string.format("%d Slots", numSlots), 0.8, 0.8, 0.8)
+        GameTooltip:AddLine(string.format(Guda_L["%d Slots"], numSlots), 0.8, 0.8, 0.8)
         if hiddenBankBags[bagID] then
             GameTooltip:AddLine("(Hidden - Right-Click to show)", 0.8, 0.5, 0.5)
         else
-            GameTooltip:AddLine("(Right-Click to hide)", 0.5, 0.8, 0.5)
+            GameTooltip:AddLine(Guda_L["(Right-Click to hide)"], 0.5, 0.8, 0.5)
         end
     else
         local invSlot, bankButtonID = BankFrame:GetBankInvSlotForBagID(bagID)
@@ -2678,7 +2678,7 @@ function Guda_BankBagSlot_OnEnter(button, bagID)
             if hiddenBankBags[bagID] then
                 GameTooltip:AddLine("(Hidden - Right-Click to show)", 0.8, 0.5, 0.5)
             else
-                GameTooltip:AddLine("(Right-Click to hide)", 0.5, 0.8, 0.5)
+                GameTooltip:AddLine(Guda_L["(Right-Click to hide)"], 0.5, 0.8, 0.5)
             end
             -- Reset cursor for purchased slots with items
             ResetCursor()
