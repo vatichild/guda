@@ -100,7 +100,7 @@ function SharedData:Initialize()
     end
 
     if importCount > 0 then
-        addon:Print("Imported " .. importCount .. " character(s) from other accounts")
+        addon:Print(format(Guda_L["Imported %d character(s) from other accounts"], importCount))
     end
 
     -- Clean up the global to free memory

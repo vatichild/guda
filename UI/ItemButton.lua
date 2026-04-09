@@ -695,13 +695,13 @@ UseContainerItem = function(bag, slot, ...)
 			if itemID and DB:IsItemProtected(itemID) then
 				-- Block selling at merchant
 				if MerchantFrame and MerchantFrame:IsVisible() then
-					addon:Print("Cannot sell " .. link .. " — item is protected")
+					addon:Print(format(Guda_L["Cannot sell %s — item is protected"], link))
 					return
 				end
 				-- Block disenchant/milling/prospecting (spell targeting an item)
 				if SpellIsTargeting and SpellIsTargeting() then
 					SpellStopTargeting()
-					addon:Print("Cannot disenchant " .. link .. " — item is protected")
+					addon:Print(format(Guda_L["Cannot disenchant %s — item is protected"], link))
 					return
 				end
 			end
@@ -739,7 +739,7 @@ local function HookDeletePopup(dialogName)
 	local originalOnShow = StaticPopupDialogs[dialogName].OnShow
 	StaticPopupDialogs[dialogName].OnShow = function()
 		if cursorProtectedLink then
-			addon:Print("Cannot delete " .. cursorProtectedLink .. " — item is protected")
+			addon:Print(format(Guda_L["Cannot delete %s — item is protected"], cursorProtectedLink))
 			ClearCursor()
 			cursorProtectedLink = nil
 			this:Hide()
@@ -1092,9 +1092,9 @@ function Guda_ItemButton_OnLoad(self)
                         if EquipSets and EquipSets.IsInSet and EquipSets:IsInSet(itemID) then
                             local isNowExcepted = addon.Modules.DB:ToggleSetProtectionException(itemID)
                             if isNowExcepted then
-                                addon:Print(link .. " set protection removed")
+                                addon:Print(format(Guda_L["%s set protection removed"], link))
                             else
-                                addon:Print(link .. " set protection restored")
+                                addon:Print(format(Guda_L["%s set protection restored"], link))
                             end
                             -- Refresh bag/bank frames
                             if addon.Modules.BagFrame and addon.Modules.BagFrame.Update then
@@ -1108,9 +1108,9 @@ function Guda_ItemButton_OnLoad(self)
                     end
                     local isNowLocked = addon.Modules.DB:ToggleItemLock(itemID)
                     if isNowLocked then
-                        addon:Print(link .. " locked")
+                        addon:Print(format(Guda_L["%s locked"], link))
                     else
-                        addon:Print(link .. " unlocked")
+                        addon:Print(format(Guda_L["%s unlocked"], link))
                     end
                     -- Refresh bag/bank frames
                     if addon.Modules.BagFrame and addon.Modules.BagFrame.Update then
@@ -1133,9 +1133,9 @@ function Guda_ItemButton_OnLoad(self)
                     itemName = " " .. this.itemData.link
                 end
                 if isNowPinned then
-                    addon:Print("Slot pinned" .. itemName .. " (skipped during sort)")
+                    addon:Print(format(Guda_L["Slot pinned %s (skipped during sort)"], itemName))
                 else
-                    addon:Print("Slot unpinned" .. itemName)
+                    addon:Print(format(Guda_L["Slot unpinned %s"], itemName))
                 end
                 -- Refresh to show/hide pin icon
                 if addon.Modules.BagFrame and addon.Modules.BagFrame.Update then
@@ -1204,7 +1204,7 @@ function Guda_ItemButton_OnLoad(self)
                 local itemID = addon.Modules.Utils:ExtractItemID(link)
                 if itemID and addon.Modules.DB:IsItemProtected(itemID) then
                     SpellStopTargeting()
-                    addon:Print("Cannot disenchant " .. link .. " — item is protected")
+                    addon:Print(format(Guda_L["Cannot disenchant %s — item is protected"], link))
                     return
                 end
             end

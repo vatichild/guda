@@ -147,6 +147,12 @@ function DB:Initialize()
 	if Guda_CharDB.settings.autoLockSetItems == nil then
 		Guda_CharDB.settings.autoLockSetItems = true
 	end
+	if Guda_CharDB.settings.autoLoot == nil then
+		Guda_CharDB.settings.autoLoot = false
+	end
+	if Guda_CharDB.settings.autoOpenClams == nil then
+		Guda_CharDB.settings.autoOpenClams = false
+	end
 
 	-- Auto-detect pfUI on first load (theme not yet set)
 	if Guda_CharDB.settings.theme == nil then

@@ -10,7 +10,7 @@ addon.Modules.SettingsPopup = SettingsPopup
 local function CreateSectionHeader(parent, text, yOffset)
     local label = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     label:SetPoint("TOPLEFT", parent, "TOPLEFT", 5, yOffset)
-    label:SetText(text)
+    label:SetText(Guda_L[text] or text)
     label:SetTextColor(1, 0.82, 0, 1)
 
     -- Separator line extending from label to the right edge
@@ -39,35 +39,33 @@ function Guda_SettingsPopup_OnLoad(self)
     Guda:ApplyBackdrop(self, "DEFAULT_FRAME")
 
     local title = getglobal(self:GetName().."_Title")
-    title:SetText("Guda Settings")
+    title:SetText(Guda_L["Guda Settings"])
     -- Increase title font size
     local titleFont, _, titleFlags = title:GetFont()
     if titleFont then
         title:SetFont(titleFont, 16, titleFlags)
     end
 
-    -- Set How to Use text
+    -- Localize the XML-defined tab button labels at runtime
+    local function localizeTabBtn(btnName, key)
+        local fs = getglobal(btnName .. "_Text")
+        if fs then fs:SetText(Guda_L[key]) end
+    end
+    localizeTabBtn("Guda_SettingsPopup_GeneralTabButton",    "General")
+    localizeTabBtn("Guda_SettingsPopup_LayoutTabButton",     "Layout")
+    localizeTabBtn("Guda_SettingsPopup_IconsTabButton",      "Icons")
+    localizeTabBtn("Guda_SettingsPopup_BarTabButton",        "Bar")
+    localizeTabBtn("Guda_SettingsPopup_CategoriesTabButton", "Categories")
+    localizeTabBtn("Guda_SettingsPopup_GuideTabButton",      "Guide")
+
+    -- Localize Categories tab header (set in XML)
+    local catHeader = getglobal("Guda_SettingsPopup_CategoriesTab_Header")
+    if catHeader then catHeader:SetText(Guda_L["Manage item categories and their display order:"]) end
+
+    -- Set How to Use text (localized)
     local instructions = getglobal("Guda_SettingsPopup_GuideTab_Instructions")
     if instructions then
-        local text = "|cffffd100Tracking Items:|r\n" ..
-                     "Alt + Left Click on any item in your bags to track it.\n" ..
-                     "Tracked items will appear in the Tracked Item Bar.\n" ..
-                     "Left Click on an item in the bar to use it.\n" ..
-                     "Alt + Left Click on an item in the bar to untrack it.\n\n" ..
-                     "|cffffd100Locked Items:|r\n" ..
-                     "Ctrl + Right Click on any item to lock/unlock it.\n" ..
-                     "Locked items cannot be sold at vendors, deleted, or disenchanted.\n" ..
-                     "Equipment set items are automatically protected.\n" ..
-                     "Ctrl + Right Click a set item to toggle its protection.\n" ..
-                     "A lock icon appears on the bottom-right corner.\n\n" ..
-                     "|cffffd100Pin Slot:|r\n" ..
-                     "Alt + Right Click on any bag slot to pin/unpin it.\n" ..
-                     "Pinned slots are skipped during sorting.\n" ..
-                     "The pin stays on the slot, not the item.\n" ..
-                     "A pin icon appears on the top-left corner.\n\n" ..
-                     "|cffffd100Moving Bars:|r\n" ..
-                     "Shift + Left Click and drag any item on the Quest Item Bar or Tracked Item Bar to move the bar.\n"
-        instructions:SetText(text)
+        instructions:SetText(Guda_L["GUIDE_TEXT"])
     end
 
     -- Create section headers for each tab
@@ -343,6 +341,20 @@ function Guda_SettingsPopup_OnShow(self)
         whiteItemsJunkCheckbox:SetChecked(whiteItemsJunk and 1 or 0)
     end
 
+    -- Auto Loot checkbox
+    local autoLootCheckbox = getglobal("Guda_SettingsPopup_AutoLootCheckbox")
+    if autoLootCheckbox then
+        local autoLoot = Guda.Modules.DB:GetSetting("autoLoot") and true or false
+        autoLootCheckbox:SetChecked(autoLoot and 1 or 0)
+    end
+
+    -- Auto Open Clams checkbox
+    local autoOpenClamsCheckbox = getglobal("Guda_SettingsPopup_AutoOpenClamsCheckbox")
+    if autoOpenClamsCheckbox then
+        local autoOpenClams = Guda.Modules.DB:GetSetting("autoOpenClams") and true or false
+        autoOpenClamsCheckbox:SetChecked(autoOpenClams and 1 or 0)
+    end
+
     if bagViewDropdown then
         UIDropDownMenu_SetSelectedValue(bagViewDropdown, bagViewType)
         UIDropDownMenu_SetText(bagViewType == "single" and "Single" or "Category", bagViewDropdown)
@@ -405,7 +417,7 @@ function Guda_SettingsPopup_BagColumnsSlider_OnLoad(self)
     getglobal(self:GetName().."High"):SetText("20")
 
     local text = getglobal(self:GetName().."Text")
-    text:SetText("Bag columns")
+    text:SetText(Guda_L["Bag columns"])
 
     -- Increase font size
     local font, _, flags = text:GetFont()
@@ -425,7 +437,7 @@ function Guda_SettingsPopup_BagColumnsSlider_OnValueChanged(self)
     local value = self:GetValue()
     
     -- Update display text
-    getglobal(self:GetName().."Text"):SetText("Bag columns: " .. value)
+    getglobal(self:GetName().."Text"):SetText(format(Guda_L["Bag columns: %d"], value))
     
     -- Save setting
     Guda.Modules.DB:SetSetting("bagColumns", value)
@@ -443,7 +455,7 @@ function Guda_SettingsPopup_BankColumnsSlider_OnLoad(self)
     getglobal(self:GetName().."High"):SetText("20")
 
     local text = getglobal(self:GetName().."Text")
-    text:SetText("Bank columns")
+    text:SetText(Guda_L["Bank columns"])
 
     -- Increase font size
     local font, _, flags = text:GetFont()
@@ -463,7 +475,7 @@ function Guda_SettingsPopup_BankColumnsSlider_OnValueChanged(self)
     local value = self:GetValue()
     
     -- Update display text
-    getglobal(self:GetName().."Text"):SetText("Bank columns: " .. value)
+    getglobal(self:GetName().."Text"):SetText(format(Guda_L["Bank columns: %d"], value))
     
     -- Save setting
     Guda.Modules.DB:SetSetting("bankColumns", value)
@@ -481,7 +493,7 @@ function Guda_SettingsPopup_BgTransparencySlider_OnLoad(self)
     getglobal(self:GetName().."High"):SetText("100%")
 
     local text = getglobal(self:GetName().."Text")
-    text:SetText("Background Transparency")
+    text:SetText(Guda_L["Background Transparency"])
 
     -- Increase font size
     local font, _, flags = text:GetFont()
@@ -503,7 +515,7 @@ function Guda_SettingsPopup_BgTransparencySlider_OnValueChanged(self)
     value = math.floor(value * 100 + 0.5) / 100
 
     -- Update display text
-    getglobal(self:GetName().."Text"):SetText("Background Transparency: " .. math.floor(value * 100) .. "%")
+    getglobal(self:GetName().."Text"):SetText(format(Guda_L["Background Transparency: %d%%"], math.floor(value * 100)))
 
     -- Save setting
     Guda.Modules.DB:SetSetting("bgTransparency", value)
@@ -540,7 +552,7 @@ function Guda_SettingsPopup_IconSizeSlider_OnLoad(self)
     getglobal(self:GetName().."High"):SetText("64px")
 
     local text = getglobal(self:GetName().."Text")
-    text:SetText("Icon size")
+    text:SetText(Guda_L["Icon size"])
 
     -- Increase font size
     local font, _, flags = text:GetFont()
@@ -559,7 +571,7 @@ end
 function Guda_SettingsPopup_IconSizeSlider_OnValueChanged(self)
     local value = math.floor(self:GetValue() + 0.5)
 
-    getglobal(self:GetName().."Text"):SetText("Icon size: " .. value .. "px")
+    getglobal(self:GetName().."Text"):SetText(format(Guda_L["Icon size: %dpx"], value))
 
     Guda.Modules.DB:SetSetting("iconSize", value)
 
@@ -580,7 +592,7 @@ function Guda_SettingsPopup_IconFontSizeSlider_OnLoad(self)
     getglobal(self:GetName().."High"):SetText("20px")
 
     local text = getglobal(self:GetName().."Text")
-    text:SetText("Icon font size")
+    text:SetText(Guda_L["Icon font size"])
 
     -- Increase font size
     local font, _, flags = text:GetFont()
@@ -599,7 +611,7 @@ end
 function Guda_SettingsPopup_IconFontSizeSlider_OnValueChanged(self)
     local value = math.floor(self:GetValue() + 0.5)
 
-    getglobal(self:GetName().."Text"):SetText("Icon font size: " .. value .. "px")
+    getglobal(self:GetName().."Text"):SetText(format(Guda_L["Icon font size: %dpx"], value))
 
     Guda.Modules.DB:SetSetting("iconFontSize", value)
 
@@ -620,7 +632,7 @@ function Guda_SettingsPopup_IconSpacingSlider_OnLoad(self)
     getglobal(self:GetName().."High"):SetText("20px")
 
     local text = getglobal(self:GetName().."Text")
-    text:SetText("Icon spacing")
+    text:SetText(Guda_L["Icon spacing"])
 
     -- Increase font size
     local font, _, flags = text:GetFont()
@@ -639,7 +651,7 @@ end
 function Guda_SettingsPopup_IconSpacingSlider_OnValueChanged(self)
     local value = math.floor(self:GetValue() + 0.5)
     local displayValue = value >= 0 and value .. "px" or value .. "px"
-    getglobal(self:GetName().."Text"):SetText("Icon spacing: " .. displayValue)
+    getglobal(self:GetName().."Text"):SetText(format(Guda_L["Icon spacing: %s"], tostring(displayValue)))
 
     -- Save setting
     Guda.Modules.DB:SetSetting("iconSpacing", value)
@@ -666,7 +678,7 @@ function Guda_SettingsPopup_QuestBarSizeSlider_OnLoad(self)
     getglobal(self:GetName().."High"):SetText("64px")
 
     local text = getglobal(self:GetName().."Text")
-    text:SetText("Quest bar size")
+    text:SetText(Guda_L["Quest bar size"])
 
     -- Increase font size
     local font, _, flags = text:GetFont()
@@ -685,7 +697,7 @@ end
 function Guda_SettingsPopup_QuestBarSizeSlider_OnValueChanged(self)
     local value = math.floor(self:GetValue() + 0.5)
 
-    getglobal(self:GetName().."Text"):SetText("Quest bar size: " .. value .. "px")
+    getglobal(self:GetName().."Text"):SetText(format(Guda_L["Quest bar size: %dpx"], value))
 
     Guda.Modules.DB:SetSetting("questBarSize", value)
 
@@ -701,7 +713,7 @@ function Guda_SettingsPopup_TrackedBarSizeSlider_OnLoad(self)
     getglobal(self:GetName().."High"):SetText("64px")
 
     local text = getglobal(self:GetName().."Text")
-    text:SetText("Tracked bar size")
+    text:SetText(Guda_L["Tracked bar size"])
 
     -- Increase font size
     local font, _, flags = text:GetFont()
@@ -720,7 +732,7 @@ end
 function Guda_SettingsPopup_TrackedBarSizeSlider_OnValueChanged(self)
     local value = math.floor(self:GetValue() + 0.5)
 
-    getglobal(self:GetName().."Text"):SetText("Tracked bar size: " .. value .. "px")
+    getglobal(self:GetName().."Text"):SetText(format(Guda_L["Tracked bar size: %dpx"], value))
 
     Guda.Modules.DB:SetSetting("trackedBarSize", value)
 
@@ -734,7 +746,7 @@ end
 function Guda_SettingsPopup_LockBagsCheckbox_OnLoad(self)
     local text = getglobal(self:GetName().."Text")
     if text then
-        text:SetText("Lock Window")
+        text:SetText(Guda_L["Lock Window"])
 
         -- Increase font size
         local font, _, flags = text:GetFont()
@@ -781,7 +793,7 @@ end
 function Guda_SettingsPopup_HideBordersCheckbox_OnLoad(self)
     local text = getglobal(self:GetName().."Text")
     if text then
-        text:SetText("Hide Frame Borders")
+        text:SetText(Guda_L["Hide Frame Borders"])
 
         -- Increase font size
         local font, _, flags = text:GetFont()
@@ -840,7 +852,7 @@ end
 function Guda_SettingsPopup_QualityBorderEquipmentCheckbox_OnLoad(self)
     local text = getglobal(self:GetName().."Text")
     if text then
-        text:SetText("Equipment Borders")
+        text:SetText(Guda_L["Equipment Borders"])
 
         -- Increase font size
         local font, _, flags = text:GetFont()
@@ -888,7 +900,7 @@ end
 function Guda_SettingsPopup_QualityBorderOtherCheckbox_OnLoad(self)
     local text = getglobal(self:GetName().."Text")
     if text then
-        text:SetText("Other Item Borders")
+        text:SetText(Guda_L["Other Item Borders"])
 
         -- Increase font size
         local font, _, flags = text:GetFont()
@@ -936,7 +948,7 @@ end
 function Guda_SettingsPopup_ShowSearchBarCheckbox_OnLoad(self)
     local text = getglobal(self:GetName().."Text")
     if text then
-        text:SetText("Show Search Bar")
+        text:SetText(Guda_L["Show Search Bar"])
 
         -- Increase font size
         local font, _, flags = text:GetFont()
@@ -993,7 +1005,7 @@ end
 function Guda_SettingsPopup_ShowQuestBarCheckbox_OnLoad(self)
     local text = getglobal(self:GetName().."Text")
     if text then
-        text:SetText("Show Quest Bar")
+        text:SetText(Guda_L["Show Quest Bar"])
 
         -- Increase font size
         local font, _, flags = text:GetFont()
@@ -1035,7 +1047,7 @@ end
 function Guda_SettingsPopup_HoverBaglineCheckbox_OnLoad(self)
     local text = getglobal(self:GetName().."Text")
     if text then
-        text:SetText("Show All Bags")
+        text:SetText(Guda_L["Show All Bags"])
 
         -- Increase font size
         local font, _, flags = text:GetFont()
@@ -1087,7 +1099,7 @@ end
 function Guda_SettingsPopup_HideFooterCheckbox_OnLoad(self)
     local text = getglobal(self:GetName().."Text")
     if text then
-        text:SetText("Hide Footer")
+        text:SetText(Guda_L["Hide Footer"])
 
         -- Increase font size
         local font, _, flags = text:GetFont()
@@ -1142,7 +1154,7 @@ end
 function Guda_SettingsPopup_ShowTooltipCountsCheckbox_OnLoad(self)
     local text = getglobal(self:GetName().."Text")
     if text then
-        text:SetText(L_SHOW_TOOLTIP_COUNTS or "Show Item Counts in Tooltip")
+        text:SetText(Guda_L["Tooltip Extension"])
 
         -- Increase font size
         local font, _, flags = text:GetFont()
@@ -1152,7 +1164,7 @@ function Guda_SettingsPopup_ShowTooltipCountsCheckbox_OnLoad(self)
     end
     
     -- Tooltip
-    self.tooltipText = L_SHOW_TOOLTIP_COUNTS_TT or "Show how many of this item you have across all your characters in the item tooltip."
+    self.tooltipText = Guda_L["Show how many of this item you have across all your characters in the item tooltip."]
 
     local showTooltipCounts = true
     if Guda and Guda.Modules and Guda.Modules.DB then
@@ -1181,7 +1193,7 @@ function Guda_SettingsPopup_JunkOpacitySlider_OnLoad(self)
     getglobal(self:GetName().."High"):SetText("100%")
 
     local text = getglobal(self:GetName().."Text")
-    text:SetText("Junk item opacity")
+    text:SetText(Guda_L["Junk item opacity"])
 
     -- Increase font size
     local font, _, flags = text:GetFont()
@@ -1203,7 +1215,7 @@ function Guda_SettingsPopup_JunkOpacitySlider_OnValueChanged(self)
     value = math.floor(value * 100 + 0.5) / 100
 
     -- Update display text
-    getglobal(self:GetName().."Text"):SetText("Junk item opacity: " .. math.floor(value * 100) .. "%")
+    getglobal(self:GetName().."Text"):SetText(format(Guda_L["Junk item opacity: %d%%"], math.floor(value * 100)))
 
     -- Save setting
     Guda.Modules.DB:SetSetting("junkOpacity", value)
@@ -1225,7 +1237,7 @@ end
 function Guda_SettingsPopup_MarkUnusableCheckbox_OnLoad(self)
     local text = getglobal(self:GetName().."Text")
     if text then
-        text:SetText("Mark Unusable Items")
+        text:SetText(Guda_L["Mark Unusable Items"])
 
         -- Increase font size
         local font, _, flags = text:GetFont()
@@ -1235,7 +1247,7 @@ function Guda_SettingsPopup_MarkUnusableCheckbox_OnLoad(self)
     end
 
     -- Tooltip
-    self.tooltipText = "Show a red tint on items that your character cannot use (wrong class, level, etc.)."
+    self.tooltipText = Guda_L["Show a red tint on items that your character cannot use (wrong class, level, etc.)."]
 
     local markUnusable = true
     if Guda and Guda.Modules and Guda.Modules.DB then
@@ -1273,7 +1285,7 @@ end
 function Guda_SettingsPopup_ShowEquipSetCategoriesCheckbox_OnLoad(self)
     local text = getglobal(self:GetName().."Text")
     if text then
-        text:SetText("Equip Set Categories")
+        text:SetText(Guda_L["Equip Set Categories"])
 
         local font, _, flags = text:GetFont()
         if font then
@@ -1281,7 +1293,7 @@ function Guda_SettingsPopup_ShowEquipSetCategoriesCheckbox_OnLoad(self)
         end
     end
 
-    self.tooltipText = "Show equipment set categories in category view."
+    self.tooltipText = Guda_L["Show equipment set categories in category view."]
 
     local enabled = true
     if Guda and Guda.Modules and Guda.Modules.DB then
@@ -1315,7 +1327,7 @@ end
 function Guda_SettingsPopup_MarkEquipmentSetsCheckbox_OnLoad(self)
     local text = getglobal(self:GetName().."Text")
     if text then
-        text:SetText("Mark Equipment Sets")
+        text:SetText(Guda_L["Mark Equipment Sets"])
 
         local font, _, flags = text:GetFont()
         if font then
@@ -1323,7 +1335,7 @@ function Guda_SettingsPopup_MarkEquipmentSetsCheckbox_OnLoad(self)
         end
     end
 
-    self.tooltipText = "Show a special icon on items that belong to an equipment set."
+    self.tooltipText = Guda_L["Show a special icon on items that belong to an equipment set."]
 
     local enabled = true
     if Guda and Guda.Modules and Guda.Modules.DB then
@@ -1357,7 +1369,7 @@ end
 function Guda_SettingsPopup_AutoLockSetItemsCheckbox_OnLoad(self)
     local text = getglobal(self:GetName().."Text")
     if text then
-        text:SetText("Auto Lock Set Items")
+        text:SetText(Guda_L["Auto Lock Set Items"])
 
         local font, _, flags = text:GetFont()
         if font then
@@ -1365,7 +1377,7 @@ function Guda_SettingsPopup_AutoLockSetItemsCheckbox_OnLoad(self)
         end
     end
 
-    self.tooltipText = "Prevent selling and deleting items saved in equipment sets."
+    self.tooltipText = Guda_L["Prevent selling and deleting items saved in equipment sets."]
 
     local enabled = true
     if Guda and Guda.Modules and Guda.Modules.DB then
@@ -1389,7 +1401,7 @@ end
 function Guda_SettingsPopup_ShowCategoryCountCheckbox_OnLoad(self)
     local text = getglobal(self:GetName().."Text")
     if text then
-        text:SetText("Show Category Count")
+        text:SetText(Guda_L["Show Category Count"])
 
         local font, _, flags = text:GetFont()
         if font then
@@ -1397,7 +1409,7 @@ function Guda_SettingsPopup_ShowCategoryCountCheckbox_OnLoad(self)
         end
     end
 
-    self.tooltipText = "Show the item count next to each category header in category view."
+    self.tooltipText = Guda_L["Show the item count next to each category header in category view."]
 
     local enabled = true
     if Guda and Guda.Modules and Guda.Modules.DB then
@@ -1427,11 +1439,90 @@ function Guda_SettingsPopup_ShowCategoryCountCheckbox_OnClick(self)
     end
 end
 
+-- Auto Loot Checkbox OnLoad
+function Guda_SettingsPopup_AutoLootCheckbox_OnLoad(self)
+    local text = getglobal(self:GetName().."Text")
+    if text then
+        text:SetText(Guda_L["Auto Loot"])
+        local font, _, flags = text:GetFont()
+        if font then text:SetFont(font, 13, flags) end
+    end
+
+    -- TurtleWoW requires SuperWoW for any addon-driven autoloot to work
+    -- (both SetAutoloot and LootSlot are gated). If it's not present, soft-
+    -- disable: keep mouse enabled so the tooltip still shows on hover, but
+    -- mark the button so OnClick is a no-op and dim the label.
+    local hasSuperWoW = SetAutoloot ~= nil
+    self._gudaSoftDisabled = not hasSuperWoW
+    if hasSuperWoW then
+        self.tooltipText = Guda_L["Automatically loot all items when looting a corpse or container."]
+        if text then text:SetTextColor(1, 1, 1) end
+    else
+        self.tooltipText = Guda_L["Auto Loot requires the SuperWoW client mod. Install SuperWoW to enable this option."]
+        if text then text:SetTextColor(0.5, 0.5, 0.5) end
+    end
+
+    local enabled = false
+    if Guda and Guda.Modules and Guda.Modules.DB then
+        enabled = Guda.Modules.DB:GetSetting("autoLoot") and true or false
+    end
+    self:SetChecked(enabled and 1 or 0)
+end
+
+-- Auto Loot Checkbox OnClick
+function Guda_SettingsPopup_AutoLootCheckbox_OnClick(self)
+    -- Soft-disable: revert the click and bail when SuperWoW is missing.
+    if self._gudaSoftDisabled then
+        local enabled = Guda.Modules.DB:GetSetting("autoLoot") and true or false
+        self:SetChecked(enabled and 1 or 0)
+        return
+    end
+    local isChecked = self:GetChecked() == 1
+    if Guda and Guda.Modules and Guda.Modules.DB then
+        Guda.Modules.DB:SetSetting("autoLoot", isChecked)
+    end
+    -- Apply immediately to the client (SuperWoW's SetAutoloot or vanilla
+    -- SetAutoLootDefault) so the toggle takes effect on the next loot.
+    if Guda.Modules.AutoLoot and Guda.Modules.AutoLoot.Apply then
+        Guda.Modules.AutoLoot:Apply()
+    end
+end
+
+-- Auto Open Clams Checkbox OnLoad
+function Guda_SettingsPopup_AutoOpenClamsCheckbox_OnLoad(self)
+    local text = getglobal(self:GetName().."Text")
+    if text then
+        text:SetText(Guda_L["Auto Open Clams"])
+        local font, _, flags = text:GetFont()
+        if font then text:SetFont(font, 13, flags) end
+    end
+
+    self.tooltipText = Guda_L["Automatically open clams in your bags when you loot one."]
+
+    local enabled = false
+    if Guda and Guda.Modules and Guda.Modules.DB then
+        enabled = Guda.Modules.DB:GetSetting("autoOpenClams") and true or false
+    end
+    self:SetChecked(enabled and 1 or 0)
+end
+
+-- Auto Open Clams Checkbox OnClick
+function Guda_SettingsPopup_AutoOpenClamsCheckbox_OnClick(self)
+    local isChecked = self:GetChecked() == 1
+    if Guda and Guda.Modules and Guda.Modules.DB then
+        Guda.Modules.DB:SetSetting("autoOpenClams", isChecked)
+    end
+    -- If enabling, kick off an immediate run for any clams already in bags.
+    if isChecked and Guda.Modules.ClamOpener then
+        Guda.Modules.ClamOpener:Open(true)
+    end
+end
+
 -- Auto Vendor Junk Checkbox OnLoad
 function Guda_SettingsPopup_AutoVendorJunkCheckbox_OnLoad(self)
     local text = getglobal(self:GetName().."Text")
     if text then
-        text:SetText("Auto Sell Junk")
+        text:SetText(Guda_L["Auto Sell Junk"])
 
         local font, _, flags = text:GetFont()
         if font then
@@ -1439,7 +1530,7 @@ function Guda_SettingsPopup_AutoVendorJunkCheckbox_OnLoad(self)
         end
     end
 
-    self.tooltipText = "Automatically sell gray (junk) items when you visit a vendor."
+    self.tooltipText = Guda_L["Automatically sell gray (junk) items when you visit a vendor."]
 
     local enabled = true
     if Guda and Guda.Modules and Guda.Modules.DB then
@@ -1463,7 +1554,7 @@ end
 function Guda_SettingsPopup_AutoOpenBagsCheckbox_OnLoad(self)
     local text = getglobal(self:GetName().."Text")
     if text then
-        text:SetText("Auto Open Bags")
+        text:SetText(Guda_L["Auto Open Bags"])
 
         local font, _, flags = text:GetFont()
         if font then
@@ -1471,7 +1562,7 @@ function Guda_SettingsPopup_AutoOpenBagsCheckbox_OnLoad(self)
         end
     end
 
-    self.tooltipText = "Automatically open bags when interacting with bank, auction house, mail, or trade."
+    self.tooltipText = Guda_L["Automatically open bags when interacting with bank, auction house, mail, or trade."]
 
     local enabled = true
     if Guda and Guda.Modules and Guda.Modules.DB then
@@ -1495,7 +1586,7 @@ end
 function Guda_SettingsPopup_AutoCloseBagsCheckbox_OnLoad(self)
     local text = getglobal(self:GetName().."Text")
     if text then
-        text:SetText("Auto Close Bags")
+        text:SetText(Guda_L["Auto Close Bags"])
 
         local font, _, flags = text:GetFont()
         if font then
@@ -1503,7 +1594,7 @@ function Guda_SettingsPopup_AutoCloseBagsCheckbox_OnLoad(self)
         end
     end
 
-    self.tooltipText = "Automatically close bags when closing bank, auction house, mail, trade, or vendor."
+    self.tooltipText = Guda_L["Automatically close bags when closing bank, auction house, mail, trade, or vendor."]
 
     local enabled = false
     if Guda and Guda.Modules and Guda.Modules.DB then
@@ -1527,7 +1618,7 @@ end
 function Guda_SettingsPopup_WhiteItemsJunkCheckbox_OnLoad(self)
     local text = getglobal(self:GetName().."Text")
     if text then
-        text:SetText("White Items as Junk")
+        text:SetText(Guda_L["White Items as Junk"])
 
         local font, _, flags = text:GetFont()
         if font then
@@ -1535,7 +1626,7 @@ function Guda_SettingsPopup_WhiteItemsJunkCheckbox_OnLoad(self)
         end
     end
 
-    self.tooltipText = "Treat white (common) equippable items as junk. They will be dimmed and auto-sold if auto-sell is enabled."
+    self.tooltipText = Guda_L["Treat white (common) equippable items as junk. They will be dimmed and auto-sold if auto-sell is enabled."]
 
     local enabled = false
     if Guda and Guda.Modules and Guda.Modules.DB then
@@ -1582,13 +1673,13 @@ local themeOptions = {
 function Guda_SettingsPopup_UsePfUITransparencyCheckbox_OnLoad(self)
     local text = getglobal(self:GetName().."Text")
     if text then
-        text:SetText("pfUI Transparency")
+        text:SetText(Guda_L["pfUI Transparency"])
         local font, _, flags = text:GetFont()
         if font then
             text:SetFont(font, 13, flags)
         end
     end
-    self.tooltipText = "When enabled, uses pfUI's background transparency instead of the slider below."
+    self.tooltipText = Guda_L["When enabled, uses pfUI's background transparency instead of the slider below."]
 
     local val = true
     if Guda and Guda.Modules and Guda.Modules.DB then
@@ -1643,7 +1734,7 @@ function Guda_SettingsPopup_ThemeDropdown_OnLoad(self)
     -- Add label above dropdown
     local label = self:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     label:SetPoint("BOTTOMLEFT", self, "TOPLEFT", 20, 2)
-    label:SetText("Theme")
+    label:SetText(Guda_L["Theme"])
     label:SetTextColor(1, 0.82, 0, 1)
 end
 
@@ -1761,7 +1852,7 @@ function Guda_SettingsPopup_BagViewDropdown_OnLoad(self)
 
     local label = self:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     label:SetPoint("BOTTOMLEFT", self, "TOPLEFT", 20, 2)
-    label:SetText("Bag View")
+    label:SetText(Guda_L["Bag View"])
     label:SetTextColor(1, 0.82, 0, 1)
 end
 
@@ -1800,7 +1891,7 @@ function Guda_SettingsPopup_BankViewDropdown_OnLoad(self)
 
     local label = self:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     label:SetPoint("BOTTOMLEFT", self, "TOPLEFT", 20, 2)
-    label:SetText("Bank View")
+    label:SetText(Guda_L["Bank View"])
     label:SetTextColor(1, 0.82, 0, 1)
 end
 
@@ -1808,7 +1899,7 @@ end
 function Guda_SettingsPopup_ReverseStackSortCheckbox_OnLoad(self)
     local text = getglobal(self:GetName().."Text")
     if text then
-        text:SetText("Reverse Stack Sort")
+        text:SetText(Guda_L["Reverse Stack Sort"])
 
         -- Increase font size
         local font, _, flags = text:GetFont()
@@ -1818,7 +1909,7 @@ function Guda_SettingsPopup_ReverseStackSortCheckbox_OnLoad(self)
     end
 
     -- Tooltip
-    self.tooltipText = "When enabled, smaller stacks of the same item will be sorted before larger stacks (e.g., stack of 16 before stack of 20)."
+    self.tooltipText = Guda_L["When enabled, smaller stacks of the same item will be sorted before larger stacks (e.g., stack of 16 before stack of 20)."]
 
     local reverseStackSort = false
     if Guda and Guda.Modules and Guda.Modules.DB then
@@ -1901,7 +1992,7 @@ local function GetCategoryRowFrame(index)
     editBtn:SetWidth(40)
     editBtn:SetHeight(18)
     editBtn:SetPoint("LEFT", nameText, "RIGHT", 5, 0)
-    editBtn:SetText("Edit")
+    editBtn:SetText(Guda_L["Edit"])
     editBtn:SetScript("OnClick", function()
         local catId = this:GetParent().categoryId
         if catId then
@@ -1967,7 +2058,7 @@ local function GetCategoryRowFrame(index)
     -- Built-in indicator
     local builtInText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     builtInText:SetPoint("LEFT", deleteBtn, "RIGHT", 5, 0)
-    builtInText:SetText("(Built-in)")
+    builtInText:SetText(Guda_L["(Built-in)"])
     builtInText:SetTextColor(0.5, 0.5, 0.5)
     row.builtInText = builtInText
 
@@ -1991,7 +2082,7 @@ local function GetCategoryRowFrame(index)
     end)
     local mergeLabel = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     mergeLabel:SetPoint("RIGHT", mergeCheckbox, "LEFT", -2, 0)
-    mergeLabel:SetText("Merge")
+    mergeLabel:SetText(Guda_L["Merge"])
     mergeLabel:SetTextColor(0.8, 0.8, 0.8)
     row.mergeCheckbox = mergeCheckbox
     row.mergeLabel = mergeLabel
@@ -2141,12 +2232,12 @@ function Guda_SettingsPopup_CategoriesTab_Update()
     -- Set button texts
     local addBtn = getglobal("Guda_SettingsPopup_AddCategoryButton")
     if addBtn then
-        addBtn:SetText("+ Add Category")
+        addBtn:SetText(Guda_L["+ Add Category"])
     end
 
     local resetBtn = getglobal("Guda_SettingsPopup_ResetCategoriesButton")
     if resetBtn then
-        resetBtn:SetText("Reset Defaults")
+        resetBtn:SetText(Guda_L["Reset Defaults"])
     end
 end
 
@@ -2262,13 +2353,13 @@ function Guda_CategoryEditor_OnLoad(self)
 
     -- Set button texts
     local addBtn = getglobal("Guda_CategoryEditor_AddRuleButton")
-    if addBtn then addBtn:SetText("+ Add Rule") end
+    if addBtn then addBtn:SetText(Guda_L["+ Add Rule"]) end
 
     local saveBtn = getglobal("Guda_CategoryEditor_SaveButton")
-    if saveBtn then saveBtn:SetText("Save") end
+    if saveBtn then saveBtn:SetText(Guda_L["Save"]) end
 
     local cancelBtn = getglobal("Guda_CategoryEditor_CancelButton")
-    if cancelBtn then cancelBtn:SetText("Cancel") end
+    if cancelBtn then cancelBtn:SetText(Guda_L["Cancel"]) end
 
     -- Create group EditBox if it doesn't exist
     if not getglobal("Guda_CategoryEditor_GroupEditBox") then
@@ -2277,7 +2368,7 @@ function Guda_CategoryEditor_OnLoad(self)
             -- Label
             local groupLabel = self:CreateFontString("Guda_CategoryEditor_GroupLabel", "OVERLAY", "GameFontNormalSmall")
             groupLabel:SetPoint("LEFT", nameBox, "RIGHT", 14, 0)
-            groupLabel:SetText("Group:")
+            groupLabel:SetText(Guda_L["Group:"])
             groupLabel:SetTextColor(0.7, 0.7, 0.7)
 
             -- EditBox
@@ -2299,7 +2390,7 @@ function Guda_CategoryEditor_OnLoad(self)
 
         local markLabel = self:CreateFontString("Guda_CategoryEditor_MarkLabel", "OVERLAY", "GameFontNormalSmall")
         markLabel:SetPoint("TOPLEFT", self, "TOPLEFT", 20, -78)
-        markLabel:SetText("Mark:")
+        markLabel:SetText(Guda_L["Mark:"])
         markLabel:SetTextColor(0.7, 0.7, 0.7)
 
         -- "None" button (first)
@@ -2360,14 +2451,14 @@ function Guda_CategoryEditor_OnLoad(self)
     if anyRadio then
         local label = anyRadio:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         label:SetPoint("LEFT", anyRadio, "RIGHT", 2, 0)
-        label:SetText("Any rule")
+        label:SetText(Guda_L["Any rule"])
     end
 
     local allRadio = getglobal("Guda_CategoryEditor_MatchAll")
     if allRadio then
         local label = allRadio:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         label:SetPoint("LEFT", allRadio, "RIGHT", 2, 0)
-        label:SetText("All rules")
+        label:SetText(Guda_L["All rules"])
     end
 end
 
@@ -2413,9 +2504,9 @@ function Guda_CategoryEditor_Open(categoryId)
     local title = getglobal("Guda_CategoryEditor_Title")
     if title then
         if categoryDef.isBuiltIn then
-            title:SetText("Edit Category (Built-in)")
+            title:SetText(Guda_L["Edit Category (Built-in)"])
         else
-            title:SetText("Edit Category")
+            title:SetText(Guda_L["Edit Category"])
         end
     end
 
@@ -2498,7 +2589,7 @@ local function GetRuleRowFrame(index)
     typeBtn:SetWidth(120)
     typeBtn:SetHeight(22)
     typeBtn:SetPoint("LEFT", row, "LEFT", 0, 0)
-    typeBtn:SetText("Select Type")
+    typeBtn:SetText(Guda_L["Select Type"])
     typeBtn.ruleIndex = index
     typeBtn:SetScript("OnClick", function()
         Guda_CategoryEditor_ShowTypeDropdown(this, this.ruleIndex)
@@ -2527,7 +2618,7 @@ local function GetRuleRowFrame(index)
     valueBtn:SetWidth(140)
     valueBtn:SetHeight(22)
     valueBtn:SetPoint("LEFT", typeBtn, "RIGHT", 5, 0)
-    valueBtn:SetText("Select Value")
+    valueBtn:SetText(Guda_L["Select Value"])
     valueBtn.ruleIndex = index
     valueBtn:SetScript("OnClick", function()
         Guda_CategoryEditor_ShowValueDropdown(this, this.ruleIndex)
@@ -2567,7 +2658,7 @@ local function GetRuleRowFrame(index)
     -- "(Drop Item)" label
     local dzLabel = dropZone:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     dzLabel:SetPoint("LEFT", dropZone, "RIGHT", 4, 0)
-    dzLabel:SetText("(Drop Item)")
+    dzLabel:SetText(Guda_L["(Drop Item)"])
     dzLabel:SetTextColor(0.5, 0.5, 0.5)
     dropZone.label = dzLabel
 
@@ -2672,7 +2763,7 @@ function Guda_CategoryEditor_UpdateRulesDisplay()
     -- Update rules count label
     local rulesLabel = getglobal("Guda_CategoryEditor_RulesLabel")
     if rulesLabel then
-        rulesLabel:SetText("Rules (" .. numRules .. "/" .. MAX_RULES .. "):")
+        rulesLabel:SetText(format(Guda_L["Rules (%d/%d):"], numRules, MAX_RULES))
     end
 
     -- Update scroll frame

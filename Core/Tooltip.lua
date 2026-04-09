@@ -325,16 +325,16 @@ function Tooltip:AddInventoryInfo(tooltip, link)
 		tooltip:AddLine(" ")
 
 		-- Inventory label in exact bag frame title color
-		tooltip:AddLine("|cFFFFD200Inventory|r")
+		tooltip:AddLine("|cFFFFD200" .. Guda_L["Inventory"] .. "|r")
 
 		-- Total line with cyan label and white count (reuse module-level table)
-		local totalText = "|cFF00FFFFTotal|r: |cFFFFFFFF" .. totalCount .. "|r"
+		local totalText = "|cFF00FFFF" .. Guda_L["Total"] .. "|r: |cFFFFFFFF" .. totalCount .. "|r"
 		local breakdownParts = _breakdownParts
 		local bpIndex = 0
-		if totalBags > 0 then bpIndex = bpIndex + 1; breakdownParts[bpIndex] = "|cFF00FFFFBags|r: |cFFFFFFFF" .. totalBags .. "|r" end
-		if totalBank > 0 then bpIndex = bpIndex + 1; breakdownParts[bpIndex] = "|cFF00FFFFBank|r: |cFFFFFFFF" .. totalBank .. "|r" end
-		if totalMail > 0 then bpIndex = bpIndex + 1; breakdownParts[bpIndex] = "|cFF00FFFFMail|r: |cFFFFFFFF" .. totalMail .. "|r" end
-		if totalEquipped > 0 then bpIndex = bpIndex + 1; breakdownParts[bpIndex] = "|cFF00FFFFEquipped|r: |cFFFFFFFF" .. totalEquipped .. "|r" end
+		if totalBags > 0 then bpIndex = bpIndex + 1; breakdownParts[bpIndex] = "|cFF00FFFF" .. Guda_L["Bags"] .. "|r: |cFFFFFFFF" .. totalBags .. "|r" end
+		if totalBank > 0 then bpIndex = bpIndex + 1; breakdownParts[bpIndex] = "|cFF00FFFF" .. Guda_L["Bank"] .. "|r: |cFFFFFFFF" .. totalBank .. "|r" end
+		if totalMail > 0 then bpIndex = bpIndex + 1; breakdownParts[bpIndex] = "|cFF00FFFF" .. Guda_L["Mail"] .. "|r: |cFFFFFFFF" .. totalMail .. "|r" end
+		if totalEquipped > 0 then bpIndex = bpIndex + 1; breakdownParts[bpIndex] = "|cFF00FFFF" .. Guda_L["Equipped"] .. "|r: |cFFFFFFFF" .. totalEquipped .. "|r" end
 		for i = bpIndex + 1, table.getn(breakdownParts) do breakdownParts[i] = nil end
 
 		local breakdownText = ""
@@ -356,23 +356,23 @@ function Tooltip:AddInventoryInfo(tooltip, link)
 		local sharedSeparatorShown = false
 		for _, charInfo in ipairs(characterCounts) do
 			if charInfo.isShared and not sharedSeparatorShown then
-				tooltip:AddLine("|cFF80C0FFOther Accounts|r")
+				tooltip:AddLine("|cFF80C0FF" .. Guda_L["Other Accounts"] .. "|r")
 				sharedSeparatorShown = true
 			end
 			local r, g, b = GetClassColor(charInfo.classToken)
 			local pIndex = 0
 
 			if charInfo.bagCount > 0 then
-				pIndex = pIndex + 1; parts[pIndex] = "|cFF00FFFFBags|r: |cFFFFFFFF" .. charInfo.bagCount .. "|r"
+				pIndex = pIndex + 1; parts[pIndex] = "|cFF00FFFF" .. Guda_L["Bags"] .. "|r: |cFFFFFFFF" .. charInfo.bagCount .. "|r"
 			end
 			if charInfo.bankCount > 0 then
-				pIndex = pIndex + 1; parts[pIndex] = "|cFF00FFFFBank|r: |cFFFFFFFF" .. charInfo.bankCount .. "|r"
+				pIndex = pIndex + 1; parts[pIndex] = "|cFF00FFFF" .. Guda_L["Bank"] .. "|r: |cFFFFFFFF" .. charInfo.bankCount .. "|r"
 			end
 			if charInfo.mailCount > 0 then
-				pIndex = pIndex + 1; parts[pIndex] = "|cFF00FFFFMail|r: |cFFFFFFFF" .. charInfo.mailCount .. "|r"
+				pIndex = pIndex + 1; parts[pIndex] = "|cFF00FFFF" .. Guda_L["Mail"] .. "|r: |cFFFFFFFF" .. charInfo.mailCount .. "|r"
 			end
 			if charInfo.equippedCount > 0 then
-				pIndex = pIndex + 1; parts[pIndex] = "|cFF00FFFFEquipped|r: |cFFFFFFFF" .. charInfo.equippedCount .. "|r"
+				pIndex = pIndex + 1; parts[pIndex] = "|cFF00FFFF" .. Guda_L["Equipped"] .. "|r: |cFFFFFFFF" .. charInfo.equippedCount .. "|r"
 			end
 			for i = pIndex + 1, table.getn(parts) do parts[i] = nil end
 

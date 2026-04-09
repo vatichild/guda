@@ -299,7 +299,7 @@ local function FinalizeReplacement()
     waitingForLocks = false
     onLocksCleared = nil
     BagReplacer.inProgress = false
-    addon:Print("Bag replaced successfully!")
+    addon:Print(Guda_L["Bag replaced successfully!"])
 
     -- Invalidate bag scanner cache BEFORE update so it does a full rescan
     -- (bag slot count changed, incremental update can't handle that)
@@ -479,7 +479,7 @@ function BagReplacer:Execute(targetBagID, invSlot)
     -- Guard: already in progress
     if self.inProgress then
         addon:DebugSort("[BagReplacer] Blocked: replacement already in progress")
-        addon:Print("Cannot replace bag: another replacement is in progress.")
+        addon:Print(Guda_L["Cannot replace bag: another replacement is in progress."])
         return
     end
 
@@ -487,14 +487,14 @@ function BagReplacer:Execute(targetBagID, invSlot)
     local SortEngine = addon.Modules.SortEngine
     if SortEngine and SortEngine.sortingInProgress then
         addon:DebugSort("[BagReplacer] Blocked: sorting in progress")
-        addon:Print("Cannot replace bag while sorting is in progress.")
+        addon:Print(Guda_L["Cannot replace bag while sorting is in progress."])
         return
     end
 
     -- Guard: combat
     if UnitAffectingCombat("player") then
         addon:DebugSort("[BagReplacer] Blocked: in combat")
-        addon:Print("Cannot replace bag during combat.")
+        addon:Print(Guda_L["Cannot replace bag during combat."])
         return
     end
 

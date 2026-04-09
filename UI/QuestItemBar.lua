@@ -272,7 +272,7 @@ function QuestItemBar:Update()
             
             button:SetScript("OnClick", function()
                 if this.fromDB then
-                    addon:Print("Item is not currently in your bags (loading from database).")
+                    addon:Print(Guda_L["Item is not currently in your bags (loading from database)."])
                     return
                 end
                 
@@ -613,7 +613,7 @@ function QuestItemBar:UpdateFlyout(parent)
         
         btn:SetScript("OnClick", function()
             if this.fromDB then
-                addon:Print("Item is not currently in your bags (loading from database).")
+                addon:Print(Guda_L["Item is not currently in your bags (loading from database)."])
                 return
             end
             

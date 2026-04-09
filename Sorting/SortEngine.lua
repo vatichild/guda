@@ -1779,7 +1779,7 @@ function SortEngine:SortBankPass()
     propertyCache = {}
 
     if not addon.Modules.BankScanner:IsBankOpen() then
-        addon:Print("Bank must be open to sort!")
+        addon:Print(Guda_L["Bank must be open to sort!"])
         return 0
     end
 
@@ -1849,7 +1849,7 @@ end
 
 function SortEngine:SortBank()
 	if not addon.Modules.BankScanner:IsBankOpen() then
-		addon:Print("Bank must be open to sort!")
+		addon:Print(Guda_L["Bank must be open to sort!"])
 		return 0
 	end
 
@@ -1935,7 +1935,7 @@ end
 function SortEngine:ExecuteSort(sortFunction, analyzeFunction, updateFrame, sortType)
 	-- Check if sorting is already in progress
 	if self.sortingInProgress then
-		addon:Print("Sorting already in progress, please wait...")
+		addon:Print(Guda_L["Sorting already in progress, please wait..."])
 		return false, "sorting in progress"
 	end
 

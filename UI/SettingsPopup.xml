@@ -342,6 +342,32 @@
                             <OnClick>Guda_SettingsPopup_AutoVendorJunkCheckbox_OnClick(this)</OnClick>
                         </Scripts>
                     </CheckButton>
+
+                    <!-- Auto Loot Checkbox -->
+                    <CheckButton name="Guda_SettingsPopup_AutoLootCheckbox" inherits="OptionsCheckButtonTemplate">
+                        <Anchors>
+                            <Anchor point="TOPLEFT" relativePoint="BOTTOMLEFT" relativeTo="Guda_SettingsPopup_AutoVendorJunkCheckbox">
+                                <Offset><AbsDimension x="0" y="-8"/></Offset>
+                            </Anchor>
+                        </Anchors>
+                        <Scripts>
+                            <OnLoad>Guda_SettingsPopup_AutoLootCheckbox_OnLoad(this)</OnLoad>
+                            <OnClick>Guda_SettingsPopup_AutoLootCheckbox_OnClick(this)</OnClick>
+                        </Scripts>
+                    </CheckButton>
+
+                    <!-- Auto Open Clams Checkbox -->
+                    <CheckButton name="Guda_SettingsPopup_AutoOpenClamsCheckbox" inherits="OptionsCheckButtonTemplate">
+                        <Anchors>
+                            <Anchor point="LEFT" relativePoint="RIGHT" relativeTo="Guda_SettingsPopup_AutoVendorJunkCheckbox">
+                                <Offset><AbsDimension x="200" y="0"/></Offset>
+                            </Anchor>
+                        </Anchors>
+                        <Scripts>
+                            <OnLoad>Guda_SettingsPopup_AutoOpenClamsCheckbox_OnLoad(this)</OnLoad>
+                            <OnClick>Guda_SettingsPopup_AutoOpenClamsCheckbox_OnClick(this)</OnClick>
+                        </Scripts>
+                    </CheckButton>
                 </Frames>
             </Frame>
 

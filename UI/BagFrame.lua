@@ -156,7 +156,7 @@ function Guda_BagFrame_OnLoad(self)
 -- Set up search box placeholder
 	local searchBox = getglobal(self:GetName().."_SearchBar_SearchBox")
 	if searchBox then
-		searchBox:SetText("Search, try ~equipment")
+		searchBox:SetText(Guda_L["Search, try ~equipment"])
 		searchBox:SetTextColor(0.5, 0.5, 0.5, 1)
 	end
 
@@ -636,6 +636,7 @@ function BagFrame:UpdateBaglineLayout()
 	local info = getglobal("Guda_BagFrame_Toolbar_BagSlotsInfo")
 	local hearthstone = getglobal("Guda_BagFrame_HearthstoneFrame")
 	local disenchant = getglobal("Guda_BagFrame_DisenchantFrame")
+	local lockpick = getglobal("Guda_BagFrame_LockpickFrame")
 
 	-- Determine last visible special button for info anchor
 	local lastButton = keyring
@@ -690,6 +691,14 @@ function BagFrame:UpdateBaglineLayout()
 			local anchor = hearthstone or info
 			disenchant:SetPoint("LEFT", anchor, "RIGHT", 6, 0)
 		end
+
+		-- Anchor lockpick next to disenchant (or hearthstone if no disenchant)
+		if lockpick and lockpick:IsShown() then
+			lockpick:ClearAllPoints()
+			local anchor = (disenchant and disenchant:IsShown()) and disenchant
+			            or hearthstone or info
+			lockpick:SetPoint("LEFT", anchor, "RIGHT", 6, 0)
+		end
 	else
 		-- Standard horizontal layout - all bags visible
 		if bag1 then
@@ -739,6 +748,14 @@ function BagFrame:UpdateBaglineLayout()
 			disenchant:ClearAllPoints()
 			local anchor = hearthstone or info
 			disenchant:SetPoint("LEFT", anchor, "RIGHT", 6, 0)
+		end
+
+		-- Anchor lockpick next to disenchant (or hearthstone if no disenchant)
+		if lockpick and lockpick:IsShown() then
+			lockpick:ClearAllPoints()
+			local anchor = (disenchant and disenchant:IsShown()) and disenchant
+			            or hearthstone or info
+			lockpick:SetPoint("LEFT", anchor, "RIGHT", 6, 0)
 		end
 
 		-- Hide flyout when switching to full bagline
@@ -859,7 +876,7 @@ function BagFrame:Update()
 	end
 
 	if titleFont and displayName then
-		titleFont:SetText(string.format("%s's Bags", displayName))
+		titleFont:SetText(string.format(Guda_L["%s's Bags"], displayName))
 	end
 
 	-- Display items
@@ -910,6 +927,9 @@ function BagFrame:Update()
 
 	-- Update disenchant button
 	self:UpdateDisenchant()
+
+	-- Update lockpick button
+	self:UpdateLockpick()
 
 	-- Update bag slots info
 	self:UpdateBagSlotsInfo(bagData, isOtherChar)
@@ -1604,7 +1624,7 @@ end
 
 -- Check if search is currently active
 function BagFrame:IsSearchActive()
-	return searchText and searchText ~= "" and searchText ~= "Search, try ~equipment"
+	return searchText and searchText ~= "" and searchText ~= Guda_L["Search, try ~equipment"]
 end
 
 -- Check if item passes search filter (pfUI style)
@@ -1729,11 +1749,11 @@ function BagFrame:UpdateBagSlotsInfo(bagData, isOtherChar)
 			infoFrame:EnableMouse(true)
 			infoFrame:SetScript("OnEnter", function()
 				GameTooltip:SetOwner(this, "ANCHOR_TOP")
-				GameTooltip:AddLine("Bag Slots", 1, 1, 1)
+				GameTooltip:AddLine(Guda_L["Bag Slots"], 1, 1, 1)
 				GameTooltip:AddLine(" ")
 				-- Regular bags
 				if this.regularTotal then
-					GameTooltip:AddDoubleLine("Regular Bags:", string.format("%d / %d", this.regularUsed, this.regularTotal), 1, 1, 1, 0.8, 0.8, 0.8)
+					GameTooltip:AddDoubleLine(Guda_L["Regular Bags:"], string.format("%d / %d", this.regularUsed, this.regularTotal), 1, 1, 1, 0.8, 0.8, 0.8)
 				end
 				-- Special bags
 				if this.specialBags then
@@ -1954,6 +1974,141 @@ function BagFrame:CreateDisenchantFrame()
 	end)
 
 	addon:Debug("DisenchantFrame created")
+end
+
+-- ============================================================================
+-- Lockpick button (Rogue: Pick Lock)
+-- ============================================================================
+
+-- Check if player is a Rogue with Pick Lock learned. Class check is
+-- locale-independent; spell match falls back to English name + icon path
+-- candidates so this works on most locales without a translation table.
+-- Thieves' Tools (item 5060) presence — required to actually use Pick Lock.
+function BagFrame:HasThievesTools()
+	for bagID = 0, 4 do
+		local numSlots = GetContainerNumSlots(bagID)
+		if numSlots and numSlots > 0 then
+			for slotID = 1, numSlots do
+				local link = GetContainerItemLink(bagID, slotID)
+				if link then
+					local _, _, idStr = string.find(link, "item:(%d+)")
+					if idStr and tonumber(idStr) == 5060 then
+						return true
+					end
+				end
+			end
+		end
+	end
+	return false
+end
+
+function BagFrame:HasLockpick()
+	local i = 1
+	while true do
+		local name = GetSpellName(i, BOOKTYPE_SPELL)
+		if not name then break end
+		if name == "Pick Lock" then
+			self._lockpickSpellIndex = i
+			return true
+		end
+		local tex = GetSpellTexture(i, BOOKTYPE_SPELL)
+		if tex then
+			local tl = string.lower(tex)
+			-- Known/likely Pick Lock icon paths in 1.12 / TurtleWoW.
+			if string.find(tl, "spell_nature_slow", 1, true)
+			or string.find(tl, "ability_rogue_pickpocket", 1, true)
+			or string.find(tl, "inv_misc_key_03", 1, true) then
+				self._lockpickSpellIndex = i
+				return true
+			end
+		end
+		i = i + 1
+	end
+	self._lockpickSpellIndex = nil
+	return false
+end
+
+function BagFrame:CreateLockpickFrame()
+	local frameName = "Guda_BagFrame_LockpickFrame"
+	if getglobal(frameName) then return end
+
+	local toolbar = getglobal("Guda_BagFrame_Toolbar") or Guda_BagFrame
+	local frame = CreateFrame("Button", frameName, toolbar)
+	frame:SetWidth(20)
+	frame:SetHeight(20)
+	-- Default anchor; will be repositioned by UpdateBaglineLayout
+	local de = getglobal("Guda_BagFrame_DisenchantFrame")
+	local hs = getglobal("Guda_BagFrame_HearthstoneFrame")
+	local anchorTo = (de and de:IsShown()) and de or hs
+	if anchorTo then
+		frame:SetPoint("LEFT", anchorTo, "RIGHT", 6, 0)
+	else
+		frame:SetPoint("LEFT", toolbar, "LEFT", 0, 0)
+	end
+	frame:SetFrameLevel((toolbar:GetFrameLevel() or 5) + 5)
+
+	local icon = frame:CreateTexture(frameName .. "_Icon", "ARTWORK")
+	icon:SetAllPoints(frame)
+	icon:SetTexture("Interface\\Icons\\Spell_Nature_Slow")
+
+	frame:EnableMouse(true)
+	frame:RegisterForClicks("LeftButtonUp")
+
+	frame:SetScript("OnEnter", function()
+		GameTooltip:SetOwner(this, "ANCHOR_TOP")
+		GameTooltip:ClearLines()
+		GameTooltip:AddLine(Guda_L["Lockpicking"], 1, 1, 1)
+		if BagFrame:HasThievesTools() then
+			GameTooltip:AddLine(Guda_L["Click to cast Pick Lock"], 0.7, 0.7, 0.7)
+		else
+			GameTooltip:AddLine(Guda_L["Requires Thieves' Tools"], 1, 0.3, 0.3)
+		end
+		GameTooltip:Show()
+	end)
+	frame:SetScript("OnLeave", function()
+		GameTooltip:Hide()
+	end)
+	frame:SetScript("OnClick", function()
+		-- Block click when no Thieves' Tools — the spell would just error.
+		if not BagFrame:HasThievesTools() then return end
+		-- Re-resolve in case spellbook changed since last update
+		if not BagFrame._lockpickSpellIndex then
+			BagFrame:HasLockpick()
+		end
+		if BagFrame._lockpickSpellIndex then
+			CastSpell(BagFrame._lockpickSpellIndex, BOOKTYPE_SPELL)
+		end
+	end)
+
+	addon:Debug("LockpickFrame created")
+end
+
+function BagFrame:UpdateLockpick()
+	local hideFooter = addon.Modules.DB:GetSetting("hideFooter")
+	local frame = getglobal("Guda_BagFrame_LockpickFrame")
+
+	if hideFooter or not self:HasLockpick() then
+		if frame then frame:Hide() end
+		return
+	end
+
+	if not frame then
+		self:CreateLockpickFrame()
+		frame = getglobal("Guda_BagFrame_LockpickFrame")
+	end
+
+	if frame then
+		frame:Show()
+		-- Dim the icon when Thieves' Tools are missing
+		local icon = getglobal(frame:GetName() .. "_Icon")
+		if icon then
+			if self:HasThievesTools() then
+				icon:SetVertexColor(1, 1, 1)
+			else
+				icon:SetVertexColor(0.4, 0.4, 0.4)
+			end
+		end
+	end
 end
 
 -- Update disenchant button visibility
@@ -2209,7 +2364,7 @@ local function CreateMoneyTooltip()
 	-- Header label
 	f.header = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	f.header:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -10)
-	f.header:SetText("Current realm gold")
+	f.header:SetText(Guda_L["Current realm gold"])
 	f.header:SetTextColor(1, 0.82, 0)
 
 	-- Header money frame (total) — anchored to right edge, same row as header
@@ -2219,7 +2374,7 @@ local function CreateMoneyTooltip()
 
 	-- Hint text at bottom
 	f.hint = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-	f.hint:SetText("Right-click to manage characters")
+	f.hint:SetText(Guda_L["Right-click to manage characters"])
 	f.hint:SetTextColor(0.5, 0.5, 0.5)
 
 	return f
@@ -2286,7 +2441,7 @@ function Guda_MoneyTooltip_Show(anchor)
 	end
 
 	-- Update header money
-	moneyTooltip.header:SetText("Total gold")
+	moneyTooltip.header:SetText(Guda_L["Total gold"])
 	MoneyFrame_Update("Guda_MoneyTooltip_Total", totalMoney)
 	FormatMoneyFrameWithCommas("Guda_MoneyTooltip_Total")
 
@@ -2778,7 +2933,7 @@ end
 function Guda_BagFrame_ClearSearch()
 	local searchBox = getglobal("Guda_BagFrame_SearchBar_SearchBox")
 	if searchBox then
-		searchBox:SetText("Search, try ~equipment")
+		searchBox:SetText(Guda_L["Search, try ~equipment"])
 		searchBox:SetTextColor(0.5, 0.5, 0.5, 1)
 		searchBox:ClearFocus()
 	end
@@ -2797,7 +2952,7 @@ end
 function Guda_BagFrame_OnSearchChanged(self)
 	local text = self:GetText()
 	-- Ignore placeholder text
-	if text == "Search, try ~equipment" then
+	if text == Guda_L["Search, try ~equipment"] then
 		text = ""
 	end
 	if text ~= searchText then
@@ -2884,7 +3039,7 @@ end
 
 function Guda_BagFrame_Sort()
 	if currentViewChar then
-		addon:Print("Cannot sort another character's bags!")
+		addon:Print(Guda_L["Cannot sort another character's bags!"])
 		return
 	end
 
@@ -2903,7 +3058,7 @@ function Guda_BagFrame_Sort()
     )
 
 	if not success and message == "already sorted" then
-		addon:Print("Bags are already sorted!")
+		addon:Print(Guda_L["Bags are already sorted!"])
 	end
 end
 
@@ -2917,7 +3072,7 @@ function Guda_BagFrame_MergeStacks()
 
 	-- Check if sorting is already in progress
 	if addon.Modules.SortEngine.sortingInProgress then
-		addon:Print("Sorting already in progress, please wait...")
+		addon:Print(Guda_L["Sorting already in progress, please wait..."])
 		return
 	end
 
@@ -3042,7 +3197,7 @@ function Guda_BagFrame_MergeStacks()
 			end
 			-- Refresh the view
 			BagFrame:Update()
-			addon:Print("Restacked " .. totalMoves .. " stack(s)")
+			addon:Print(format(Guda_L["Restacked %d stack(s)"], totalMoves))
 			return
 		end
 		
@@ -3465,12 +3620,14 @@ function BagFrame:UpdateFooterVisibility()
 	local moneyFrame = getglobal("Guda_BagFrame_MoneyFrame")
 	local hearthstoneFrame = getglobal("Guda_BagFrame_HearthstoneFrame")
 	local disenchantFrame = getglobal("Guda_BagFrame_DisenchantFrame")
+	local lockpickFrame = getglobal("Guda_BagFrame_LockpickFrame")
 
 	if hideFooter then
 		if toolbar then toolbar:Hide() end
 		if moneyFrame then moneyFrame:Hide() end
 		if hearthstoneFrame then hearthstoneFrame:Hide() end
 		if disenchantFrame then disenchantFrame:Hide() end
+		if lockpickFrame then lockpickFrame:Hide() end
 	else
 		if toolbar then toolbar:Show() end
 		if moneyFrame then moneyFrame:Show() end
@@ -3481,6 +3638,7 @@ function BagFrame:UpdateFooterVisibility()
 		self:UpdateMoney()
 		self:UpdateHearthstone()
 		self:UpdateDisenchant()
+		self:UpdateLockpick()
 	end
 end
 
@@ -3739,24 +3897,24 @@ function Guda_BagSlot_OnEnter(button, bagID)
 
 	if bagID == 0 then
 	-- Backpack tooltip
-		GameTooltip:SetText("Backpack", 1.0, 1.0, 1.0)
+		GameTooltip:SetText(Guda_L["Backpack"], 1.0, 1.0, 1.0)
 		local numSlots = GetContainerNumSlots(0)
-		GameTooltip:AddLine(string.format("%d Slots", numSlots), 0.8, 0.8, 0.8)
+		GameTooltip:AddLine(string.format(Guda_L["%d Slots"], numSlots), 0.8, 0.8, 0.8)
 		if hiddenBags[bagID] then
 			GameTooltip:AddLine("(Hidden - Right-Click to show)", 0.8, 0.5, 0.5)
 		else
-			GameTooltip:AddLine("(Right-Click to hide)", 0.5, 0.8, 0.5)
+			GameTooltip:AddLine(Guda_L["(Right-Click to hide)"], 0.5, 0.8, 0.5)
 		end
 		Guda_BagFrame_HighlightBagSlots(0)
 	elseif bagID == -2 then
 		-- Keyring tooltip
-		GameTooltip:SetText("Keyring", 1.0, 1.0, 1.0)
+		GameTooltip:SetText(Guda_L["Keyring"], 1.0, 1.0, 1.0)
 		local numSlots = GetContainerNumSlots(-2) or 0
-		GameTooltip:AddLine(string.format("%d Slots", numSlots), 0.8, 0.8, 0.8)
+		GameTooltip:AddLine(string.format(Guda_L["%d Slots"], numSlots), 0.8, 0.8, 0.8)
 		if hiddenBags[bagID] then
 			GameTooltip:AddLine("(Hidden - Right-Click to show)", 0.8, 0.5, 0.5)
 		else
-			GameTooltip:AddLine("(Right-Click to hide)", 0.5, 0.8, 0.5)
+			GameTooltip:AddLine(Guda_L["(Right-Click to hide)"], 0.5, 0.8, 0.5)
 		end
 		Guda_BagFrame_HighlightBagSlots(-2)
 	else
@@ -3770,17 +3928,17 @@ function Guda_BagSlot_OnEnter(button, bagID)
 			if hiddenBags[bagID] then
 				GameTooltip:AddLine("(Hidden - Right-Click to show)", 0.8, 0.5, 0.5)
 			else
-				GameTooltip:AddLine("(Right-Click to hide)", 0.5, 0.8, 0.5)
+				GameTooltip:AddLine(Guda_L["(Right-Click to hide)"], 0.5, 0.8, 0.5)
 			end
 			Guda_BagFrame_HighlightBagSlots(bagID)
 		else
 		-- Empty slot
-			GameTooltip:SetText(string.format("Bag %d", bagID), 1.0, 1.0, 1.0)
+			GameTooltip:SetText(string.format(Guda_L["Bag %d"], bagID), 1.0, 1.0, 1.0)
 			GameTooltip:AddLine("Empty", 0.5, 0.5, 0.5)
 			if hiddenBags[bagID] then
 				GameTooltip:AddLine("(Hidden - Right-Click to show)", 0.8, 0.5, 0.5)
 			else
-				GameTooltip:AddLine("(Right-Click to hide)", 0.5, 0.8, 0.5)
+				GameTooltip:AddLine(Guda_L["(Right-Click to hide)"], 0.5, 0.8, 0.5)
 			end
 			Guda_BagFrame_HighlightBagSlots(bagID)
 		end
@@ -4134,7 +4292,7 @@ function BagFrame:Initialize()
 					if not isMerchantOpen then
 						this:SetScript("OnUpdate", nil)
 						if soldCount > 0 then
-							addon:Print("Sold " .. soldCount .. " junk item(s).")
+							addon:Print(format(Guda_L["Sold %d junk item(s)"], soldCount))
 						end
 						return
 					end
@@ -4149,7 +4307,7 @@ function BagFrame:Initialize()
 					else
 						this:SetScript("OnUpdate", nil)
 						if soldCount > 0 then
-							addon:Print("Sold " .. soldCount .. " junk item(s).")
+							addon:Print(format(Guda_L["Sold %d junk item(s)"], soldCount))
 						end
 					end
 				end)
