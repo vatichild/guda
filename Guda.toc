@@ -23,6 +23,7 @@ Core\CategoryManager.lua
 Core\Tooltip.lua
 Core\ClamOpener.lua
 Core\AutoLoot.lua
+Core\CacheWarmer.lua
 
 Data\BagScanner.lua
 Data\BankScanner.lua

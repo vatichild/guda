@@ -92,6 +92,12 @@ function Main:Initialize()
             addon.Modules.ClamOpener:Initialize()
         end
 
+        -- Pre-warm ItemDetection / BagScanner caches in the background so the
+        -- first bag-frame open after login doesn't freeze on tooltip scans.
+        if addon.Modules.CacheWarmer and addon.Modules.CacheWarmer.Initialize then
+            addon.Modules.CacheWarmer:Initialize()
+        end
+
         -- Setup slash commands
         Main:SetupSlashCommands()
 
