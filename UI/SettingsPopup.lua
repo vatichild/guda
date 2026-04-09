@@ -1449,16 +1449,16 @@ function Guda_SettingsPopup_AutoLootCheckbox_OnLoad(self)
     end
 
     -- TurtleWoW requires SuperWoW for any addon-driven autoloot to work
-    -- (both SetAutoloot and LootSlot are gated). If it's not present, disable
-    -- the checkbox and explain why in the tooltip.
+    -- (both SetAutoloot and LootSlot are gated). If it's not present, soft-
+    -- disable: keep mouse enabled so the tooltip still shows on hover, but
+    -- mark the button so OnClick is a no-op and dim the label.
     local hasSuperWoW = SetAutoloot ~= nil
+    self._gudaSoftDisabled = not hasSuperWoW
     if hasSuperWoW then
         self.tooltipText = Guda_L["Automatically loot all items when looting a corpse or container."]
-        self:Enable()
         if text then text:SetTextColor(1, 1, 1) end
     else
         self.tooltipText = Guda_L["Auto Loot requires the SuperWoW client mod. Install SuperWoW to enable this option."]
-        self:Disable()
         if text then text:SetTextColor(0.5, 0.5, 0.5) end
     end
 
@@ -1471,6 +1471,12 @@ end
 
 -- Auto Loot Checkbox OnClick
 function Guda_SettingsPopup_AutoLootCheckbox_OnClick(self)
+    -- Soft-disable: revert the click and bail when SuperWoW is missing.
+    if self._gudaSoftDisabled then
+        local enabled = Guda.Modules.DB:GetSetting("autoLoot") and true or false
+        self:SetChecked(enabled and 1 or 0)
+        return
+    end
     local isChecked = self:GetChecked() == 1
     if Guda and Guda.Modules and Guda.Modules.DB then
         Guda.Modules.DB:SetSetting("autoLoot", isChecked)
