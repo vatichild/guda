@@ -636,6 +636,7 @@ function BagFrame:UpdateBaglineLayout()
 	local info = getglobal("Guda_BagFrame_Toolbar_BagSlotsInfo")
 	local hearthstone = getglobal("Guda_BagFrame_HearthstoneFrame")
 	local disenchant = getglobal("Guda_BagFrame_DisenchantFrame")
+	local lockpick = getglobal("Guda_BagFrame_LockpickFrame")
 
 	-- Determine last visible special button for info anchor
 	local lastButton = keyring
@@ -690,6 +691,14 @@ function BagFrame:UpdateBaglineLayout()
 			local anchor = hearthstone or info
 			disenchant:SetPoint("LEFT", anchor, "RIGHT", 6, 0)
 		end
+
+		-- Anchor lockpick next to disenchant (or hearthstone if no disenchant)
+		if lockpick and lockpick:IsShown() then
+			lockpick:ClearAllPoints()
+			local anchor = (disenchant and disenchant:IsShown()) and disenchant
+			            or hearthstone or info
+			lockpick:SetPoint("LEFT", anchor, "RIGHT", 6, 0)
+		end
 	else
 		-- Standard horizontal layout - all bags visible
 		if bag1 then
@@ -739,6 +748,14 @@ function BagFrame:UpdateBaglineLayout()
 			disenchant:ClearAllPoints()
 			local anchor = hearthstone or info
 			disenchant:SetPoint("LEFT", anchor, "RIGHT", 6, 0)
+		end
+
+		-- Anchor lockpick next to disenchant (or hearthstone if no disenchant)
+		if lockpick and lockpick:IsShown() then
+			lockpick:ClearAllPoints()
+			local anchor = (disenchant and disenchant:IsShown()) and disenchant
+			            or hearthstone or info
+			lockpick:SetPoint("LEFT", anchor, "RIGHT", 6, 0)
 		end
 
 		-- Hide flyout when switching to full bagline
@@ -910,6 +927,9 @@ function BagFrame:Update()
 
 	-- Update disenchant button
 	self:UpdateDisenchant()
+
+	-- Update lockpick button
+	self:UpdateLockpick()
 
 	-- Update bag slots info
 	self:UpdateBagSlotsInfo(bagData, isOtherChar)
@@ -1954,6 +1974,141 @@ function BagFrame:CreateDisenchantFrame()
 	end)
 
 	addon:Debug("DisenchantFrame created")
+end
+
+-- ============================================================================
+-- Lockpick button (Rogue: Pick Lock)
+-- ============================================================================
+
+-- Check if player is a Rogue with Pick Lock learned. Class check is
+-- locale-independent; spell match falls back to English name + icon path
+-- candidates so this works on most locales without a translation table.
+-- Thieves' Tools (item 5060) presence — required to actually use Pick Lock.
+function BagFrame:HasThievesTools()
+	for bagID = 0, 4 do
+		local numSlots = GetContainerNumSlots(bagID)
+		if numSlots and numSlots > 0 then
+			for slotID = 1, numSlots do
+				local link = GetContainerItemLink(bagID, slotID)
+				if link then
+					local _, _, idStr = string.find(link, "item:(%d+)")
+					if idStr and tonumber(idStr) == 5060 then
+						return true
+					end
+				end
+			end
+		end
+	end
+	return false
+end
+
+function BagFrame:HasLockpick()
+	local i = 1
+	while true do
+		local name = GetSpellName(i, BOOKTYPE_SPELL)
+		if not name then break end
+		if name == "Pick Lock" then
+			self._lockpickSpellIndex = i
+			return true
+		end
+		local tex = GetSpellTexture(i, BOOKTYPE_SPELL)
+		if tex then
+			local tl = string.lower(tex)
+			-- Known/likely Pick Lock icon paths in 1.12 / TurtleWoW.
+			if string.find(tl, "spell_nature_slow", 1, true)
+			or string.find(tl, "ability_rogue_pickpocket", 1, true)
+			or string.find(tl, "inv_misc_key_03", 1, true) then
+				self._lockpickSpellIndex = i
+				return true
+			end
+		end
+		i = i + 1
+	end
+	self._lockpickSpellIndex = nil
+	return false
+end
+
+function BagFrame:CreateLockpickFrame()
+	local frameName = "Guda_BagFrame_LockpickFrame"
+	if getglobal(frameName) then return end
+
+	local toolbar = getglobal("Guda_BagFrame_Toolbar") or Guda_BagFrame
+	local frame = CreateFrame("Button", frameName, toolbar)
+	frame:SetWidth(20)
+	frame:SetHeight(20)
+	-- Default anchor; will be repositioned by UpdateBaglineLayout
+	local de = getglobal("Guda_BagFrame_DisenchantFrame")
+	local hs = getglobal("Guda_BagFrame_HearthstoneFrame")
+	local anchorTo = (de and de:IsShown()) and de or hs
+	if anchorTo then
+		frame:SetPoint("LEFT", anchorTo, "RIGHT", 6, 0)
+	else
+		frame:SetPoint("LEFT", toolbar, "LEFT", 0, 0)
+	end
+	frame:SetFrameLevel((toolbar:GetFrameLevel() or 5) + 5)
+
+	local icon = frame:CreateTexture(frameName .. "_Icon", "ARTWORK")
+	icon:SetAllPoints(frame)
+	icon:SetTexture("Interface\\Icons\\Spell_Nature_Slow")
+
+	frame:EnableMouse(true)
+	frame:RegisterForClicks("LeftButtonUp")
+
+	frame:SetScript("OnEnter", function()
+		GameTooltip:SetOwner(this, "ANCHOR_TOP")
+		GameTooltip:ClearLines()
+		GameTooltip:AddLine(Guda_L["Lockpicking"], 1, 1, 1)
+		if BagFrame:HasThievesTools() then
+			GameTooltip:AddLine(Guda_L["Click to cast Pick Lock"], 0.7, 0.7, 0.7)
+		else
+			GameTooltip:AddLine(Guda_L["Requires Thieves' Tools"], 1, 0.3, 0.3)
+		end
+		GameTooltip:Show()
+	end)
+	frame:SetScript("OnLeave", function()
+		GameTooltip:Hide()
+	end)
+	frame:SetScript("OnClick", function()
+		-- Block click when no Thieves' Tools — the spell would just error.
+		if not BagFrame:HasThievesTools() then return end
+		-- Re-resolve in case spellbook changed since last update
+		if not BagFrame._lockpickSpellIndex then
+			BagFrame:HasLockpick()
+		end
+		if BagFrame._lockpickSpellIndex then
+			CastSpell(BagFrame._lockpickSpellIndex, BOOKTYPE_SPELL)
+		end
+	end)
+
+	addon:Debug("LockpickFrame created")
+end
+
+function BagFrame:UpdateLockpick()
+	local hideFooter = addon.Modules.DB:GetSetting("hideFooter")
+	local frame = getglobal("Guda_BagFrame_LockpickFrame")
+
+	if hideFooter or not self:HasLockpick() then
+		if frame then frame:Hide() end
+		return
+	end
+
+	if not frame then
+		self:CreateLockpickFrame()
+		frame = getglobal("Guda_BagFrame_LockpickFrame")
+	end
+
+	if frame then
+		frame:Show()
+		-- Dim the icon when Thieves' Tools are missing
+		local icon = getglobal(frame:GetName() .. "_Icon")
+		if icon then
+			if self:HasThievesTools() then
+				icon:SetVertexColor(1, 1, 1)
+			else
+				icon:SetVertexColor(0.4, 0.4, 0.4)
+			end
+		end
+	end
 end
 
 -- Update disenchant button visibility
@@ -3465,12 +3620,14 @@ function BagFrame:UpdateFooterVisibility()
 	local moneyFrame = getglobal("Guda_BagFrame_MoneyFrame")
 	local hearthstoneFrame = getglobal("Guda_BagFrame_HearthstoneFrame")
 	local disenchantFrame = getglobal("Guda_BagFrame_DisenchantFrame")
+	local lockpickFrame = getglobal("Guda_BagFrame_LockpickFrame")
 
 	if hideFooter then
 		if toolbar then toolbar:Hide() end
 		if moneyFrame then moneyFrame:Hide() end
 		if hearthstoneFrame then hearthstoneFrame:Hide() end
 		if disenchantFrame then disenchantFrame:Hide() end
+		if lockpickFrame then lockpickFrame:Hide() end
 	else
 		if toolbar then toolbar:Show() end
 		if moneyFrame then moneyFrame:Show() end
@@ -3481,6 +3638,7 @@ function BagFrame:UpdateFooterVisibility()
 		self:UpdateMoney()
 		self:UpdateHearthstone()
 		self:UpdateDisenchant()
+		self:UpdateLockpick()
 	end
 end
 
