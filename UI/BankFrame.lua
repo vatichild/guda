@@ -1848,7 +1848,6 @@ function Guda_BankFrame_SwitchToBlizzardUI()
     -- Restore Blizzard bank frame
     local blizzardBankFrame = getglobal("BankFrame")
     if blizzardBankFrame then
-        blizzardBankFrame:SetScale(1.0)
         blizzardBankFrame:SetAlpha(1.0)
         blizzardBankFrame:ClearAllPoints()
         blizzardBankFrame:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 0, -104)
@@ -1861,11 +1860,11 @@ end
 
 -- Switch from Blizzard bank UI back to Guda UI
 function Guda_BankFrame_SwitchToGudaUI()
-    -- Hide Blizzard bank frame visually (but keep it functional)
+    -- Move Blizzard bank frame off-screen (keep it shown so bank session stays active)
     local blizzardBankFrame = getglobal("BankFrame")
     if blizzardBankFrame then
-        blizzardBankFrame:SetScale(0.001)
-        blizzardBankFrame:SetPoint("TOPLEFT", 0, 0)
+        blizzardBankFrame:ClearAllPoints()
+        blizzardBankFrame:SetPoint("TOPLEFT", UIParent, "TOPLEFT", -10000, 10000)
         blizzardBankFrame:SetAlpha(0)
     end
     
@@ -2104,11 +2103,11 @@ end
 
 -- Initialize
 function BankFrame:Initialize()
-    -- Hide Blizzard bank frame on load (pfUI style)
+    -- Move Blizzard bank frame off-screen on load (keep it shown so bank session stays active)
     local blizzardBankFrame = getglobal("BankFrame")
     if blizzardBankFrame then
-        blizzardBankFrame:SetScale(0.001)
-        blizzardBankFrame:SetPoint("TOPLEFT", 0, 0)
+        blizzardBankFrame:ClearAllPoints()
+        blizzardBankFrame:SetPoint("TOPLEFT", UIParent, "TOPLEFT", -10000, 10000)
         blizzardBankFrame:SetAlpha(0)
     end
     
