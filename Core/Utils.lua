@@ -97,6 +97,7 @@ local FRAME_BUDGET_SECONDS = 0.1  -- 100ms budget per frame (same as Baganator)
 local lastEntryTime = 0
 local workQueue = {}
 local workQueueFrame = nil
+local workQueuePaused = false  -- When true, new QueueWork calls enqueue but don't resume processing
 
 -- Report that we're starting work (call at the beginning of expensive operations)
 -- This resets the frame budget timer
@@ -159,8 +160,11 @@ function Utils:QueueWork(callback, context)
         end)
     end
 
-    -- Show the frame to start processing
-    workQueueFrame:Show()
+    -- Show the frame to start processing (unless we're paused — new items
+    -- stay in the queue and are drained when ResumeWorkQueue is called).
+    if not workQueuePaused then
+        workQueueFrame:Show()
+    end
 end
 
 -- Clear all queued work (useful when frame is hidden)
@@ -168,6 +172,22 @@ function Utils:ClearWorkQueue()
     workQueue = {}
     if workQueueFrame then
         workQueueFrame:Hide()
+    end
+end
+
+-- Pause work queue processing (e.g. during a frame drag). Work stays queued
+-- (including items QueueWork'd while paused); call ResumeWorkQueue to drain.
+function Utils:PauseWorkQueue()
+    workQueuePaused = true
+    if workQueueFrame then
+        workQueueFrame:Hide()
+    end
+end
+
+function Utils:ResumeWorkQueue()
+    workQueuePaused = false
+    if workQueueFrame and table.getn(workQueue) > 0 then
+        workQueueFrame:Show()
     end
 end
 

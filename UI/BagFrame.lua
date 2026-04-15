@@ -60,6 +60,28 @@ local showSoulBag = false -- Toggle for soul bag display
 local hiddenBags = {} -- Track which bags are hidden (bagID -> true/false)
 local bagParents = {} -- Per-bag parent frames to carry bagID for Blizzard item button templates
 local isMerchantOpen = false -- Track whether a vendor window is currently open to prevent auto-closing bags
+local isDragging = false  -- True while the cursor carries an item and the bag is open in category view
+local isFrameMoving = false  -- True between StartMoving and StopMovingOrSizing on the bag frame
+
+function BagFrame:IsDragging()
+    return isDragging
+end
+
+function BagFrame:IsFrameMoving()
+    return isFrameMoving
+end
+
+-- Called by the cursor watcher in ItemButton.lua on CURSOR_UPDATE edges.
+-- Toggles the dragging flag and triggers a redraw so empty-category drop
+-- targets appear/disappear in category view.
+function BagFrame:SetDragging(state)
+    state = state and true or false
+    if isDragging == state then return end
+    isDragging = state
+    if Guda_BagFrame and Guda_BagFrame:IsShown() then
+        BagFrame:Update()
+    end
+end
 
 -- Global click catcher for clearing search focus
 local clickCatcher = nil
@@ -83,6 +105,10 @@ end
 -- Update usability tints on all visible item buttons
 local function UpdateAllUsabilityTints()
     if not Guda_BagFrame or not Guda_BagFrame:IsShown() then return end
+    -- Don't scan ~80 tooltips synchronously while the user is dragging the
+    -- frame — it can stall the engine for multiple seconds on cold caches.
+    -- The caller will reschedule after the drag ends.
+    if isFrameMoving then return end
 
     for _, bagParent in pairs(bagParents) do
         if bagParent and bagParent.itemButtons then
@@ -104,6 +130,11 @@ local function ScheduleDeferredUsabilityCheck()
         usabilityCheckFrame.elapsed = 0
         usabilityCheckFrame.pending = false
         usabilityCheckFrame:SetScript("OnUpdate", function()
+            -- Hold the timer at its current elapsed value while the user is
+            -- dragging the frame. Resuming the countdown during a drag would
+            -- kick off ~80 synchronous tooltip scans right when the engine
+            -- is starved for cycles, producing a multi-second apparent freeze.
+            if isFrameMoving then return end
             this.elapsed = this.elapsed + arg1
             if this.elapsed >= USABILITY_CHECK_DELAY then
                 this:Hide()
@@ -800,6 +831,16 @@ function BagFrame:Update()
 		return
 	end
 
+	-- Frame is being dragged around the screen: skip the full category rebuild
+	-- (it can take ~100ms+ on a full inventory and lands inside the native
+	-- StartMoving loop, producing a multi-second apparent freeze). Refresh
+	-- lock states cheaply instead; EndFrameMove will run one rebuild on drop
+	-- to catch up any changes that arrived during the move.
+	if isFrameMoving then
+		self:UpdateLockStates()
+		return
+	end
+
 	local viewType = addon.Modules.DB:GetSetting("bagViewType") or "single"
 	addon:DebugCategory("Update() START: viewType=%s", viewType)
 
@@ -809,8 +850,11 @@ function BagFrame:Update()
     end
 
 	-- If cursor is holding an item (mid-drag), only update lock states, don't rebuild UI
-	-- BUT only if we already have items displayed - otherwise we need to do initial build
+	-- BUT only if we already have items displayed - otherwise we need to do initial build.
+	-- Exception: in Category View we DO need the full rebuild so the empty-category
+	-- drop targets can appear/disappear alongside the drag state.
 	if CursorHasItem and CursorHasItem() then
+		local inCategoryView = viewType == "category"
 		-- Check if we have any displayed items
 		-- Use itemButtons hash instead of GetChildren() to avoid table allocation
 		local hasDisplayedItems = false
@@ -826,11 +870,12 @@ function BagFrame:Update()
 			if hasDisplayedItems then break end
 		end
 
-		if hasDisplayedItems then
+		if hasDisplayedItems and not inCategoryView then
 			self:UpdateLockStates()
 			return
 		end
-		-- If no items displayed yet, continue with full update
+		-- If no items displayed yet, or we're in category view (drop-target
+		-- placeholders need to render), continue with full update
 	end
 
 	-- Mark all existing buttons as not in use (we'll mark active ones during display)
@@ -1118,6 +1163,40 @@ function BagFrame:DisplayItemsByCategory(bagData, isOtherChar, charName)
                         slots[slotID] = nil
                     end
                 end
+            end
+        end
+    end
+
+    -- Inject drop-target pseudo-items for every currently-empty user-assignable
+    -- category while the user is dragging. They render at the tail of the bag
+    -- grid; dropping on one calls CategoryManager:AssignItemToCategory.
+    -- Excluded: system pseudo-categories (Keyring/Soul Bag/Empty), auto-only
+    -- categories whose membership is determined by item class (Quiver,
+    -- Container, Class Items), and EquipSet:* overrides (equipment-set
+    -- membership is managed via the equipment-set UI, not bag drag).
+    if not isOtherChar and isDragging and addon.Modules.CategoryManager then
+        local DROP_TARGET_BLOCKLIST = {
+            ["Keyring"] = true, ["Soul Bag"] = true, ["Empty"] = true,
+            ["Quiver"] = true, ["Container"] = true, ["Class Items"] = true,
+        }
+        local allCats = addon.Modules.CategoryManager:GetCategories()
+        local defs = allCats and allCats.definitions or {}
+        for _, catName in ipairs(Guda_CategoryList) do
+            if not DROP_TARGET_BLOCKLIST[catName]
+               and string.sub(catName, 1, 9) ~= "EquipSet:"
+               and categories[catName] and table.getn(categories[catName]) == 0
+               and defs[catName] and defs[catName].enabled ~= false then
+                local icon = defs[catName].icon or "Interface\\AddOns\\Guda\\Assets\\plus"
+                table.insert(categories[catName], {
+                    bagID = 0, slotID = 0,
+                    itemData = {
+                        isDropTarget = true,
+                        categoryId   = catName,
+                        texture      = icon,
+                        name         = catName,
+                        quality      = 0,
+                    },
+                })
             end
         end
     end
@@ -2191,6 +2270,34 @@ local function SaveBagFramePosition()
 	end
 end
 
+-- Centralized move start/stop so every drag handler sets the same flag and
+-- we don't drift across six duplicated call sites.
+local function BeginFrameMove()
+	local bagFrame = getglobal("Guda_BagFrame")
+	if not bagFrame then return end
+	isFrameMoving = true
+	-- Pause the background work queue (CacheWarmer tooltip scans etc.) so it
+	-- doesn't eat 100ms per render frame and kill drag FPS.
+	if addon.Modules.Utils and addon.Modules.Utils.PauseWorkQueue then
+		addon.Modules.Utils:PauseWorkQueue()
+	end
+	bagFrame:StartMoving()
+end
+
+local function EndFrameMove()
+	local bagFrame = getglobal("Guda_BagFrame")
+	if not bagFrame then return end
+	bagFrame:StopMovingOrSizing()
+	isFrameMoving = false
+	SaveBagFramePosition()
+	if addon.Modules.Utils and addon.Modules.Utils.ResumeWorkQueue then
+		addon.Modules.Utils:ResumeWorkQueue()
+	end
+	-- One rebuild to catch up anything that was short-circuited during the move.
+	BagFrame:Update()
+end
+
+
 -- Create transparent overlay for money tooltip
 function BagFrame:EnsureMoneyTooltipOverlay()
 	local overlayName = "Guda_BagFrame_MoneyTooltipOverlay"
@@ -2224,11 +2331,10 @@ function BagFrame:EnsureMoneyTooltipOverlay()
 				searchBox:ClearFocus()
 			end
 
-			local bagFrame = getglobal("Guda_BagFrame")
 			local isLocked = addon.Modules.DB and addon.Modules.DB:GetSetting("lockBags")
 
-			if bagFrame and not isLocked and arg1 == "LeftButton" then
-				bagFrame:StartMoving()
+			if not isLocked and arg1 == "LeftButton" then
+				BeginFrameMove()
 			end
 		end)
 
@@ -2238,12 +2344,10 @@ function BagFrame:EnsureMoneyTooltipOverlay()
 				Guda_ShowGoldTrackingMenu(moneyFrame)
 				return
 			end
-			local bagFrame = getglobal("Guda_BagFrame")
 			local isLocked = addon.Modules.DB and addon.Modules.DB:GetSetting("lockBags")
 
-			if bagFrame and not isLocked then
-				bagFrame:StopMovingOrSizing()
-				SaveBagFramePosition()
+			if not isLocked then
+				EndFrameMove()
 			end
 		end)
 
@@ -3484,17 +3588,12 @@ function BagFrame:UpdateLockState()
 					searchBox:ClearFocus()
 				end
 
-				local bagFrame = getglobal("Guda_BagFrame")
-				if bagFrame and arg1 == "LeftButton" then
-					bagFrame:StartMoving()
+				if arg1 == "LeftButton" then
+					BeginFrameMove()
 				end
 			end)
 			frame:SetScript("OnMouseUp", function()
-				local bagFrame = getglobal("Guda_BagFrame")
-				if bagFrame then
-					bagFrame:StopMovingOrSizing()
-					SaveBagFramePosition()
-				end
+				EndFrameMove()
 			end)
 		end
 
@@ -3506,17 +3605,12 @@ function BagFrame:UpdateLockState()
 					searchBox:ClearFocus()
 				end
 
-				local bagFrame = getglobal("Guda_BagFrame")
-				if bagFrame and arg1 == "LeftButton" then
-					bagFrame:StartMoving()
+				if arg1 == "LeftButton" then
+					BeginFrameMove()
 				end
 			end)
 			toolbar:SetScript("OnMouseUp", function()
-				local bagFrame = getglobal("Guda_BagFrame")
-				if bagFrame then
-					bagFrame:StopMovingOrSizing()
-					SaveBagFramePosition()
-				end
+				EndFrameMove()
 			end)
 		end
 
@@ -3528,17 +3622,12 @@ function BagFrame:UpdateLockState()
 					searchBox:ClearFocus()
 				end
 
-				local bagFrame = getglobal("Guda_BagFrame")
-				if bagFrame and arg1 == "LeftButton" then
-					bagFrame:StartMoving()
+				if arg1 == "LeftButton" then
+					BeginFrameMove()
 				end
 			end)
 			moneyFrame:SetScript("OnMouseUp", function()
-				local bagFrame = getglobal("Guda_BagFrame")
-				if bagFrame then
-					bagFrame:StopMovingOrSizing()
-					SaveBagFramePosition()
-				end
+				EndFrameMove()
 			end)
 		end
 
@@ -3550,17 +3639,12 @@ function BagFrame:UpdateLockState()
 					searchBox:ClearFocus()
 				end
 
-				local bagFrame = getglobal("Guda_BagFrame")
-				if bagFrame and arg1 == "LeftButton" then
-					bagFrame:StartMoving()
+				if arg1 == "LeftButton" then
+					BeginFrameMove()
 				end
 			end)
 			itemContainer:SetScript("OnMouseUp", function()
-				local bagFrame = getglobal("Guda_BagFrame")
-				if bagFrame then
-					bagFrame:StopMovingOrSizing()
-					SaveBagFramePosition()
-				end
+				EndFrameMove()
 			end)
 		end
 	end
