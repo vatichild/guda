@@ -1013,11 +1013,14 @@ function BagFrame:DisplayItemsByCategory(bagData, isOtherChar, charName)
     end
     addon:DebugCategory("DisplayItemsByCategory: totalItemsCategorized=%d", totalItemsCategorized)
 
-    -- Calculate total empty slots and find first available one for drop target
+    -- Calculate total empty slots and find first available one for drop target.
+    -- Specialized bags (soul/herb/enchant/quiver/ammo) only accept their family,
+    -- so their slots don't belong in the generic "Empty" pseudo-category.
     local totalFreeSlots = 0
     local firstFreeBag, firstFreeSlot
     for _, bagID in ipairs(addon.Constants.BAGS) do
-        if not hiddenBags[bagID] then
+        if not hiddenBags[bagID]
+           and not addon.Modules.Utils:GetSpecializedBagType(bagID) then
             local bag = bagData[bagID]
             if bag then
                 totalFreeSlots = totalFreeSlots + (bag.freeSlots or 0)

@@ -815,11 +815,14 @@ function BankFrame:DisplayItemsByCategory(bankData, isOtherChar, charName)
         end
     end
 
-    -- Calculate total empty slots and find first available one for drop target
+    -- Calculate total empty slots and find first available one for drop target.
+    -- Specialized bank bags (soul/herb/enchant/quiver/ammo) only accept their
+    -- family, so their slots don't belong in the generic "Empty" pseudo-category.
     local totalFreeSlots = 0
     local firstFreeBag, firstFreeSlot
     for _, bagID in ipairs(addon.Constants.BANK_BAGS) do
-        if not hiddenBankBags[bagID] then
+        if not hiddenBankBags[bagID]
+           and not addon.Modules.Utils:GetSpecializedBagType(bagID) then
             local bag = bankData[bagID]
             if bag then
                 totalFreeSlots = totalFreeSlots + (bag.freeSlots or 0)
