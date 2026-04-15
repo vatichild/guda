@@ -71,6 +71,15 @@ end
 -- Outfitter Integration
 -------------------------------------------
 
+-- Outfitter groups outfits into four built-in categories (Outfitter.lua:112-117):
+-- "Complete", "Partial" are user-assembled gear; "Accessory" is trinket/ring
+-- swap buttons; "Special" is prefab convenience outfits. Only the first two
+-- represent real equipment sets that belong as Guda bag categories.
+local kIgnoredOutfitterCategories = {
+    Accessory = true,
+    Special = true,
+}
+
 local function ScanOutfitter()
     -- Check if Outfitter is loaded and initialized
     if not Outfitter_GetCategoryOrder then return false end
@@ -82,32 +91,34 @@ local function ScanOutfitter()
 
     local scannedSets = 0
     for _, catID in ipairs(categoryOrder) do
-        local outfits = nil
-        if Outfitter_GetOutfitsByCategoryID then
-            outfits = Outfitter_GetOutfitsByCategoryID(catID)
-        end
-        if outfits then
-            for _, outfit in ipairs(outfits) do
-                local setName = outfit.Name
-                if setName and outfit.Items then
-                    local itemIDs = {}
-                    for slotName, item in pairs(outfit.Items) do
-                        if item then
-                            local itemID = nil
-                            -- Outfitter stores item codes
-                            if item.Code then
-                                itemID = tonumber(item.Code)
-                            elseif item.ItemID then
-                                itemID = tonumber(item.ItemID)
-                            end
-                            if itemID and itemID > 0 then
-                                itemIDs[itemID] = true
+        if not kIgnoredOutfitterCategories[catID] then
+            local outfits = nil
+            if Outfitter_GetOutfitsByCategoryID then
+                outfits = Outfitter_GetOutfitsByCategoryID(catID)
+            end
+            if outfits then
+                for _, outfit in ipairs(outfits) do
+                    local setName = outfit.Name
+                    if setName and outfit.Items then
+                        local itemIDs = {}
+                        for slotName, item in pairs(outfit.Items) do
+                            if item then
+                                local itemID = nil
+                                -- Outfitter stores item codes
+                                if item.Code then
+                                    itemID = tonumber(item.Code)
+                                elseif item.ItemID then
+                                    itemID = tonumber(item.ItemID)
+                                end
+                                if itemID and itemID > 0 then
+                                    itemIDs[itemID] = true
+                                end
                             end
                         end
-                    end
 
-                    setData[setName] = { itemIDs = itemIDs, source = "Outfitter" }
-                    scannedSets = scannedSets + 1
+                        setData[setName] = { itemIDs = itemIDs, source = "Outfitter" }
+                        scannedSets = scannedSets + 1
+                    end
                 end
             end
         end
