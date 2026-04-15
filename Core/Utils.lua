@@ -48,6 +48,7 @@ local tooltipCache = {
     bindOnEquip = {},     -- IsBindOnEquip results
     uniqueItem = {},      -- IsUniqueItem results
     restoreTag = {},      -- GetConsumableRestoreTag results
+    fullText = {},        -- GetTooltipText results (full tooltip lowercased, for ~t: search)
 }
 local tooltipCacheStats = {
     hits = 0,
@@ -61,6 +62,7 @@ function Utils:ClearTooltipCache()
     tooltipCache.bindOnEquip = {}
     tooltipCache.uniqueItem = {}
     tooltipCache.restoreTag = {}
+    tooltipCache.fullText = {}
     tooltipCacheStats.hits = 0
     tooltipCacheStats.misses = 0
     addon:Debug("Tooltip cache cleared")
@@ -1238,6 +1240,63 @@ function Utils:GetConsumableRestoreTag(bagID, slotID, itemLink)
     end
 
     return tag
+end
+
+-- Return the full tooltip text of an item as a single lowercase string, with
+-- newlines between lines. Used by the ~t: keyword search filter — one scan
+-- per item per session, cached by item ID so repeated searches are free.
+-- Accepts (bagID, slotID) for live items or (nil, nil, itemLink) as a
+-- link-only fallback (e.g. auction/mail items).
+function Utils:GetTooltipText(bagID, slotID, itemLink)
+    local cacheLink = itemLink or (bagID and slotID and GetContainerItemLink(bagID, slotID))
+    local cacheKey = GetTooltipCacheKey(cacheLink)
+    if cacheKey and tooltipCache.fullText[cacheKey] ~= nil then
+        tooltipCacheStats.hits = tooltipCacheStats.hits + 1
+        local cached = tooltipCache.fullText[cacheKey]
+        return (cached ~= false) and cached or nil
+    end
+    tooltipCacheStats.misses = tooltipCacheStats.misses + 1
+
+    local tooltip = GetScanTooltip()
+    tooltip:ClearLines()
+    local ok = false
+    if bagID and slotID then
+        pcall(function() tooltip:SetBagItem(bagID, slotID); ok = true end)
+    end
+    if not ok and cacheLink then
+        local _, _, itemString = string.find(cacheLink, "|H(item:[^|]+)|h")
+        if itemString then
+            pcall(function() tooltip:SetHyperlink(itemString); ok = true end)
+        end
+    end
+    if not ok then
+        if cacheKey then tooltipCache.fullText[cacheKey] = false end
+        return nil
+    end
+
+    local parts = {}
+    local n = tooltip:NumLines() or 0
+    for i = 1, n do
+        local left = getglobal("GudaScanTooltipTextLeft" .. i)
+        local right = getglobal("GudaScanTooltipTextRight" .. i)
+        local lt = left and left:GetText() or nil
+        local rt = right and right:GetText() or nil
+        if lt and lt ~= "" then table.insert(parts, lt) end
+        if rt and rt ~= "" then table.insert(parts, rt) end
+    end
+
+    -- Don't cache partial data: vanilla sometimes returns a 1-line tooltip
+    -- before the client finishes loading the item record. 2+ lines means
+    -- at least name + one stat/description line was present.
+    if n < 2 then
+        return nil
+    end
+
+    local joined = string.lower(table.concat(parts, "\n"))
+    if cacheKey then
+        tooltipCache.fullText[cacheKey] = joined
+    end
+    return joined
 end
 
 -- Check if item is Arrow or Bullet (for Quiver routing).

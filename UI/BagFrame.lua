@@ -237,7 +237,9 @@ function Guda_BagFrame_OnShow(self)
 		BagFrame:UpdateBorderVisibility()
 	end
 
-	-- Apply search bar visibility setting
+	-- Apply search bar visibility setting. Always start collapsed in toggle
+	-- mode so opening the bag doesn't leave stale filter state visible.
+	BagFrame.searchBarExpanded = false
 	if BagFrame.UpdateSearchBarVisibility then
 		BagFrame:UpdateSearchBarVisibility()
 	end
@@ -3057,6 +3059,32 @@ function Guda_BagFrame_ClearSearch()
 	BagFrame:Update()
 end
 
+-- Queue a one-shot warmup of Utils:GetTooltipText for every occupied bag
+-- slot currently visible. Runs once per session the first time the user
+-- types a ~t: query — subsequent keystrokes hit warm cache and filter
+-- instantly. Frame-budgeted via Utils:QueueWork so typing stays responsive.
+local tooltipTextWarmed = false
+local function WarmTooltipTextCache()
+	if tooltipTextWarmed then return end
+	tooltipTextWarmed = true
+	local Utils = addon.Modules.Utils
+	if not Utils or not Utils.QueueWork or not Utils.GetTooltipText then return end
+	for bagID = 0, 4 do
+		local numSlots = GetContainerNumSlots(bagID)
+		if numSlots and numSlots > 0 then
+			for slotID = 1, numSlots do
+				local link = GetContainerItemLink(bagID, slotID)
+				if link then
+					local b, s, l = bagID, slotID, link
+					Utils:QueueWork(function()
+						Utils:GetTooltipText(b, s, l)
+					end, "tooltipTextSearchWarmup")
+				end
+			end
+		end
+	end
+end
+
 -- Search changed handler
 function Guda_BagFrame_OnSearchChanged(self)
 	local text = self:GetText()
@@ -3069,6 +3097,12 @@ function Guda_BagFrame_OnSearchChanged(self)
 		BagFrame.foundFirstMatch = false  -- Reset debug flags
 		BagFrame.warnedAboutParsing = false
 		BagFrame.warnedAboutNoName = false
+		-- Kick off a one-time tooltip-text warmup if the query uses ~t:.
+		-- string.find returns nil when pattern is absent; plain=true to match
+		-- "~t:" literally (no magic chars in the pattern).
+		if string.find(text, "~t:", 1, true) then
+			WarmTooltipTextCache()
+		end
 		BagFrame:Update()
 	end
 end
@@ -3677,29 +3711,75 @@ function BagFrame:UpdateBorderVisibility()
 end
 
 -- Update search bar visibility based on setting
+-- Reads the three-state searchBarMode setting.
+-- Returns one of "shown", "hidden", "toggle". Falls back to the legacy
+-- boolean showSearchBar if the new setting isn't set yet.
+local function GetSearchBarMode()
+	if not addon or not addon.Modules or not addon.Modules.DB then return "shown" end
+	local mode = addon.Modules.DB:GetSetting("searchBarMode")
+	if mode == "shown" or mode == "hidden" or mode == "toggle" then
+		return mode
+	end
+	local legacy = addon.Modules.DB:GetSetting("showSearchBar")
+	if legacy == false then return "hidden" end
+	return "shown"
+end
+
 function BagFrame:UpdateSearchBarVisibility()
 	if not addon or not addon.Modules or not addon.Modules.DB then return end
 
-	local searchBar = getglobal("Guda_BagFrame_SearchBar")
+	local searchBar     = getglobal("Guda_BagFrame_SearchBar")
 	local itemContainer = getglobal("Guda_BagFrame_ItemContainer")
+	local toggleBtn     = getglobal("Guda_BagFrame_SearchToggleButton")
 	if not searchBar or not itemContainer then return end
 
-	local showSearchBar = addon.Modules.DB:GetSetting("showSearchBar")
-	if showSearchBar == nil then
-		showSearchBar = true
+	local mode = GetSearchBarMode()
+	local effectiveShown
+	if mode == "shown" then
+		effectiveShown = true
+	elseif mode == "hidden" then
+		effectiveShown = false
+	else  -- "toggle"
+		effectiveShown = self.searchBarExpanded and true or false
 	end
 
-	if showSearchBar then
+	if effectiveShown then
 		searchBar:Show()
-		-- Anchor ItemContainer to SearchBar's bottom
 		itemContainer:ClearAllPoints()
 		itemContainer:SetPoint("TOP", searchBar, "BOTTOM", 0, -5)
 	else
 		searchBar:Hide()
-		-- Anchor ItemContainer directly to frame top (skip search bar space)
 		itemContainer:ClearAllPoints()
 		itemContainer:SetPoint("TOP", "Guda_BagFrame", "TOP", 0, -40)
 	end
+
+	if toggleBtn then
+		if mode == "toggle" then toggleBtn:Show() else toggleBtn:Hide() end
+	end
+end
+
+-- Toggle the search bar's expanded state (only meaningful in "toggle" mode).
+function BagFrame:ToggleSearchBar()
+	local mode = GetSearchBarMode()
+	if mode ~= "toggle" then return end  -- no-op in shown/hidden modes
+
+	self.searchBarExpanded = not (self.searchBarExpanded and true or false)
+	self:UpdateSearchBarVisibility()
+
+	local searchBox = getglobal("Guda_BagFrame_SearchBar_SearchBox")
+	if self.searchBarExpanded then
+		if searchBox then searchBox:SetFocus() end
+	else
+		if searchBox then
+			searchBox:SetText("")
+			searchBox:ClearFocus()
+			if Guda_BagFrame_OnSearchChanged then
+				Guda_BagFrame_OnSearchChanged(searchBox)
+			end
+		end
+	end
+
+	if BagFrame.Update then BagFrame:Update() end
 end
 
 -- Update footer visibility based on settings

@@ -960,24 +960,39 @@ function Guda_SettingsPopup_ShowSearchBarCheckbox_OnLoad(self)
     -- Tooltip
     self.tooltipText = L_SHOW_SEARCH_BAR_TT
 
-    local showSearchBar = true
+    -- The parent checkbox reads "is search bar available at all?" — i.e.
+    -- modes "shown" and "toggle" both leave it checked; only "hidden"
+    -- unchecks it.
+    local mode = "shown"
     if Guda and Guda.Modules and Guda.Modules.DB then
-        showSearchBar = Guda.Modules.DB:GetSetting("showSearchBar")
-        if showSearchBar == nil then
-            showSearchBar = true
+        mode = Guda.Modules.DB:GetSetting("searchBarMode")
+        if mode ~= "shown" and mode ~= "hidden" and mode ~= "toggle" then
+            local legacy = Guda.Modules.DB:GetSetting("showSearchBar")
+            mode = (legacy == false) and "hidden" or "shown"
         end
     end
 
-    self:SetChecked(showSearchBar and 1 or 0)
+    self:SetChecked((mode ~= "hidden") and 1 or 0)
 end
 
 -- Show Search Bar Checkbox OnClick
 function Guda_SettingsPopup_ShowSearchBarCheckbox_OnClick(self)
     local isChecked = self:GetChecked() == 1
 
-    -- Save setting
+    -- Save setting — sync both the legacy boolean and the new three-state.
+    -- If the user had toggle mode enabled, unchecking flips to hidden;
+    -- re-checking returns to "shown" (toggle must be re-enabled via its
+    -- own control).
     if Guda and Guda.Modules and Guda.Modules.DB then
         Guda.Modules.DB:SetSetting("showSearchBar", isChecked)
+        Guda.Modules.DB:SetSetting("searchBarMode", isChecked and "shown" or "hidden")
+    end
+    -- Keep the sibling toggle-mode checkbox in sync.
+    local tog = getglobal("Guda_SettingsPopup_SearchBarToggleCheckbox")
+    if tog then
+        tog:SetChecked(0)
+        if not isChecked and tog.Disable then tog:Disable() end
+        if isChecked and tog.Enable then tog:Enable() end
     end
 
     -- Update search bar visibility in bag frame
@@ -998,6 +1013,51 @@ function Guda_SettingsPopup_ShowSearchBarCheckbox_OnClick(self)
             Guda.Modules.BankFrame:UpdateSearchBarVisibility()
         end
         Guda.Modules.BankFrame:Update()
+    end
+end
+
+-- Search Bar Toggle Mode Checkbox: when checked, switches searchBarMode to
+-- "toggle" (bar hidden by default, icon button reveals it). Only meaningful
+-- while the parent "Show Search Bar" checkbox is checked — unchecking the
+-- parent forces this off.
+function Guda_SettingsPopup_SearchBarToggleCheckbox_OnLoad(self)
+    local text = getglobal(self:GetName().."Text")
+    if text then
+        text:SetText(Guda_L and Guda_L["Show via icon button"] or "Show via icon button")
+        local font, _, flags = text:GetFont()
+        if font then text:SetFont(font, 13, flags) end
+    end
+    self.tooltipText = Guda_L and Guda_L["Hide the search bar by default. Click the magnifying-glass icon on the bag to open it."]
+        or "Hide the search bar by default. Click the magnifying-glass icon on the bag to open it."
+
+    local mode = "shown"
+    if Guda and Guda.Modules and Guda.Modules.DB then
+        mode = Guda.Modules.DB:GetSetting("searchBarMode") or "shown"
+    end
+    self:SetChecked((mode == "toggle") and 1 or 0)
+    if mode == "hidden" and self.Disable then self:Disable() end
+end
+
+function Guda_SettingsPopup_SearchBarToggleCheckbox_OnClick(self)
+    local isChecked = self:GetChecked() == 1
+    if not (Guda and Guda.Modules and Guda.Modules.DB) then return end
+
+    if isChecked then
+        Guda.Modules.DB:SetSetting("searchBarMode", "toggle")
+        Guda.Modules.DB:SetSetting("showSearchBar", true)
+        local parent = getglobal("Guda_SettingsPopup_ShowSearchBarCheckbox")
+        if parent then parent:SetChecked(1) end
+    else
+        -- Fall back to the parent checkbox's state
+        local parent = getglobal("Guda_SettingsPopup_ShowSearchBarCheckbox")
+        local parentChecked = parent and parent:GetChecked() == 1
+        Guda.Modules.DB:SetSetting("searchBarMode", parentChecked and "shown" or "hidden")
+    end
+
+    if Guda.Modules.BagFrame and Guda.Modules.BagFrame.UpdateSearchBarVisibility then
+        Guda.Modules.BagFrame.searchBarExpanded = false
+        Guda.Modules.BagFrame:UpdateSearchBarVisibility()
+        Guda.Modules.BagFrame:Update()
     end
 end
 

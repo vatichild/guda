@@ -147,6 +147,56 @@
                 </Scripts>
             </Button>
 
+            <!-- Search Toggle Button (only visible when searchBarMode == "toggle") -->
+            <Button name="$parent_SearchToggleButton" hidden="true">
+                <Size>
+                    <AbsDimension x="24" y="22"/>
+                </Size>
+                <Anchors>
+                    <Anchor point="RIGHT" relativePoint="LEFT" relativeTo="$parent_SortButton">
+                        <Offset>
+                            <AbsDimension x="-4" y="0"/>
+                        </Offset>
+                    </Anchor>
+                </Anchors>
+                <Layers>
+                    <Layer level="ARTWORK">
+                        <Texture name="$parent_Icon">
+                            <Size>
+                                <AbsDimension x="18" y="18"/>
+                            </Size>
+                            <Anchors>
+                                <Anchor point="CENTER"/>
+                            </Anchors>
+                            <Color r="0.8" g="0.8" b="0.8"/>
+                        </Texture>
+                    </Layer>
+                </Layers>
+                <Scripts>
+                    <OnLoad>
+                        local icon = getglobal(this:GetName().."_Icon")
+                        if icon then
+                            icon:SetTexture("Interface\\AddOns\\Guda\\Assets\\search")
+                            icon:SetTexCoord(0, 1, 0, 1)
+                        end
+                    </OnLoad>
+                    <OnClick>
+                        if Guda and Guda.Modules and Guda.Modules.BagFrame
+                           and Guda.Modules.BagFrame.ToggleSearchBar then
+                            Guda.Modules.BagFrame:ToggleSearchBar()
+                        end
+                    </OnClick>
+                    <OnEnter>
+                        GameTooltip:SetOwner(this, "ANCHOR_TOP")
+                        GameTooltip:SetText(Guda_L and Guda_L["Search"] or "Search")
+                        GameTooltip:Show()
+                    </OnEnter>
+                    <OnLeave>
+                        GameTooltip:Hide()
+                    </OnLeave>
+                </Scripts>
+            </Button>
+
             <!-- Characters Button (header left) -->
             <Button name="$parent_CharsButton">
                 <Size>
@@ -703,11 +753,20 @@
                                 local clickCatcher = getglobal("Guda_ClickCatcher")
                                 if clickCatcher then clickCatcher:Hide() end
 
+                                local wasEmpty = (this:GetText() == "")
+
                                 -- Restore placeholder if empty when focus is lost
-                                if this:GetText() == "" then
+                                if wasEmpty then
                                     this:SetText("Search, try ~equipment")
                                     this:SetTextColor(0.5, 0.5, 0.5, 1)
                                     Guda_BagFrame_OnSearchChanged(this)
+                                end
+
+                                -- In "toggle" mode, empty + focus-lost collapses the bar.
+                                if wasEmpty and Guda and Guda.Modules
+                                   and Guda.Modules.BagFrame
+                                   and Guda.Modules.BagFrame.searchBarExpanded then
+                                    Guda.Modules.BagFrame:ToggleSearchBar()
                                 end
                             </OnEditFocusLost>
                             <OnTextChanged>
@@ -728,6 +787,11 @@
                                 this:SetTextColor(0.5, 0.5, 0.5, 1)
                                 this:ClearFocus()
                                 Guda_BagFrame_OnSearchChanged(this)
+                                -- Collapse if in toggle mode; no-op otherwise.
+                                if Guda and Guda.Modules and Guda.Modules.BagFrame
+                                   and Guda.Modules.BagFrame.searchBarExpanded then
+                                    Guda.Modules.BagFrame:ToggleSearchBar()
+                                end
                             </OnEscapePressed>
                         </Scripts>
                     </EditBox>

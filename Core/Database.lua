@@ -46,7 +46,8 @@ function DB:Initialize()
 				iconFontSize = 12,
 				showQualityBorderEquipment = true,
 				showQualityBorderOther = true,
-				showSearchBar = true,
+				showSearchBar = true,   -- legacy boolean; preserved for migration. New code reads searchBarMode.
+				searchBarMode = "shown", -- "shown" | "hidden" | "toggle"
 				hideBagline = true,
 				hideFooter = false,
 				bgTransparency = 0.15,
@@ -119,6 +120,11 @@ function DB:Initialize()
 	end
 	if Guda_CharDB.settings.showSearchBar == nil then
 		Guda_CharDB.settings.showSearchBar = true
+	end
+	-- Migrate legacy boolean to three-state searchBarMode.
+	if Guda_CharDB.settings.searchBarMode == nil then
+		Guda_CharDB.settings.searchBarMode =
+			(Guda_CharDB.settings.showSearchBar == false) and "hidden" or "shown"
 	end
 	if Guda_CharDB.settings.questBarPinnedItems == nil then
 		Guda_CharDB.settings.questBarPinnedItems = {}

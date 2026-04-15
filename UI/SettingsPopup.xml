@@ -466,11 +466,24 @@
                         </Scripts>
                     </CheckButton>
 
-                    <!-- Hide Bagline Checkbox -->
-                    <CheckButton name="Guda_SettingsPopup_HoverBaglineCheckbox" inherits="OptionsCheckButtonTemplate">
+                    <!-- Search Bar Toggle-Mode Checkbox (indented sub-option of Show Search Bar) -->
+                    <CheckButton name="Guda_SettingsPopup_SearchBarToggleCheckbox" inherits="OptionsCheckButtonTemplate">
                         <Anchors>
                             <Anchor point="TOPLEFT" relativePoint="BOTTOMLEFT" relativeTo="Guda_SettingsPopup_ShowSearchBarCheckbox">
-                                <Offset><AbsDimension x="0" y="-8"/></Offset>
+                                <Offset><AbsDimension x="20" y="-4"/></Offset>
+                            </Anchor>
+                        </Anchors>
+                        <Scripts>
+                            <OnLoad>Guda_SettingsPopup_SearchBarToggleCheckbox_OnLoad(this)</OnLoad>
+                            <OnClick>Guda_SettingsPopup_SearchBarToggleCheckbox_OnClick(this)</OnClick>
+                        </Scripts>
+                    </CheckButton>
+
+                    <!-- Hide Bagline Checkbox (anchored beneath the toggle sub-option) -->
+                    <CheckButton name="Guda_SettingsPopup_HoverBaglineCheckbox" inherits="OptionsCheckButtonTemplate">
+                        <Anchors>
+                            <Anchor point="TOPLEFT" relativePoint="BOTTOMLEFT" relativeTo="Guda_SettingsPopup_SearchBarToggleCheckbox">
+                                <Offset><AbsDimension x="-20" y="-8"/></Offset>
                             </Anchor>
                         </Anchors>
                         <Scripts>

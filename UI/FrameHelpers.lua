@@ -367,58 +367,97 @@ function Guda_UpdateLockStates(parentsTable)
 end
 
 -- Shared search filter used by BagFrame and BankFrame
-function Guda_PassesSearchFilter(itemData, searchText)
-    -- If no search text, everything matches
-    if not searchText or searchText == "" then
-        return true
+-- Supports space-separated tokens, each of one of three kinds:
+--   ~t:<keyword>   — tooltip text substring (case-insensitive)
+--   ~<category>    — category shortcut (equipment, consumable, quest, ...)
+--   <plain text>   — item name substring
+-- All tokens must match (AND) for the item to pass.
+local function TokenizeSearch(text)
+    local tokens = {}
+    local s = string.lower(text)
+    local pos = 1
+    local len = string.len(s)
+    while pos <= len do
+        local startPos, endPos = string.find(s, "%S+", pos)
+        if not startPos then break end
+        table.insert(tokens, string.sub(s, startPos, endPos))
+        pos = endPos + 1
     end
+    return tokens
+end
 
-    -- Ignore common placeholders
+local function MatchesCategoryShortcut(itemData, category)
+    local itemType = itemData.class or ""
+    local itemQuality = itemData.quality or -1
+    if category == "equipment" or category == "armor" or category == "weapon" then
+        return (itemType == "Armor" or itemType == "Weapon")
+    elseif category == "consumable" then
+        return itemType == "Consumable"
+    elseif category == "tradegoods" or category == "trades" then
+        return itemType == "Trade Goods"
+    elseif category == "quest" then
+        local isQuest, isQuestStarter = Guda_GetQuestInfo(itemData.bagID, itemData.slotID, itemData.isBank)
+        return (isQuest or isQuestStarter or itemType == "Quest") and true or false
+    elseif category == "reagent" then
+        return itemType == "Reagent"
+    elseif category == "common"    then return itemQuality == 1
+    elseif category == "uncommon"  then return itemQuality == 2
+    elseif category == "rare"      then return itemQuality == 3
+    elseif category == "epic"      then return itemQuality == 4
+    elseif category == "legendary" then return itemQuality == 5
+    end
+    return nil  -- unknown shortcut — caller falls back to name-match
+end
+
+function Guda_PassesSearchFilter(itemData, searchText)
+    if not searchText or searchText == "" then return true end
     if searchText == "Search, try ~equipment" or searchText == "Search bank..." then
         return true
     end
-
-    -- Empty slots don't match when searching
-    if not itemData then
-        return false
-    end
+    if not itemData then return false end
 
     local itemName = itemData.name
     if not itemName and itemData.link then
         local _, _, name = string.find(itemData.link, "%[(.+)%]")
         itemName = name
     end
-
     if not itemName then return false end
+    local lowerName = string.lower(itemName)
 
-    local search = string.lower(searchText)
+    local Utils = Guda and Guda.Modules and Guda.Modules.Utils
 
-    if string.sub(search, 1, 1) == "~" then
-        local category = string.sub(search, 2)
-        local itemType = itemData.class or ""
-        local itemQuality = itemData.quality or -1
+    for _, tok in ipairs(TokenizeSearch(searchText)) do
+        local matched = false
 
-        if category == "equipment" or category == "armor" or category == "weapon" then
-            if itemType == "Armor" or itemType == "Weapon" then return true end
-        elseif category == "consumable" then
-            if itemType == "Consumable" then return true end
-        elseif category == "tradegoods" or category == "trades" then
-            if itemType == "Trade Goods" then return true end
-        elseif category == "quest" then
-            local isQuest, isQuestStarter = Guda_GetQuestInfo(itemData.bagID, itemData.slotID, itemData.isBank)
-            if isQuest or isQuestStarter or itemType == "Quest" then return true end
-        elseif category == "reagent" then
-            if itemType == "Reagent" then return true end
-        elseif category == "common" then if itemQuality == 1 then return true end
-        elseif category == "uncommon" then if itemQuality == 2 then return true end
-        elseif category == "rare" then if itemQuality == 3 then return true end
-        elseif category == "epic" then if itemQuality == 4 then return true end
-        elseif category == "legendary" then if itemQuality == 5 then return true end
+        if string.sub(tok, 1, 3) == "~t:" then
+            -- Tooltip-text filter.
+            local keyword = string.sub(tok, 4)
+            if keyword == "" then
+                matched = true   -- bare ~t: is a no-op, skip this token
+            elseif Utils and Utils.GetTooltipText then
+                local text = Utils:GetTooltipText(itemData.bagID, itemData.slotID, itemData.link)
+                if text and string.find(text, keyword, 1, true) then
+                    matched = true
+                end
+            end
+        elseif string.sub(tok, 1, 1) == "~" then
+            -- Category shortcut. Unknown shortcuts fall back to name-match.
+            local category = string.sub(tok, 2)
+            local shortcut = MatchesCategoryShortcut(itemData, category)
+            if shortcut == true then
+                matched = true
+            elseif shortcut == nil then
+                -- unknown shortcut — behave like a plain name substring
+                matched = string.find(lowerName, tok, 1, true) ~= nil
+            end
+        else
+            matched = string.find(lowerName, tok, 1, true) ~= nil
         end
+
+        if not matched then return false end
     end
 
-    itemName = string.lower(itemName)
-    return string.find(itemName, string.lower(searchText), 1, true) ~= nil
+    return true
 end
 
 -- Generic ResizeFrame for Bag/Bank frames
@@ -445,8 +484,22 @@ function Guda_ResizeFrame(frameName, containerName, currentRow, currentCol, colu
     local containerHeight = overrideHeight or (totalRows * (buttonSize + spacing) - spacing + 2 * math.abs(pad.startY))
     local frameWidth = containerWidth + pad.frameExtra
 
-    local showSearchBar = addon.Modules.DB:GetSetting("showSearchBar")
-    if showSearchBar == nil then showSearchBar = true end
+    -- Effective shown state for the search bar: "shown" always, "hidden" never,
+    -- "toggle" only when the bag frame has expanded the bar via its icon button.
+    local mode = addon.Modules.DB:GetSetting("searchBarMode")
+    if mode ~= "shown" and mode ~= "hidden" and mode ~= "toggle" then
+        local legacy = addon.Modules.DB:GetSetting("showSearchBar")
+        mode = (legacy == false) and "hidden" or "shown"
+    end
+    local showSearchBar
+    if mode == "shown" then
+        showSearchBar = true
+    elseif mode == "hidden" then
+        showSearchBar = false
+    else
+        local BF = addon.Modules and addon.Modules.BagFrame
+        showSearchBar = BF and BF.searchBarExpanded and true or false
+    end
 
     local titleHeight = pad.titleHeight
     local searchBarHeight = pad.searchBarHeight
