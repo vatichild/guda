@@ -2898,6 +2898,20 @@ function Guda_BankBagSlot_OnReceiveDrag(button, bagID)
     local purchased = (bankButtonID and bankButtonID <= GetNumBankSlots())
     if not purchased then return end
 
+    -- If the target bank bag has items, evacuate them before swapping
+    local numSlots = GetContainerNumSlots(bagID)
+    local hasItems = false
+    if numSlots and numSlots > 0 then
+        for slot = 1, numSlots do
+            if GetContainerItemInfo(bagID, slot) then hasItems = true; break end
+        end
+    end
+
+    if hasItems and addon.Modules.BagReplacer then
+        addon.Modules.BagReplacer:Execute(bagID, invSlot, true)
+        return -- BagReplacer handles its own UI updates
+    end
+
     if EquipCursorItem then
         EquipCursorItem(invSlot)
     elseif PutItemInBag then

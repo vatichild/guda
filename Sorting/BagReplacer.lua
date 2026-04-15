@@ -6,8 +6,18 @@ local BagReplacer = {}
 addon.Modules.BagReplacer = BagReplacer
 
 BagReplacer.inProgress = false
+BagReplacer.slowMode = false -- true while replacing a bank bag (bank writes are server-validated and slower)
 
 local C = addon.Constants
+
+-- Time scaler: bank operations need longer debounce/timeout because the server
+-- authoritatively validates every slot write (locks, bag updates) with round-trip delay.
+local function T(seconds)
+    if BagReplacer.slowMode then
+        return seconds * 2.5
+    end
+    return seconds
+end
 
 --===========================================================================
 -- Lock-wait mechanism (independent from SortEngine)
@@ -62,7 +72,8 @@ replacerFrame:SetScript("OnEvent", function()
 end)
 
 local function WaitForLocksCleared(callback, timeout, minDelay)
-    minDelay = minDelay or 0.15
+    minDelay = minDelay or T(0.15)
+    timeout = timeout or T(1.5)
     Guda_ScheduleTimer(minDelay, function()
         if not AnyPendingLocked() then
             ClearPendingLocks()
@@ -71,7 +82,7 @@ local function WaitForLocksCleared(callback, timeout, minDelay)
         end
         waitingForLocks = true
         onLocksCleared = callback
-        local remaining = (timeout or 1.5) - minDelay
+        local remaining = timeout - minDelay
         if remaining < 0.3 then remaining = 0.3 end
         Guda_ScheduleTimer(remaining, function()
             if waitingForLocks then
@@ -106,25 +117,31 @@ end
 -- Build list of free slots across all bags except the target bag
 -- Returns: { {bagID, slotID, bagType}, ... }
 --===========================================================================
-local function GetAvailableFreeSlots(excludeBagID)
+local function GetAvailableFreeSlots(excludeBagID, isBank)
     local freeSlots = {}
     local count = 0
 
-    -- Iterate bags 0-4, skipping the excluded bag
-    for bagID = 0, C.BAG_LAST do
-        if bagID ~= excludeBagID then
-            local numSlots = GetContainerNumSlots(bagID)
-            if numSlots and numSlots > 0 then
-                local bagType = addon.Modules.Utils:GetSpecializedBagType(bagID)
-                for slot = 1, numSlots do
-                    local texture = GetContainerItemInfo(bagID, slot)
-                    if not texture then
-                        count = count + 1
-                        freeSlots[count] = { bagID = bagID, slot = slot, bagType = bagType }
-                    end
-                end
+    local function scan(bagID)
+        if bagID == excludeBagID then return end
+        local numSlots = GetContainerNumSlots(bagID)
+        if not numSlots or numSlots == 0 then return end
+        local bagType = addon.Modules.Utils:GetSpecializedBagType(bagID)
+        for slot = 1, numSlots do
+            local texture = GetContainerItemInfo(bagID, slot)
+            if not texture then
+                count = count + 1
+                freeSlots[count] = { bagID = bagID, slot = slot, bagType = bagType }
             end
         end
+    end
+
+    if isBank then
+        -- Main bank container + equipped bank bags
+        scan(-1)
+        for bagID = C.BANK_FIRST, C.BANK_LAST do scan(bagID) end
+    else
+        -- Backpack + inventory bags
+        for bagID = 0, C.BAG_LAST do scan(bagID) end
     end
 
     return freeSlots, count
@@ -159,14 +176,14 @@ end
 -- BuildEvacuationPlan: assign each item to a free slot, reserve stash slot
 -- Returns: plan table or nil, errorMsg
 --===========================================================================
-function BagReplacer:BuildEvacuationPlan(targetBagID)
+function BagReplacer:BuildEvacuationPlan(targetBagID, isBank)
     local items, itemCount = GetBagItems(targetBagID)
-    addon:DebugSort("[BagReplacer] BuildEvacuationPlan: bag %d has %d items", targetBagID, itemCount)
+    addon:DebugSort("[BagReplacer] BuildEvacuationPlan: bag %d has %d items (isBank=%s)", targetBagID, itemCount, tostring(isBank))
     if itemCount == 0 then
-        return { moves = {}, stashBag = nil, stashSlot = nil, itemCount = 0 }, nil
+        return { moves = {}, stashBag = nil, stashSlot = nil, itemCount = 0, isBank = isBank }, nil
     end
 
-    local freeSlots, freeCount = GetAvailableFreeSlots(targetBagID)
+    local freeSlots, freeCount = GetAvailableFreeSlots(targetBagID, isBank)
     local needed = itemCount + 1 -- +1 for stashing the new bag from cursor
     addon:DebugSort("[BagReplacer] Need %d free slots (items+stash), have %d", needed, freeCount)
 
@@ -268,7 +285,8 @@ function BagReplacer:BuildEvacuationPlan(targetBagID)
         stashBag = stashBag,
         stashSlot = stashSlot,
         itemCount = itemCount,
-        targetBagID = targetBagID
+        targetBagID = targetBagID,
+        isBank = isBank
     }, nil
 end
 
@@ -282,6 +300,7 @@ function BagReplacer:Abort(reason)
     waitingForLocks = false
     onLocksCleared = nil
     self.inProgress = false
+    self.slowMode = false
     if reason then
         addon:Print(reason)
     end
@@ -294,21 +313,30 @@ end
 --===========================================================================
 -- FinishReplacement: pick up new bag from stash, equip it, handle old bag
 --===========================================================================
-local function FinalizeReplacement()
+local function FinalizeReplacement(plan)
     ClearPendingLocks()
     waitingForLocks = false
     onLocksCleared = nil
     BagReplacer.inProgress = false
+    BagReplacer.slowMode = false
     addon:Print(Guda_L["Bag replaced successfully!"])
 
-    -- Invalidate bag scanner cache BEFORE update so it does a full rescan
+    -- Invalidate scanner cache BEFORE update so it does a full rescan
     -- (bag slot count changed, incremental update can't handle that)
     if addon.Modules.BagScanner and addon.Modules.BagScanner.InvalidateCache then
         addon.Modules.BagScanner:InvalidateCache()
     end
+    if plan and plan.isBank
+       and addon.Modules.BankScanner and addon.Modules.BankScanner.InvalidateCache then
+        addon.Modules.BankScanner:InvalidateCache()
+    end
     -- Refresh UI
     if addon.Modules.BagFrame and addon.Modules.BagFrame.Update then
         addon.Modules.BagFrame:Update()
+    end
+    if plan and plan.isBank
+       and addon.Modules.BankFrame and addon.Modules.BankFrame.Update then
+        addon.Modules.BankFrame:Update()
     end
 end
 
@@ -326,7 +354,7 @@ bagUpdateFrame:SetScript("OnEvent", function()
         bagUpdateCallback = nil
         bagUpdateTarget = nil
         -- Small delay to let all related events settle
-        Guda_ScheduleTimer(0.15, cb)
+        Guda_ScheduleTimer(T(0.15), cb)
     end
 end)
 
@@ -335,7 +363,7 @@ local function WaitForBagUpdate(targetBagID, callback)
     bagUpdateTarget = targetBagID
     bagUpdateFrame:RegisterEvent("BAG_UPDATE")
     -- Safety timeout
-    Guda_ScheduleTimer(1.5, function()
+    Guda_ScheduleTimer(T(1.5), function()
         if bagUpdateCallback then
             addon:DebugSort("[BagReplacer] BAG_UPDATE timeout for bag %d, proceeding", targetBagID)
             bagUpdateFrame:UnregisterEvent("BAG_UPDATE")
@@ -347,8 +375,9 @@ local function WaitForBagUpdate(targetBagID, callback)
     end)
 end
 
-function BagReplacer:FinishReplacement(invSlot, stashBag, stashSlot, targetBagID)
-    addon:DebugSort("[BagReplacer] FinishReplacement: picking up new bag from bag%d/slot%d, equipping to invSlot %d (bag %d)", stashBag, stashSlot, invSlot, targetBagID)
+function BagReplacer:FinishReplacement(invSlot, plan)
+    local stashBag, stashSlot, targetBagID = plan.stashBag, plan.stashSlot, plan.targetBagID
+    addon:DebugSort("[BagReplacer] FinishReplacement: picking up new bag from bag%d/slot%d, equipping to invSlot %d (bag %d, isBank=%s)", stashBag, stashSlot, invSlot, targetBagID, tostring(plan.isBank))
     -- Verify new bag is still in stash slot
     local stashTexture = GetContainerItemInfo(stashBag, stashSlot)
     if not stashTexture then
@@ -361,7 +390,7 @@ function BagReplacer:FinishReplacement(invSlot, stashBag, stashSlot, targetBagID
     AddPendingLock(stashBag, stashSlot)
 
     -- Wait briefly for pickup, then equip
-    Guda_ScheduleTimer(0.15, function()
+    Guda_ScheduleTimer(T(0.15), function()
         if CursorHasItem and CursorHasItem() then
             addon:DebugSort("[BagReplacer] Equipping new bag to invSlot %d", invSlot)
             EquipCursorItem(invSlot)
@@ -371,7 +400,8 @@ function BagReplacer:FinishReplacement(invSlot, stashBag, stashSlot, targetBagID
                 if CursorHasItem and CursorHasItem() then
                     addon:DebugSort("[BagReplacer] Old bag on cursor, finding free slot to place it")
                     -- Old bag is on cursor - try to find a free slot for it
-                    local freeSlots, freeCount = GetAvailableFreeSlots(-999) -- exclude nothing
+                    -- Use the same pool (bank or inventory) as the replacement
+                    local freeSlots, freeCount = GetAvailableFreeSlots(-999, plan.isBank)
                     for i = 1, freeCount do
                         local fs = freeSlots[i]
                         if not fs.bagType then -- regular slot only
@@ -384,7 +414,7 @@ function BagReplacer:FinishReplacement(invSlot, stashBag, stashSlot, targetBagID
                     -- If still on cursor, that's fine - user can place manually
                 end
 
-                FinalizeReplacement()
+                FinalizeReplacement(plan)
             end)
         else
             BagReplacer:Abort("Bag replacement failed: could not pick up new bag.")
@@ -410,7 +440,7 @@ function BagReplacer:ExecuteNextBatch(plan, index, invSlot)
     -- All moves done - finish replacement
     if index > totalMoves then
         addon:DebugSort("[BagReplacer] All %d moves complete, finishing replacement", totalMoves)
-        self:FinishReplacement(invSlot, plan.stashBag, plan.stashSlot, plan.targetBagID)
+        self:FinishReplacement(invSlot, plan)
         return
     end
 
@@ -473,8 +503,8 @@ end
 --===========================================================================
 -- Execute: main entry point
 --===========================================================================
-function BagReplacer:Execute(targetBagID, invSlot)
-    addon:DebugSort("[BagReplacer] Execute: targetBagID=%d, invSlot=%d", targetBagID, invSlot)
+function BagReplacer:Execute(targetBagID, invSlot, isBank)
+    addon:DebugSort("[BagReplacer] Execute: targetBagID=%d, invSlot=%d, isBank=%s", targetBagID, invSlot, tostring(isBank))
 
     -- Guard: already in progress
     if self.inProgress then
@@ -498,6 +528,14 @@ function BagReplacer:Execute(targetBagID, invSlot)
         return
     end
 
+    -- Guard: bank must be open for bank-bag swaps (server rejects bank writes otherwise)
+    if isBank and addon.Modules.BankScanner
+       and not addon.Modules.BankScanner:IsBankOpen() then
+        addon:DebugSort("[BagReplacer] Blocked: bank not open")
+        addon:Print("Cannot replace bank bag: bank is not open.")
+        return
+    end
+
     -- Check if bag is empty (normal equip works)
     local _, itemCount = GetBagItems(targetBagID)
     if itemCount == 0 then
@@ -511,7 +549,7 @@ function BagReplacer:Execute(targetBagID, invSlot)
     end
 
     -- Build evacuation plan
-    local plan, errorMsg = self:BuildEvacuationPlan(targetBagID)
+    local plan, errorMsg = self:BuildEvacuationPlan(targetBagID, isBank)
     if not plan then
         addon:DebugSort("[BagReplacer] Plan failed: %s", errorMsg)
         addon:Print(errorMsg)
@@ -520,6 +558,7 @@ function BagReplacer:Execute(targetBagID, invSlot)
 
     -- Start replacement
     self.inProgress = true
+    self.slowMode = isBank and true or false
     addon:Print(string.format("Replacing bag: moving %d items...", plan.itemCount))
     addon:DebugSort("[BagReplacer] Starting replacement: %d moves, stash at bag%d/slot%d", table.getn(plan.moves), plan.stashBag, plan.stashSlot)
 
