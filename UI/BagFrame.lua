@@ -108,12 +108,14 @@ local function ScheduleDeferredUsabilityCheck()
             if this.elapsed >= USABILITY_CHECK_DELAY then
                 this:Hide()
                 this.pending = false
-                -- Only run if bag is still open
+                -- Only run if bag is still open.
+                -- Note: we intentionally do NOT ClearCache here. GetItemProperties
+                -- already refuses to cache partial-tooltip scans (tooltipLooksComplete
+                -- guard in ItemDetection), so rescanning naturally re-hits items
+                -- whose first scan was incomplete while leaving good cache entries
+                -- intact — wiping the cache would defeat CacheWarmer and force a
+                -- full ~80-item tooltip burst every open.
                 if Guda_BagFrame and Guda_BagFrame:IsShown() then
-                    -- Clear detection cache and re-check all items
-                    if addon.Modules.ItemDetection and addon.Modules.ItemDetection.ClearCache then
-                        addon.Modules.ItemDetection:ClearCache()
-                    end
                     UpdateAllUsabilityTints()
                 end
             end

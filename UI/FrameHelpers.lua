@@ -23,8 +23,12 @@ function Guda_CategorizeItem(itemData, bagID, slotID, categories, specialItems, 
     local itemName = itemData.name or ""
     local cat = "Miscellaneous"
 
-    -- Detect consumable restore/eat/drink tag for current character only
-    if not isOtherChar and addon.Modules.Utils and addon.Modules.Utils.GetConsumableRestoreTag then
+    -- Detect consumable restore/eat/drink tag for current character only.
+    -- Gated on class == "Consumable": the "while eating"/"while drinking"/"use:
+    -- restores" patterns only appear on consumables, so scanning other items
+    -- just wastes a tooltip roundtrip per bag on the cold-cache path.
+    if not isOtherChar and itemData.class == "Consumable"
+       and addon.Modules.Utils and addon.Modules.Utils.GetConsumableRestoreTag then
         local tag = addon.Modules.Utils:GetConsumableRestoreTag(bagID, slotID)
         if tag then
             itemData.restoreTag = tag

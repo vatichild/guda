@@ -23,8 +23,11 @@ function CacheWarmer:WarmBagScanner()
 end
 
 -- Walk player bags 0-4 and queue one ItemDetection:GetItemProperties per
--- occupied slot. The work queue spreads them across frames within the
--- existing 100ms-per-frame budget.
+-- occupied slot, plus Utils:GetConsumableRestoreTag for consumables. The
+-- work queue spreads them across frames within the existing 100ms-per-frame
+-- budget. This warms both tooltip caches the bag-open path reads
+-- (ItemDetection.detectionCache and Utils.tooltipCache.restoreTag), so the
+-- first bag open doesn't pay for synchronous tooltip scans.
 function CacheWarmer:WarmItemDetectionCache()
     local Utils = Guda.Modules.Utils
     local ItemDetection = Guda.Modules.ItemDetection
@@ -45,6 +48,17 @@ function CacheWarmer:WarmItemDetectionCache()
                         -- the tooltip scan.
                         ItemDetection:GetItemProperties({ link = l }, b, s)
                     end, "CacheWarmer.itemDetection")
+
+                    -- Warm the consumable restoreTag cache too. Only consumables
+                    -- ever carry the relevant tooltip lines, so check class via
+                    -- GetItemInfo (cached by the client after the detection scan
+                    -- above) and queue only matching items.
+                    Utils:QueueWork(function()
+                        local _, _, _, _, itemType = GetItemInfo(l)
+                        if itemType == "Consumable" and Utils.GetConsumableRestoreTag then
+                            Utils:GetConsumableRestoreTag(b, s, l)
+                        end
+                    end, "CacheWarmer.restoreTag")
                 end
             end
         end
