@@ -144,41 +144,95 @@ end
 -- ItemRack Integration
 -------------------------------------------
 
-local function ScanItemRack()
-    -- Check if ItemRack is loaded
-    if not ItemRackUser or not ItemRackUser.Sets then return false end
+local function ExtractItemRackID(value)
+    -- Accepts a number, a bare-id string "12345", or an item link fragment
+    -- like "item:12345:0:0:0". Returns numeric itemID or nil.
+    if type(value) == "number" then
+        return value > 0 and value or nil
+    end
+    if type(value) ~= "string" then return nil end
+    local _, _, idStr = string.find(value, "item:(%d+)")
+    if not idStr then
+        _, _, idStr = string.find(value, "^(%d+)")
+    end
+    local itemID = tonumber(idStr)
+    if itemID and itemID > 0 then return itemID end
+    return nil
+end
 
-    addon:Debug("EquipmentSets: Scanning ItemRack sets...")
-
-    local scannedSets = 0
-    for setName, setInfo in pairs(ItemRackUser.Sets) do
-        -- Skip internal sets (start with special chars)
-        if not string.find(setName, "^~") then
+local function ScanItemRackStock(sets)
+    -- Stock Gello ItemRack: ItemRackUser.Sets[name].equip[slot] = "itemID:..."
+    -- Internal sets start with "~".
+    local scanned = 0
+    for setName, setInfo in pairs(sets) do
+        if type(setName) == "string" and not string.find(setName, "^~") then
             local itemIDs = {}
-            if setInfo.equip then
-                for slot, itemString in pairs(setInfo.equip) do
-                    -- ItemRack format: "itemID:enchant:suffix:unique"
-                    if type(itemString) == "string" then
-                        local _, _, idStr = string.find(itemString, "^(%d+)")
-                        local itemID = tonumber(idStr)
-                        if itemID and itemID > 0 then
-                            itemIDs[itemID] = true
-                        end
-                    elseif type(itemString) == "number" then
-                        if itemString > 0 then
-                            itemIDs[itemString] = true
-                        end
-                    end
+            if type(setInfo) == "table" and setInfo.equip then
+                for _, itemString in pairs(setInfo.equip) do
+                    local itemID = ExtractItemRackID(itemString)
+                    if itemID then itemIDs[itemID] = true end
                 end
             end
-
             setData[setName] = { itemIDs = itemIDs, source = "ItemRack" }
-            scannedSets = scannedSets + 1
+            scanned = scanned + 1
+        end
+    end
+    return scanned
+end
+
+local function ScanItemRackFork(sets)
+    -- Turtle/Khalil ItemRack fork: Rack_User[user].Sets[name][slotNum] =
+    -- { id = "item:<id>:<enchant>:<suffix>", name = "ItemName" }. Internal
+    -- sets are prefixed "Rack-" or "ItemRack".
+    local scanned = 0
+    for setName, setInfo in pairs(sets) do
+        if type(setName) == "string"
+           and not string.find(setName, "^Rack%-")
+           and not string.find(setName, "^ItemRack")
+           and type(setInfo) == "table" then
+            local itemIDs = {}
+            for k, v in pairs(setInfo) do
+                if type(k) == "number" and type(v) == "table" then
+                    local itemID = ExtractItemRackID(v.id)
+                    if itemID then itemIDs[itemID] = true end
+                end
+            end
+            setData[setName] = { itemIDs = itemIDs, source = "ItemRack" }
+            scanned = scanned + 1
+        end
+    end
+    return scanned
+end
+
+local function IsItemRackLoaded()
+    if ItemRackUser and ItemRackUser.Sets then return true end
+    if Rack_User then
+        local userKey = UnitName("player") .. " of " .. GetRealmName()
+        if Rack_User[userKey] and Rack_User[userKey].Sets then return true end
+    end
+    return false
+end
+
+local function ScanItemRack()
+    local scannedSets = 0
+
+    if ItemRackUser and ItemRackUser.Sets then
+        addon:Debug("EquipmentSets: Scanning ItemRack (stock) sets...")
+        scannedSets = scannedSets + ScanItemRackStock(ItemRackUser.Sets)
+    end
+
+    if Rack_User then
+        local userKey = UnitName("player") .. " of " .. GetRealmName()
+        local userData = Rack_User[userKey]
+        if userData and userData.Sets then
+            addon:Debug("EquipmentSets: Scanning ItemRack (fork) sets for " .. userKey)
+            scannedSets = scannedSets + ScanItemRackFork(userData.Sets)
         end
     end
 
+    if scannedSets == 0 then return false end
     addon:Debug("EquipmentSets: Scanned %d ItemRack sets", scannedSets)
-    return scannedSets > 0
+    return true
 end
 
 -------------------------------------------
@@ -233,8 +287,8 @@ function EquipmentSets:Initialize()
             FullScan()
         end
 
-        -- Check if ItemRack is already loaded
-        if ItemRackUser and ItemRackUser.Sets then
+        -- Check if ItemRack is already loaded (stock or fork)
+        if IsItemRackLoaded() then
             itemRackReady = true
             FullScan()
         end
@@ -264,12 +318,27 @@ function EquipmentSets:Initialize()
         if this.checks > 30 then
             this:Hide()
             -- Do a final scan anyway in case addons loaded without events
-            if Outfitter_GetCategoryOrder or (ItemRackUser and ItemRackUser.Sets) then
+            if Outfitter_GetCategoryOrder or IsItemRackLoaded() then
                 FullScan()
             end
         end
     end)
     initCheckFrame:Show()
+
+    -- Initial scan: PLAYER_LOGIN runs after PLAYER_ENTERING_WORLD and any
+    -- ADDON_LOADED for addons that loaded before Guda, so the handlers
+    -- registered above would miss the initial session for already-loaded
+    -- ItemRack/Outfitter. Catch them here.
+    if Outfitter_GetCategoryOrder or gOutfitter_Initialized then
+        outfitterReady = true
+        HookOutfitterEvents()
+    end
+    if IsItemRackLoaded() then
+        itemRackReady = true
+    end
+    if outfitterReady or itemRackReady then
+        FullScan()
+    end
 
     addon:Debug("EquipmentSets: Module initialized")
 end
