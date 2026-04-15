@@ -2441,7 +2441,6 @@ function Guda_ItemButton_OnLeave(self)
     -- Clear any viewed character hint on the tooltip when leaving
     if GameTooltip then
         GameTooltip.GudaViewedCharacter = nil
-        GameTooltip.GudaInventoryAdded = nil
     end
     GameTooltip:Hide()
     ResetCursor()

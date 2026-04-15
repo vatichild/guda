@@ -257,12 +257,6 @@ function Tooltip:AddInventoryInfo(tooltip, link)
 		return
 	end
 
-	-- Guard against double-adding for the same item on the same tooltip
-	if tooltip.GudaInventoryAdded == itemID then
-		return
-	end
-	tooltip.GudaInventoryAdded = itemID
-
 	local totalBags = 0
 	local totalBank = 0
 	local totalMail = 0
