@@ -17,9 +17,30 @@ local CLAM_IDS = {
     [15874] = true,  -- Soft-shelled Clam
 }
 
-local OPEN_DELAY = 0.3   -- seconds between opens; lets loot/bag updates settle
+local OPEN_DELAY = 0.5   -- seconds between opens; lets loot/bag updates settle
+local QUIET_DELAY = 0.5  -- seconds of silence after a *_CLOSED event before auto-opening
 local running = false
 local silentRun = false
+local pendingToken = 0   -- bumped on every auto-trigger and on LOOT_OPENED to cancel stale timers
+
+-- Returns true if any blocking window (loot/mail/trade/merchant/bank/auction)
+-- is currently open. We don't want to UseContainerItem while these are active --
+-- it can race the open window or get queued and lost.
+local function IsBlockingWindowOpen()
+    local frames = {
+        "LootFrame", "MailFrame", "TradeFrame", "MerchantFrame",
+        "BankFrame", "AuctionFrame",
+        -- Guda's own bank/mail frames too
+        "Guda_BankFrame", "Guda_MailboxFrame",
+    }
+    for _, name in ipairs(frames) do
+        local f = getglobal(name)
+        if f and f.IsShown and f:IsShown() then
+            return true
+        end
+    end
+    return false
+end
 
 -- Find the next clam in player bags. Returns bagID, slotID, itemLink or nil.
 local function FindNextClam()
@@ -44,8 +65,8 @@ end
 local function StopRun(reason)
     if not running then return end
     running = false
-    -- Don't unregister BAG_UPDATE — it's the auto-trigger. Only drop the
-    -- per-run UI_ERROR_MESSAGE listener.
+    -- Only drop the per-run UI_ERROR_MESSAGE listener; the persistent auto-
+    -- trigger events stay registered.
     addon.Modules.Events:UnregisterOwner("ClamOpener_Run")
     if reason and not silentRun then
         addon:Print(reason)
@@ -56,8 +77,13 @@ end
 local function OpenNext()
     if not running then return end
 
-    if CursorHasItem() then
-        -- Cursor is busy with something else; try again shortly.
+    -- Never use a clam while something else is in-flight: cursor busy,
+    -- a blocking window open, or a server-side loot still active. Any of
+    -- these + UseContainerItem races the client loot state machine and
+    -- can soft-lock the loot UI ("too far away" greyed-out items).
+    if CursorHasItem()
+       or IsBlockingWindowOpen()
+       or (GetNumLootItems and GetNumLootItems() > 0) then
         Guda_ScheduleTimer(OPEN_DELAY, OpenNext)
         return
     end
@@ -106,50 +132,45 @@ function ClamOpener:Open(silent)
     OpenNext()
 end
 
--- Returns true if any blocking window (loot/mail/trade/merchant/bank/auction)
--- is currently open. We don't want to UseContainerItem while these are active —
--- it can race the open window or get queued and lost.
-local function IsBlockingWindowOpen()
-    local frames = {
-        "LootFrame", "MailFrame", "TradeFrame", "MerchantFrame",
-        "BankFrame", "AuctionFrame",
-        -- Guda's own bank/mail frames too
-        "Guda_BankFrame", "Guda_MailboxFrame",
-    }
-    for _, name in ipairs(frames) do
-        local f = getglobal(name)
-        if f and f.IsShown and f:IsShown() then
-            return true
-        end
-    end
-    return false
-end
-
 -- Initialize auto-open. Triggers:
---   * BAG_UPDATE      — catches clams that arrived without a blocking window.
 --   * LOOT_CLOSED     — the common case: clam looted from a corpse.
 --   * MAIL_CLOSED     — clam received via mail.
 --   * TRADE_CLOSED    — clam received via trade.
 --   * BANKFRAME_CLOSED — clam withdrawn from bank.
--- Each trigger defers ~0.15s and then attempts a silent Open(); the running
--- guard, the FindNextClam check, and the IsBlockingWindowOpen guard absorb
--- the noise of multiple events firing in quick succession.
+--   * LOOT_OPENED     — cancel-only: a new loot window during the quiet period
+--                       invalidates any pending auto-open. The matching
+--                       LOOT_CLOSED will re-arm it.
+-- BAG_UPDATE is intentionally NOT a trigger: it fires many times during
+-- AutoLoot's per-slot loop, which would stack timers that race the client's
+-- loot-close transition and soft-lock the loot window.
+-- Every trigger bumps a monotonic token; each scheduled callback captures its
+-- token at schedule time and only fires if no newer event has superseded it.
 function ClamOpener:Initialize()
+    local function OnLootOpened()
+        -- New loot window just opened: cancel any pending auto-open. The
+        -- matching LOOT_CLOSED will re-arm it once that window is done.
+        pendingToken = pendingToken + 1
+    end
+
     local function tryAutoOpen()
         if running then return end
         if not (Guda.Modules.DB and Guda.Modules.DB:GetSetting("autoOpenClams")) then
             return
         end
-        Guda_ScheduleTimer(0.15, function()
+        pendingToken = pendingToken + 1
+        local myToken = pendingToken
+        Guda_ScheduleTimer(QUIET_DELAY, function()
+            if myToken ~= pendingToken then return end
             if running then return end
             if IsBlockingWindowOpen() then return end
+            if GetNumLootItems and GetNumLootItems() > 0 then return end
             ClamOpener:Open(true)
         end)
     end
 
-    addon.Modules.Events:Register("BAG_UPDATE",        tryAutoOpen, "ClamOpener")
-    addon.Modules.Events:Register("LOOT_CLOSED",       tryAutoOpen, "ClamOpener")
-    addon.Modules.Events:Register("MAIL_CLOSED",       tryAutoOpen, "ClamOpener")
-    addon.Modules.Events:Register("TRADE_CLOSED",      tryAutoOpen, "ClamOpener")
-    addon.Modules.Events:Register("BANKFRAME_CLOSED",  tryAutoOpen, "ClamOpener")
+    addon.Modules.Events:Register("LOOT_OPENED",       OnLootOpened, "ClamOpener")
+    addon.Modules.Events:Register("LOOT_CLOSED",       tryAutoOpen,  "ClamOpener")
+    addon.Modules.Events:Register("MAIL_CLOSED",       tryAutoOpen,  "ClamOpener")
+    addon.Modules.Events:Register("TRADE_CLOSED",      tryAutoOpen,  "ClamOpener")
+    addon.Modules.Events:Register("BANKFRAME_CLOSED",  tryAutoOpen,  "ClamOpener")
 end
