@@ -234,9 +234,9 @@ function Guda_BankFrame_OnHide(self)
         end
     end
 
-    -- Close the actual Blizzard bank too
-    local blizzardBankFrame = getglobal("BankFrame")
-    if blizzardBankFrame and blizzardBankFrame:IsShown() then
+    -- Close the server-side bank session only when viewing our own real bank;
+    -- saved banks of other chars have no active NPC session to close.
+    if not currentViewChar then
         CloseBankFrame()
     end
 end
@@ -1848,28 +1848,17 @@ function Guda_BankFrame_SwitchToBlizzardUI()
         customBankFrame:Hide()
     end
 
-    -- Restore Blizzard bank frame
-    local blizzardBankFrame = getglobal("BankFrame")
-    if blizzardBankFrame then
-        blizzardBankFrame:SetAlpha(1.0)
-        blizzardBankFrame:ClearAllPoints()
-        blizzardBankFrame:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 0, -104)
-        blizzardBankFrame:Show()
-        
-        -- Show the Guda button if it exists
-        BankFrame:ShowGudaButton()
-    end
+    -- Restore Blizzard bank frame (re-installs native OnHide)
+    BankFrame:ShowBlizzardBank()
+
+    -- Show the Guda button if it exists
+    BankFrame:ShowGudaButton()
 end
 
 -- Switch from Blizzard bank UI back to Guda UI
 function Guda_BankFrame_SwitchToGudaUI()
-    -- Move Blizzard bank frame off-screen (keep it shown so bank session stays active)
-    local blizzardBankFrame = getglobal("BankFrame")
-    if blizzardBankFrame then
-        blizzardBankFrame:ClearAllPoints()
-        blizzardBankFrame:SetPoint("TOPLEFT", UIParent, "TOPLEFT", -10000, 10000)
-        blizzardBankFrame:SetAlpha(0)
-    end
+    -- Hide Blizzard bank frame (OnHide is neutralized so the session stays open)
+    BankFrame:HideBlizzardBank()
     
     -- Hide the Guda button
     local gudaButton = getglobal("BankFrame_GudaButton")
@@ -2104,15 +2093,39 @@ function BankFrame:UpdateFooterVisibility()
     end
 end
 
+-- BankFrame's native OnHide calls CloseBankFrame(), which ends the server
+-- bank session. We neutralize it while in Guda mode so :Hide() is safe.
+local bankFrameOriginalOnHide = nil
+
+function BankFrame:HideBlizzardBank()
+    local blizzardBankFrame = getglobal("BankFrame")
+    if not blizzardBankFrame then return end
+
+    if bankFrameOriginalOnHide == nil then
+        bankFrameOriginalOnHide = blizzardBankFrame:GetScript("OnHide") or false
+    end
+    blizzardBankFrame:SetScript("OnHide", nil)
+
+    -- Route through HideUIPanel so the panel stack gets cleaned up; otherwise
+    -- Escape/GameMenu thinks a panel is still open and won't show the menu.
+    if blizzardBankFrame:IsShown() then
+        HideUIPanel(blizzardBankFrame)
+    end
+end
+
+function BankFrame:ShowBlizzardBank()
+    local blizzardBankFrame = getglobal("BankFrame")
+    if not blizzardBankFrame then return end
+
+    if bankFrameOriginalOnHide then
+        blizzardBankFrame:SetScript("OnHide", bankFrameOriginalOnHide)
+    end
+    ShowUIPanel(blizzardBankFrame)
+end
+
 -- Initialize
 function BankFrame:Initialize()
-    -- Move Blizzard bank frame off-screen on load (keep it shown so bank session stays active)
-    local blizzardBankFrame = getglobal("BankFrame")
-    if blizzardBankFrame then
-        blizzardBankFrame:ClearAllPoints()
-        blizzardBankFrame:SetPoint("TOPLEFT", UIParent, "TOPLEFT", -10000, 10000)
-        blizzardBankFrame:SetAlpha(0)
-    end
+    self:HideBlizzardBank()
     
     -- Create Guda button on Blizzard BankFrame
     self:CreateGudaButtonOnBlizzardUI()
@@ -2124,6 +2137,9 @@ function BankFrame:Initialize()
 
     -- Update when bank is opened
     addon.Modules.Events:OnBankOpen(function()
+        -- Blizzard's default handler Show()s BankFrame on BANKFRAME_OPENED; re-hide it.
+        addon.Modules.BankFrame:HideBlizzardBank()
+
         -- Delay showing custom bank to let TransmogUI finish processing (uses pooled timer)
         Guda_ScheduleTimer(0.2, function()
             -- Show current character's bank in interactive mode
