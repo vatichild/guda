@@ -581,6 +581,18 @@ function ItemDetection:IsUnusable(itemData, bagID, slotID)
     return props.isUnusable
 end
 
+-- Cache-only lookup. Returns true/false when cached, nil when unknown
+-- (no tooltip scan, no side effects). Lets the layout path skip tinting
+-- on cold cache without blocking on ~80 tooltip scans.
+function ItemDetection:IsUnusableCached(itemData)
+    if not itemData or not itemData.link then return nil end
+    local cacheKey = GetCacheKey(itemData.link)
+    if not cacheKey then return nil end
+    local props = detectionCache[cacheKey]
+    if not props then return nil end
+    return props.isUnusable
+end
+
 function ItemDetection:GetCharges(itemData, bagID, slotID)
     if not bagID or not slotID then return nil end
     local slotKey = bagID .. ":" .. slotID

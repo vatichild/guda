@@ -1056,6 +1056,17 @@ function CategoryManager:GetCategoriesByPriority()
     return sorted
 end
 
+-- Cache-only variant. Returns the cached category id if present, or nil.
+-- Used by the bag-open layout path so it never triggers cold-cache rule
+-- evaluation (which can cascade into tooltip scans per item). CacheWarmer
+-- populates the cache in the background; bags re-layout once warmup finishes.
+function CategoryManager:CategorizeItemCached(itemData, isOtherChar)
+    if not itemData or not itemData.link then return nil end
+    local cacheKey = GetCacheKey(itemData.link, isOtherChar)
+    if not cacheKey then return nil end
+    return categoryCache[cacheKey]
+end
+
 -- Categorize an item using the rule engine
 -- Returns category ID or "Miscellaneous" as fallback
 function CategoryManager:CategorizeItem(itemData, bagID, slotID, isOtherChar)

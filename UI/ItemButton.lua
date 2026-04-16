@@ -848,8 +848,10 @@ end
 -- The old IsItemUnusable, IsRedColor, and durabilityPattern have been removed
 -- to prevent redundant tooltip scanning - all detection is now centralized.
 
--- Apply/remove red tint on item texture for unusable items
-local function Guda_ItemButton_UpdateUsableTint(self)
+-- Apply/remove red tint on item texture for unusable items.
+-- When cacheOnly is true, skips the tooltip scan on cold cache and returns
+-- untinted — the deferred pass in BagFrame fills in tints later.
+local function Guda_ItemButton_UpdateUsableTint(self, cacheOnly)
 -- Clear any existing tint/overlay first
 	if self.unusableOverlay and self.unusableOverlay.Hide then
 		self.unusableOverlay:Hide()
@@ -880,7 +882,16 @@ local function Guda_ItemButton_UpdateUsableTint(self)
 	-- Use cached detection from ItemDetection module (avoids duplicate tooltip scans)
 	local unusable = false
 	if self.itemData and addon.Modules.ItemDetection then
-		unusable = addon.Modules.ItemDetection:IsUnusable(self.itemData, self.bagID, self.slotID)
+		if cacheOnly then
+			local cached = addon.Modules.ItemDetection:IsUnusableCached(self.itemData)
+			if cached == nil then
+				-- Unknown; leave untinted. Deferred pass fills this in later.
+				return
+			end
+			unusable = cached
+		else
+			unusable = addon.Modules.ItemDetection:IsUnusable(self.itemData, self.bagID, self.slotID)
+		end
 	end
 
 	-- Ensure overlay exists (created in OnLoad, but be defensive)
@@ -1885,9 +1896,10 @@ function Guda_ItemButton_SetItem(self, bagID, slotID, itemData, isBank, otherCha
             if cd and cd.Hide then cd:Hide() end
         end
 
-        -- Update unusable red overlay tint
+        -- Update unusable red overlay tint (cache-only on the layout path;
+        -- deferred pass in BagFrame runs the full scan spread via QueueWork).
         if Guda_ItemButton_UpdateUsableTint then
-            Guda_ItemButton_UpdateUsableTint(self)
+            Guda_ItemButton_UpdateUsableTint(self, true)
         end
     else
         -- Clear empty slot

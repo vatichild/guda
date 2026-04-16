@@ -42,9 +42,19 @@ function Guda_CategorizeItem(itemData, bagID, slotID, categories, specialItems, 
         return
     end
 
-    -- Use CategoryManager rule engine if available, otherwise fall back to legacy logic
+    -- Use CategoryManager rule engine if available, otherwise fall back to legacy logic.
+    -- Fast path: cache-only lookup. CacheWarmer populates categoryCache in the
+    -- background; on cold miss we skip rule evaluation (which would otherwise
+    -- trigger tooltip scans per item) and use itemData.class as a rough bucket.
+    -- CacheWarmer's completion marker re-triggers BagFrame:Update so items land
+    -- in their real categories once warmup finishes.
     if addon.Modules.CategoryManager then
-        cat = addon.Modules.CategoryManager:CategorizeItem(itemData, bagID, slotID, isOtherChar)
+        if addon.Modules.CategoryManager.CategorizeItemCached then
+            cat = addon.Modules.CategoryManager:CategorizeItemCached(itemData, isOtherChar)
+        end
+        if not cat then
+            cat = itemData.class or "Miscellaneous"
+        end
         if not categories[cat] then cat = "Miscellaneous" end
         table.insert(categories[cat], {bagID = bagID, slotID = slotID, itemData = itemData})
         return

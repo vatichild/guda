@@ -102,24 +102,27 @@ local function CancelDeferredUsabilityCheck()
     end
 end
 
--- Update usability tints on all visible item buttons
-local function UpdateAllUsabilityTints()
+-- Update usability tints on all visible item buttons — cache-only.
+-- Every SetBagItem tooltip scan on a cold item can block 50-500ms, so we
+-- never trigger scans from the bag-open path. Tints appear for items
+-- already cached; uncached items stay untinted until CacheWarmer fills
+-- them in (its BagFrame hook triggers a re-sweep when done).
+function Guda_BagFrame_UpdateAllUsabilityTints()
     if not Guda_BagFrame or not Guda_BagFrame:IsShown() then return end
-    -- Don't scan ~80 tooltips synchronously while the user is dragging the
-    -- frame — it can stall the engine for multiple seconds on cold caches.
-    -- The caller will reschedule after the drag ends.
     if isFrameMoving then return end
 
     for _, bagParent in pairs(bagParents) do
         if bagParent and bagParent.itemButtons then
             for button in pairs(bagParent.itemButtons) do
                 if button.hasItem and button:IsShown() and Guda_ItemButton_UpdateUsableTint then
-                    Guda_ItemButton_UpdateUsableTint(button)
+                    Guda_ItemButton_UpdateUsableTint(button, true)  -- cacheOnly
                 end
             end
         end
     end
 end
+
+local UpdateAllUsabilityTints = Guda_BagFrame_UpdateAllUsabilityTints
 
 -- Schedule a deferred usability check with debouncing
 local function ScheduleDeferredUsabilityCheck()
