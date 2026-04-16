@@ -1012,22 +1012,29 @@ function CategoryManager:EvaluateCategoryRules(categoryDef, itemData, bagID, slo
 
     local matchMode = categoryDef.matchMode or "any"
 
-    if matchMode == "all" then
-        -- All rules must match
-        for _, rule in ipairs(rules) do
-            if not self:EvaluateRule(rule, itemData, bagID, slotID, isOtherChar) then
-                return false
-            end
+    local hasRequired, hasOptional = false, false
+    local requiredAllPass, optionalAnyPass, optionalAllPass = true, false, true
+
+    for _, rule in ipairs(rules) do
+        local pass = self:EvaluateRule(rule, itemData, bagID, slotID, isOtherChar)
+        if rule.required then
+            hasRequired = true
+            if not pass then requiredAllPass = false end
+        else
+            hasOptional = true
+            if pass then optionalAnyPass = true else optionalAllPass = false end
         end
+    end
+
+    if matchMode == "all" then
+        if hasRequired and not requiredAllPass then return false end
+        if hasOptional and not optionalAllPass then return false end
         return true
     else
-        -- Any rule must match
-        for _, rule in ipairs(rules) do
-            if self:EvaluateRule(rule, itemData, bagID, slotID, isOtherChar) then
-                return true
-            end
-        end
-        return false
+        -- "any" mode: required rules must ALL pass; among optional rules at least one must pass
+        if hasRequired and not requiredAllPass then return false end
+        if hasOptional then return optionalAnyPass end
+        return hasRequired
     end
 end
 

@@ -2556,7 +2556,11 @@ function Guda_CategoryEditor_Open(categoryId)
     editorRules = {}
     if categoryDef.rules then
         for i, rule in ipairs(categoryDef.rules) do
-            table.insert(editorRules, { type = rule.type, value = rule.value })
+            table.insert(editorRules, {
+                type = rule.type,
+                value = rule.value,
+                required = rule.required and true or false,
+            })
         end
     end
 
@@ -2627,6 +2631,11 @@ function Guda_CategoryEditor_SetMatchMode(mode)
 
     if anyRadio then anyRadio:SetChecked(mode == "any" and 1 or 0) end
     if allRadio then allRadio:SetChecked(mode == "all" and 1 or 0) end
+
+    -- Re-render rule rows so pin buttons reflect new enabled state
+    if Guda_CategoryEditor_UpdateRulesDisplay then
+        Guda_CategoryEditor_UpdateRulesDisplay()
+    end
 end
 
 -- Get or create a rule row frame
@@ -2644,11 +2653,38 @@ local function GetRuleRowFrame(index)
     row:SetWidth(310)
     row:SetPoint("TOPLEFT", container, "TOPLEFT", 0, -((index - 1) * RULE_ROW_HEIGHT))
 
+    -- Required (pin) toggle button
+    local reqBtn = CreateFrame("Button", rowName .. "_ReqBtn", row)
+    reqBtn:SetWidth(18)
+    reqBtn:SetHeight(18)
+    reqBtn:SetPoint("LEFT", row, "LEFT", 0, 0)
+    local reqTex = reqBtn:CreateTexture(nil, "ARTWORK")
+    reqTex:SetAllPoints(reqBtn)
+    reqTex:SetTexture("Interface\\AddOns\\Guda\\Assets\\pin")
+    reqBtn.tex = reqTex
+    reqBtn.ruleIndex = index
+    reqBtn:SetScript("OnClick", function()
+        local idx = this.ruleIndex
+        if editorMatchMode == "all" then return end
+        if editorRules[idx] then
+            editorRules[idx].required = not editorRules[idx].required
+            Guda_CategoryEditor_UpdateRulesDisplay()
+        end
+    end)
+    reqBtn:SetScript("OnEnter", function()
+        GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+        GameTooltip:AddLine(Guda_L["Required rule"], 1, 0.82, 0)
+        GameTooltip:AddLine(Guda_L["Required rule tooltip"], 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    reqBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    row.reqBtn = reqBtn
+
     -- Rule type dropdown button
     local typeBtn = CreateFrame("Button", rowName .. "_TypeBtn", row, "UIPanelButtonTemplate")
-    typeBtn:SetWidth(120)
+    typeBtn:SetWidth(105)
     typeBtn:SetHeight(22)
-    typeBtn:SetPoint("LEFT", row, "LEFT", 0, 0)
+    typeBtn:SetPoint("LEFT", reqBtn, "RIGHT", 4, 0)
     typeBtn:SetText(Guda_L["Select Type"])
     typeBtn.ruleIndex = index
     typeBtn:SetScript("OnClick", function()
@@ -2849,6 +2885,23 @@ function Guda_CategoryEditor_UpdateRulesDisplay()
                 row.valueBox.ruleIndex = ruleIndex
                 row.valueBtn.ruleIndex = ruleIndex
                 row.deleteBtn.ruleIndex = ruleIndex
+                if row.reqBtn then
+                    row.reqBtn.ruleIndex = ruleIndex
+                    if rule.required then
+                        row.reqBtn.tex:SetVertexColor(1, 0.82, 0)
+                        row.reqBtn.tex:SetDesaturated(nil)
+                    else
+                        row.reqBtn.tex:SetVertexColor(0.45, 0.45, 0.45)
+                        row.reqBtn.tex:SetDesaturated(1)
+                    end
+                    if editorMatchMode == "all" then
+                        row.reqBtn:Disable()
+                        row.reqBtn.tex:SetAlpha(0.35)
+                    else
+                        row.reqBtn:Enable()
+                        row.reqBtn.tex:SetAlpha(1)
+                    end
+                end
 
                 -- Set type button text
                 local typeName = "Select Type"
@@ -3137,7 +3190,11 @@ function Guda_CategoryEditor_Save()
     categoryDef.rules = {}
     for _, rule in ipairs(editorRules) do
         if rule.type and rule.type ~= "" then
-            table.insert(categoryDef.rules, { type = rule.type, value = rule.value })
+            table.insert(categoryDef.rules, {
+                type = rule.type,
+                value = rule.value,
+                required = rule.required and true or nil,
+            })
         end
     end
 
